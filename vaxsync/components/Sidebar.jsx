@@ -39,15 +39,16 @@ export default function Sidebar() {
     { name: "Notifications", icon: Bell, path: "/notifications" },
     { name: "User Management", icon: Users, path: "/users" },
     { name: "Settings", icon: Settings, path: "/settings" },
-    { name: "Logout", icon: LogOut, path: "/logout" },
   ];
+
+  const logoutItem = { name: "Logout", icon: LogOut, path: "/logout" };
 
   return (
     <>
       {/* Mobile Button */}
       <Button
         variant="ghost"
-        className="lg:hidden fixed top-4 left-4 z-50 text-white"
+        className="lg:hidden fixed top-4 left-4 z-50 text-gray-700"
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -55,50 +56,72 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 w-64 bg-gray-900 text-gray-200 p-4 flex flex-col border-r border-gray-700 transform transition-transform duration-300 ease-in-out lg:transform-none ${
+        className={`fixed inset-y-0 left-0 w-64 bg-[#F2F2F2] text-gray-800 flex flex-col border-r border-gray-300 transform transition-transform duration-300 ease-in-out lg:transform-none ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0 z-40`}
       >
-        <div className="flex items-center justify-between mb-6">
-          <div className="text-center font-semibold text-lg text-white tracking-wide">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-6 border-b border-gray-300">
+          <div className="font-semibold text-lg text-gray-900 tracking-wide">
             VaxSync
           </div>
           <Button
             variant="ghost"
-            className="lg:hidden text-gray-300"
+            className="lg:hidden text-gray-700 p-1"
             onClick={() => setIsOpen(false)}
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <nav className="space-y-1 flex-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.path;
 
-            return (
-              <Button
-                key={item.name}
-                asChild
-                variant={isActive ? "secondary" : "ghost"}
-                className={`w-full justify-start text-sm font-medium ${
-                  isActive
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "text-gray-300 hover:bg-gray-800"
-                }`}
-                onClick={() => setIsOpen(false)} // Close sidebar on item click in mobile
-              >
-                <Link href={item.path}>
-                  <Icon className="mr-2 h-4 w-4" />
-                  {item.name}
-                </Link>
-              </Button>
-            );
-          })}
+        {/* Menu Items */}
+        <nav className="flex-1 overflow-y-auto px-4 py-4">
+          <div className="space-y-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.path;
+
+              return (
+                <Button
+                  key={item.name}
+                  asChild
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={`w-full justify-start text-base font-base px-4 py-6 ${
+                    isActive
+                      ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
+                      : "text-gray-700 hover:bg-gray-300"
+                  }`}
+                  onClick={() => setIsOpen(false)}
+                >
+                  <Link href={item.path}>
+                    <Icon className="mr-3 h-5 w-5" />
+                    {item.name}
+                  </Link>
+                </Button>
+              );
+            })}
+          </div>
         </nav>
+
+        {/* Logout Button */}
+        <div className="px-4 py-4 border-t border-gray-300">
+          <Button
+            asChild
+            variant={pathname === logoutItem.path ? "secondary" : "ghost"}
+            className={`w-full justify-start text-base font-medium px-4 py-5 ${
+              pathname === logoutItem.path
+                ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
+                : "text-gray-700 hover:bg-gray-300"
+            }`}
+            onClick={() => setIsOpen(false)}
+          >
+            <Link href={logoutItem.path}>
+              <LogOut className="mr-3 h-5 w-5" />
+              {logoutItem.name}
+            </Link>
+          </Button>
+        </div>
       </div>
-
-
     </>
   );
 }
