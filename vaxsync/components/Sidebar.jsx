@@ -89,7 +89,7 @@ export default function Sidebar() {
                   className={`w-full justify-start text-base font-base px-4 py-6 ${
                     isActive
                       ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
-                      : "text-gray-700 hover:bg-gray-300"
+                      : "text-gray-900 hover:bg-gray-300"
                   }`}
                   onClick={() => setIsOpen(false)}
                 >
@@ -111,7 +111,7 @@ export default function Sidebar() {
             className={`w-full justify-start text-base font-medium px-4 py-5 ${
               pathname === logoutItem.path
                 ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
-                : "text-gray-700 hover:bg-gray-300"
+                : "text-gray-900 hover:bg-gray-300"
             }`}
             onClick={() => setIsOpen(false)}
           >
