@@ -2,7 +2,8 @@ import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Inventory({
   title = "Inventory Management",
@@ -27,6 +28,10 @@ export default function Inventory({
               placeholder="Search by vaccine name or batch..."
               className="w-full text-sm"
             />
+            <Button className="ml-2 py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] w-48">
+              <Plus className="w-4 h-4" />
+              <span>Add Vaccine</span>
+            </Button>
           </div>
 
           {children}
