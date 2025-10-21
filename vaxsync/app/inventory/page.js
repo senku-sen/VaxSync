@@ -1,6 +1,9 @@
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+
 export default function Inventory({
   title = "Inventory Management",
   subtitle = "Manage vaccine stock and supplies",
@@ -16,8 +19,21 @@ export default function Inventory({
         <Header title={title} subtitle={subtitle} />
 
         {/* Main Content */}
-        <main className="p-4  flex-1 overflow-auto">{children}</main>
+        <main className="p-9  flex-1 overflow-auto">
+          <div className="flex items-center space-x-2 ">
+            <Search className="text-gray-400" /> {/* makes the icon lighter */}
+            <Input
+              type="text"
+              placeholder="Search by vaccine name or batch..."
+              className="w-full text-sm"
+            />
+          </div>
+
+          {children}
+        </main>
       </div>
     </div>
   );
 }
+
+// 3E5F44
