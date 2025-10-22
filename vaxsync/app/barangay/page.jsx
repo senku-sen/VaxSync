@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,12 +20,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, X } from "lucide-react";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { fetchBarangays, insertBarangay } from '@/lib/barangay';
 
 export default function Inventory({
   title = "Barangay Management",
   subtitle = "Register and manage barangays for health worker assignment",
 }) {
   const [barangays, setBarangays] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -38,23 +40,52 @@ export default function Inventory({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Simulate ID generation (in real app, use UUID)
-    const newBarangay = {
-      id: crypto.randomUUID(),
-      ...formData,
-      created_at: new Date().toISOString(),
-    };
-    setBarangays([newBarangay, ...barangays]);
-    setFormData({ name: "", municipality: "", health_center_name: "", health_center_address: "" });
-    setIsOpen(false);
-    setSuccessMessage(`Barangay "${formData.name}" added successfully.`);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    (async () => {
+      setIsLoading(true);
+      const payload = {
+        ...formData,
+        created_at: new Date().toISOString(),
+      };
+      const { data, error } = await insertBarangay(payload);
+      if (error) {
+        console.error('Error inserting barangay:', error);
+        // show richer error message when possible
+        const errMsg = error?.message || error?.msg || JSON.stringify(error);
+        setSuccessMessage(`Failed to add barangay: ${errMsg}`);
+        setShowSuccess(true);
+        // keep the dialog open for user to correct
+        setTimeout(() => setShowSuccess(false), 6000);
+      } else {
+        setFormData({ name: "", municipality: "", health_center_name: "", health_center_address: "" });
+        setIsOpen(false);
+        setSuccessMessage(`Barangay "${formData.name}" added successfully.`);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+        // refresh list
+        loadBarangays();
+      }
+      setIsLoading(false);
+    })();
   };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
+
+  const loadBarangays = async () => {
+    setIsLoading(true);
+    const { data, error } = await fetchBarangays();
+    if (error) {
+      console.error('Error fetching barangays:', error);
+    } else {
+      setBarangays(data || []);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadBarangays();
+  }, []);
 
   return (
     <div className="flex h-screen flex-col lg:flex-row">
