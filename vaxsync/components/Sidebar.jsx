@@ -28,6 +28,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: "Dashboard", icon: LayoutDashboard, path: "/" },
+    { name: "Barangay", icon: User, path: "/barangay" },
     { name: "Inventory", icon: Boxes, path: "/inventory" },
     { name: "Vaccination", icon: Syringe, path: "/vaccination" },
     { name: "Schedule", icon: CalendarDays, path: "/schedule" },
