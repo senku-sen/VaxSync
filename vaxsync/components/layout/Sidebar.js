@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
+import Toast from '@/components/common/Toast';
 
 const Icon = ({ name, isActive }) => {
   const iconClass = `w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`;
@@ -75,6 +78,27 @@ const Icon = ({ name, isActive }) => {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  const handleLogout = () => {
+    // Simulate logout process
+    setToast({ show: true, message: 'Logging out...', type: 'info' });
+    
+    setTimeout(() => {
+      // Clear any stored user data (localStorage, sessionStorage, etc.)
+      // localStorage.removeItem('userToken');
+      // sessionStorage.clear();
+      
+      setToast({ show: true, message: 'Logged out successfully!', type: 'success' });
+      
+      // Redirect to login page after a short delay
+      setTimeout(() => {
+        router.push('/login');
+      }, 1000);
+    }, 500);
+  };
 
   const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
@@ -125,11 +149,34 @@ export default function Sidebar() {
 
       {/* Logout */}
       <div className="p-2 border-t border-gray-200">
-        <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-gray-100 transition-colors">
+        <button 
+          onClick={() => setShowLogoutDialog(true)}
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
+        >
           <Icon name="logout" isActive={false} />
           <span>Logout</span>
         </button>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutDialog}
+        onClose={() => setShowLogoutDialog(false)}
+        onConfirm={handleLogout}
+        title="Logout"
+        message="Are you sure you want to logout? You will need to login again to access the system."
+        confirmText="Logout"
+        cancelText="Cancel"
+        type="warning"
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.show}
+        onClose={() => setToast({ ...toast, show: false })}
+      />
     </div>
   );
 }
