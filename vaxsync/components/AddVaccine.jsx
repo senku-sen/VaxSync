@@ -1,4 +1,4 @@
-// components/AddVaccine.jsx
+// ...existing code...
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +18,7 @@ if (!supabaseUrl || !supabaseKey) {
   console.error('Missing Supabase environment variables');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 const AddVaccine = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -27,7 +27,8 @@ const AddVaccine = ({ onSuccess }) => {
     quantity_available: '',
     expiry_date: '',
     location: '',
-    notes: ''
+    notes: '',
+    status: 'Good' // default status
   });
   const [vaccines, setVaccines] = useState([]);
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
@@ -54,11 +55,10 @@ const AddVaccine = ({ onSuccess }) => {
           code: error.code
         });
         
-        // Check if it's an RLS policy error
-        if (error.code === '42501' || error.message.includes('policy')) {
+        if (error.code === '42501' || (error.message && error.message.includes('policy'))) {
           showAlert('error', 'Access denied. Please ensure you are logged in with proper permissions.');
         } else {
-          showAlert('error', `Failed to fetch vaccines: ${error.message}`);
+          showAlert('error', `Failed to fetch vaccines: ${error.message || 'Unknown error'}`);
         }
       } else {
         setVaccines(data || []);
@@ -89,15 +89,18 @@ const AddVaccine = ({ onSuccess }) => {
     setIsSubmitting(true);
     
     try {
+      const qty = formData.quantity_available === '' ? null : parseInt(formData.quantity_available, 10);
+
       const { data, error } = await supabase
         .from('vaccines')
         .insert({
           name: formData.name,
           batch_number: formData.batch_number,
-          quantity_available: parseInt(formData.quantity_available),
+          quantity_available: qty,
           expiry_date: formData.expiry_date,
           location: formData.location,
           notes: formData.notes,
+          status: formData.status || 'Good',
           created_at: new Date().toISOString()
         })
         .select();
@@ -110,11 +113,10 @@ const AddVaccine = ({ onSuccess }) => {
           code: error.code
         });
         
-        // Check if it's an RLS policy error
-        if (error.code === '42501' || error.message.includes('policy')) {
+        if (error.code === '42501' || (error.message && error.message.includes('policy'))) {
           showAlert('error', 'Access denied. You need admin or officer permissions to add vaccines.');
         } else {
-          showAlert('error', `Failed to add vaccine: ${error.message}`);
+          showAlert('error', `Failed to add vaccine: ${error.message || 'Unknown error'}`);
         }
       } else {
         setFormData({
@@ -123,10 +125,12 @@ const AddVaccine = ({ onSuccess }) => {
           quantity_available: '',
           expiry_date: '',
           location: '',
-          notes: ''
+          notes: '',
+          status: 'Good'
         });
         showAlert('success', 'Vaccine added successfully!');
         fetchVaccines();
+        if (typeof onSuccess === 'function') onSuccess();
       }
     } catch (err) {
       console.error('Unexpected error:', err);
@@ -230,6 +234,22 @@ const AddVaccine = ({ onSuccess }) => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <select
+                    id="status"
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    className="w-full border rounded px-2 py-2"
+                    required
+                  >
+                    <option value="Good">Good</option>
+                    <option value="Expired">Expired</option>
+                    <option value="Low Stock">Low Stock</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Textarea
                     id="notes"
@@ -266,3 +286,4 @@ const AddVaccine = ({ onSuccess }) => {
 };
 
 export default AddVaccine;
+// ...existing code...
