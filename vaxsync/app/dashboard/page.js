@@ -6,8 +6,11 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import AlertBanner from '@/components/dashboard/AlertBanner';
 import UsageTrendChart from '@/components/dashboard/UsageTrendChart';
 import DistributionChart from '@/components/dashboard/DistributionChart';
+import AlertCard from '@/components/alerts/AlertCard';
+import AlertDetailModal from '@/components/alerts/AlertDetailModal';
 
 export default function Dashboard() {
+  const [selectedAlert, setSelectedAlert] = useState(null);
   const [dashboardData, setDashboardData] = useState({
     totalStock: 2450,
     usedToday: 145,
@@ -19,7 +22,52 @@ export default function Dashboard() {
         message: '3 vaccine stocks are running low. Please reorder soon!',
         type: 'warning'
       }
-    ]
+    ],
+    detailedAlerts: {
+      critical: [
+        {
+          id: 1,
+          type: 'low-stock',
+          severity: 'critical',
+          vaccineName: 'COVID-19 Pfizer',
+          batch: 'CV-2025-001',
+          currentStock: 45,
+          threshold: 100,
+          location: 'Cold Storage A',
+          expiryDate: '2025-06-15',
+          message: 'Critical: Only 45 doses remaining',
+          timestamp: '2 hours ago'
+        },
+        {
+          id: 2,
+          type: 'expiring-soon',
+          severity: 'critical',
+          vaccineName: 'Measles MMR',
+          batch: 'MS-2025-003',
+          currentStock: 520,
+          threshold: 100,
+          location: 'Cold Storage A',
+          expiryDate: '2025-01-28',
+          message: 'Expiring in 5 days',
+          timestamp: '3 hours ago'
+        }
+      ],
+      warning: [
+        {
+          id: 3,
+          type: 'low-stock',
+          severity: 'warning',
+          vaccineName: 'Polio IPV',
+          batch: 'PO-2025-002',
+          currentStock: 85,
+          threshold: 100,
+          location: 'Cold Storage B',
+          expiryDate: '2025-08-20',
+          message: 'Stock below threshold: 85 doses remaining',
+          timestamp: '5 hours ago'
+        }
+      ]
+    }
   });
 
   // Simulate real-time updates
@@ -108,6 +156,64 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Detailed Alerts Section */}
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-gray-800">Stock Alerts</h2>
+            <span className="text-xs text-gray-500">
+              {dashboardData.detailedAlerts.critical.length + dashboardData.detailedAlerts.warning.length} active alerts
+            </span>
+          </div>
+
+          {/* Critical Alerts */}
+          {dashboardData.detailedAlerts.critical.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <h3 className="text-sm font-semibold text-gray-800">Critical Alerts</h3>
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                  {dashboardData.detailedAlerts.critical.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {dashboardData.detailedAlerts.critical.map((alert) => (
+                  <AlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onClick={() => setSelectedAlert(alert)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Warning Alerts */}
+          {dashboardData.detailedAlerts.warning.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <h3 className="text-sm font-semibold text-gray-800">Warning Alerts</h3>
+                <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs font-medium rounded-full">
+                  {dashboardData.detailedAlerts.warning.length}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {dashboardData.detailedAlerts.warning.map((alert) => (
+                  <AlertCard
+                    key={alert.id}
+                    alert={alert}
+                    onClick={() => setSelectedAlert(alert)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Weekly Usage Trend */}
@@ -130,6 +236,14 @@ export default function Dashboard() {
         </div>
       </div>
       </div>
+
+      {/* Alert Detail Modal */}
+      {selectedAlert && (
+        <AlertDetailModal
+          alert={selectedAlert}
+          onClose={() => setSelectedAlert(null)}
+        />
+      )}
     </DashboardLayout>
   );
 }
