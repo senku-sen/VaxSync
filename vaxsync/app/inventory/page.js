@@ -8,6 +8,7 @@ import { Search, Plus, SquarePen, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import DeleteConfirm from "@/components/DeleteConfirm";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -26,31 +27,61 @@ export default function Inventory({
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vaccines, setVaccines] = useState([]);
+  const [selectedVaccine, setSelectedVaccine] = useState(null);
+  const [toDelete, setToDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-
-    const fetchVaccines = async () => {
-      const { data, error } = await supabase
-        .from("vaccines")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("Error fetching vaccines:", error);
-      } else {
-        setVaccines(data || []);
-      }
-    };
     fetchVaccines();
   }, []);
 
+  // expose fetch function so other handlers can refresh
+  const fetchVaccines = async () => {
+    const { data, error } = await supabase
+      .from("vaccines")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Error fetching vaccines:", error);
+    } else {
+      setVaccines(data || []);
+    }
+  };
+
   const handleAddVaccineClick = () => {
+    setSelectedVaccine(null);
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+  };
+
+  const handleEdit = (vaccine) => {
+    setSelectedVaccine(vaccine);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (vaccine) => {
+    if (!vaccine || !vaccine.id) return;
+    setToDelete(vaccine);
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete || !toDelete.id) return;
+    const { error } = await supabase
+      .from("vaccines")
+      .delete()
+      .eq("id", toDelete.id);
+    if (error) {
+      console.error("Error deleting vaccine:", error);
+      alert("Failed to delete vaccine");
+    } else {
+      // refresh list
+      fetchVaccines();
+    }
+    setToDelete(null);
   };
 
   const filteredVaccines = vaccines.filter(
@@ -62,20 +93,9 @@ export default function Inventory({
   );
 
   const handleVaccineAdded = () => {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-
-    const fetchVaccines = async () => {
-      const { data, error } = await supabase
-        .from("vaccines")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        console.error("Error fetching vaccines:", error);
-      } else {
-        setVaccines(data || []);
-      }
-    };
+    // refresh list after add/update/delete
     fetchVaccines();
+    setIsModalOpen(false);
   };
 
   const statusBadge = (status) => {
@@ -111,7 +131,7 @@ export default function Inventory({
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:space-x-2 mb-6">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Search className="text-gray-400 flex-shrink-0" />
+              <Search className="text-gray-400 shrink-0" />
               <Input
                 type="text"
                 placeholder="Search by vaccine name or batch..."
@@ -176,10 +196,16 @@ export default function Inventory({
                           {statusBadge(vaccine.status)}
                         </td>
                         <td className="px-6 py-4 flex justify-center space-x-3">
-                          <button className="text-blue-600 hover:text-blue-800">
+                          <button
+                            onClick={() => handleEdit(vaccine)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
                             <SquarePen className="w-4 h-4" />
                           </button>
-                          <button className="text-red-600 hover:text-red-800">
+                          <button
+                            onClick={() => handleDelete(vaccine)}
+                            className="text-red-600 hover:text-red-800"
+                          >
                             <Trash className="w-4 h-4" />
                           </button>
                         </td>
@@ -244,11 +270,17 @@ export default function Inventory({
                       </div>
 
                       <div className="flex gap-2 pt-2 border-t border-gray-100">
-                        <button className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 py-2 text-sm">
+                        <button
+                          onClick={() => handleEdit(vaccine)}
+                          className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 py-2 text-sm"
+                        >
                           <SquarePen className="w-4 h-4" />
                           <span>Edit</span>
                         </button>
-                        <button className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-800 py-2 text-sm">
+                        <button
+                          onClick={() => handleDelete(vaccine)}
+                          className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-800 py-2 text-sm"
+                        >
                           <Trash className="w-4 h-4" />
                           <span>Delete</span>
                         </button>
@@ -266,7 +298,7 @@ export default function Inventory({
 
           {isModalOpen && (
             <div
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
               onClick={closeModal}
             >
               <div
@@ -280,11 +312,28 @@ export default function Inventory({
                   ×
                 </button>
 
-                <AddVaccine onSuccess={handleVaccineAdded} />
+                <AddVaccine
+                  vaccine={selectedVaccine}
+                  onSuccess={handleVaccineAdded}
+                  onClose={() => {
+                    setIsModalOpen(false);
+                    setSelectedVaccine(null);
+                  }}
+                />
 
                 <div className="mt-6 flex justify-end"></div>
               </div>
             </div>
+          )}
+          {/* Delete confirmation modal for list deletions */}
+          {toDelete && (
+            <DeleteConfirm
+              open={!!toDelete}
+              title="Delete vaccine"
+              message={`Are you sure you want to delete "${toDelete.name}"? This action cannot be undone.`}
+              onConfirm={confirmDelete}
+              onCancel={() => setToDelete(null)}
+            />
           )}
         </main>
       </div>

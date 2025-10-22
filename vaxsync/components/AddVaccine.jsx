@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Trash} from 'lucide-react';
+import DeleteConfirm from './DeleteConfirm';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,7 +21,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
-const AddVaccine = ({ onSuccess }) => {
+const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',
@@ -34,10 +35,40 @@ const AddVaccine = ({ onSuccess }) => {
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // populate form when editing an existing vaccine
   useEffect(() => {
+    if (initialVaccine) {
+      setFormData({
+        name: initialVaccine.name || '',
+        batch_number: initialVaccine.batch_number || '',
+        quantity_available:
+          initialVaccine.quantity_available !== null &&
+          initialVaccine.quantity_available !== undefined
+            ? String(initialVaccine.quantity_available)
+            : '',
+        expiry_date: initialVaccine.expiry_date || '',
+        location: initialVaccine.location || '',
+        notes: initialVaccine.notes || '',
+        status: initialVaccine.status || 'Good'
+      });
+    } else {
+      // reset when not editing
+      setFormData({
+        name: '',
+        batch_number: '',
+        quantity_available: '',
+        expiry_date: '',
+        location: '',
+        notes: '',
+        status: 'Good'
+      });
+    }
+    // still fetch list for optional internal use
     fetchVaccines();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialVaccine]);
 
   const fetchVaccines = async () => {
     try {
@@ -90,20 +121,39 @@ const AddVaccine = ({ onSuccess }) => {
     
     try {
       const qty = formData.quantity_available === '' ? null : parseInt(formData.quantity_available, 10);
+      let data, error;
 
-      const { data, error } = await supabase
-        .from('vaccines')
-        .insert({
-          name: formData.name,
-          batch_number: formData.batch_number,
-          quantity_available: qty,
-          expiry_date: formData.expiry_date,
-          location: formData.location,
-          notes: formData.notes,
-          status: formData.status || 'Good',
-          created_at: new Date().toISOString()
-        })
-        .select();
+      if (initialVaccine && initialVaccine.id) {
+        // update existing vaccine
+        ({ data, error } = await supabase
+          .from('vaccines')
+          .update({
+            name: formData.name,
+            batch_number: formData.batch_number,
+            quantity_available: qty,
+            expiry_date: formData.expiry_date,
+            location: formData.location,
+            notes: formData.notes,
+            status: formData.status || 'Good'
+          })
+          .eq('id', initialVaccine.id)
+          .select());
+      } else {
+        // insert new vaccine
+        ({ data, error } = await supabase
+          .from('vaccines')
+          .insert({
+            name: formData.name,
+            batch_number: formData.batch_number,
+            quantity_available: qty,
+            expiry_date: formData.expiry_date,
+            location: formData.location,
+            notes: formData.notes,
+            status: formData.status || 'Good',
+            created_at: new Date().toISOString()
+          })
+          .select());
+      }
       
       if (error) {
         console.error('Error inserting vaccine:', {
@@ -131,10 +181,38 @@ const AddVaccine = ({ onSuccess }) => {
         showAlert('success', 'Vaccine added successfully!');
         fetchVaccines();
         if (typeof onSuccess === 'function') onSuccess();
+        if (typeof onClose === 'function') onClose();
       }
     } catch (err) {
       console.error('Unexpected error:', err);
       showAlert('error', 'An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!initialVaccine || !initialVaccine.id) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!initialVaccine || !initialVaccine.id) return;
+    setShowDeleteConfirm(false);
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('vaccines').delete().eq('id', initialVaccine.id);
+      if (error) {
+        console.error('Error deleting vaccine:', error);
+        showAlert('error', `Failed to delete: ${error.message || 'Unknown error'}`);
+      } else {
+        showAlert('success', 'Vaccine deleted');
+        if (typeof onSuccess === 'function') onSuccess();
+        if (typeof onClose === 'function') onClose();
+      }
+    } catch (err) {
+      console.error('Unexpected error deleting:', err);
+      showAlert('error', 'Unexpected error deleting vaccine');
     } finally {
       setIsSubmitting(false);
     }
@@ -274,13 +352,27 @@ const AddVaccine = ({ onSuccess }) => {
                     Adding Vaccine...
                   </>
                 ) : (
-                  'Add Vaccine'
+                  (initialVaccine && initialVaccine.id) ? 'Update Vaccine' : 'Add Vaccine'
                 )}
               </Button>
+              {initialVaccine && initialVaccine.id && (
+                <div className="mt-3">
+                  <Button variant="destructive" className="w-full bg-red-600 text-white" onClick={handleDelete}>
+                    <Trash className="w-4 h-4 mr-2 inline" /> Delete Vaccine
+                  </Button>
+                </div>
+              )}
             </form>
           )}
         </CardContent>
       </Card>
+      <DeleteConfirm
+        open={showDeleteConfirm}
+        title="Delete vaccine"
+        message="Are you sure you want to delete this vaccine? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 };
