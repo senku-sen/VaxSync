@@ -1,4 +1,3 @@
-// ...existing code...
 "use client";
 
 import Sidebar from "../../components/Sidebar";
@@ -109,18 +108,20 @@ export default function Inventory({
       <div className="flex-1 flex flex-col w-full lg:ml-64">
         <Header title={title} subtitle={subtitle} />
 
-        <main className="p-9 flex-1 overflow-auto">
-          <div className="flex items-center space-x-2 mb-6">
-            <Search className="text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search by vaccine name or batch..."
-              className="w-full text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:space-x-2 mb-6">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <Search className="text-gray-400 flex-shrink-0" />
+              <Input
+                type="text"
+                placeholder="Search by vaccine name or batch..."
+                className="w-full text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
             <Button
-              className="ml-2 py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] w-48 text-white rounded-md hover:bg-[#2F4B35]"
+              className="w-full md:w-auto py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] text-white rounded-md hover:bg-[#2F4B35]"
               onClick={handleAddVaccineClick}
             >
               <Plus className="w-4 h-4" />
@@ -129,81 +130,147 @@ export default function Inventory({
           </div>
 
           <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <h2 className="text-xl font-semibold text-gray-800 tracking-wide">
+            <div className="px-4 md:px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <h2 className="text-lg md:text-xl font-semibold text-gray-800 tracking-wide">
                 Vaccine Stock Overview
               </h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-xs md:text-sm text-gray-500 mt-1">
                 Comprehensive list of all available vaccines in the inventory
               </p>
             </div>
 
-            <div className="overflow-x-auto p-4">
-              <table className="w-full text-sm text-left text-gray-600">
-                <thead className="text-xs text-gray-700 uppercase bg-gray-100">
-                  <tr>
-                    <th className="px-6 py-3">Vaccine Name</th>
-                    <th className="px-6 py-3">Batch</th>
-                    <th className="px-6 py-3">Quantity</th>
-                    <th className="px-6 py-3">Expiry</th>
-                    <th className="px-6 py-3">Location</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredVaccines.map((vaccine, index) => (
-                    <tr
-                      key={index}
-                      className="bg-white border-b hover:bg-gray-50 transition duration-150"
-                    >
-                      <td className="px-6 py-4 font-medium text-gray-900">
-                        {vaccine.name}
-                      </td>
-                      <td className="px-6 py-4">{vaccine.batch_number}</td>
-                      <td className="px-6 py-4">
-                        {vaccine.quantity_available !== null &&
-                        vaccine.quantity_available !== undefined
-                          ? `${vaccine.quantity_available} doses`
-                          : "N/A"}
-                      </td>
-                      <td className="px-6 py-4">{vaccine.expiry_date}</td>
-                      <td className="px-6 py-4">{vaccine.location}</td>
-                      <td className="px-6 py-4">
-                        {statusBadge(vaccine.status)}
-                      </td>
-                      <td className="px-6 py-4 flex justify-center space-x-3">
-                        <button className="text-blue-600 hover:text-blue-800">
-                          <SquarePen className="w-4 h-4" />
-                        </button>
-                        <button className="text-red-600 hover:text-red-800">
-                          <Trash className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredVaccines.length === 0 && (
+            <div className="overflow-x-auto p-4 md:p-0">
+              {/* Desktop Table View */}
+              <div className="hidden md:block">
+                <table className="w-full text-sm text-left text-gray-600">
+                  <thead className="text-xs text-gray-700 uppercase bg-gray-100">
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="px-6 py-8 text-center text-gray-500"
-                      >
-                        No vaccines found.
-                      </td>
+                      <th className="px-6 py-3">Vaccine Name</th>
+                      <th className="px-6 py-3">Batch</th>
+                      <th className="px-6 py-3">Quantity</th>
+                      <th className="px-6 py-3">Expiry</th>
+                      <th className="px-6 py-3">Location</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-center">Actions</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredVaccines.map((vaccine, index) => (
+                      <tr
+                        key={index}
+                        className="bg-white border-b hover:bg-gray-50 transition duration-150"
+                      >
+                        <td className="px-6 py-4 font-medium text-gray-900">
+                          {vaccine.name}
+                        </td>
+                        <td className="px-6 py-4">{vaccine.batch_number}</td>
+                        <td className="px-6 py-4">
+                          {vaccine.quantity_available !== null &&
+                          vaccine.quantity_available !== undefined
+                            ? `${vaccine.quantity_available} doses`
+                            : "N/A"}
+                        </td>
+                        <td className="px-6 py-4">{vaccine.expiry_date}</td>
+                        <td className="px-6 py-4">{vaccine.location}</td>
+                        <td className="px-6 py-4">
+                          {statusBadge(vaccine.status)}
+                        </td>
+                        <td className="px-6 py-4 flex justify-center space-x-3">
+                          <button className="text-blue-600 hover:text-blue-800">
+                            <SquarePen className="w-4 h-4" />
+                          </button>
+                          <button className="text-red-600 hover:text-red-800">
+                            <Trash className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredVaccines.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          className="px-6 py-8 text-center text-gray-500"
+                        >
+                          No vaccines found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-4">
+                {filteredVaccines.length > 0 ? (
+                  filteredVaccines.map((vaccine, index) => (
+                    <div
+                      key={index}
+                      className="bg-white border border-gray-200 rounded-lg p-4 space-y-3"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">
+                            {vaccine.name}
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            Batch: {vaccine.batch_number}
+                          </p>
+                        </div>
+                        <div>{statusBadge(vaccine.status)}</div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-gray-500">Quantity</p>
+                          <p className="font-medium text-gray-900">
+                            {vaccine.quantity_available !== null &&
+                            vaccine.quantity_available !== undefined
+                              ? `${vaccine.quantity_available} doses`
+                              : "N/A"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Expiry</p>
+                          <p className="font-medium text-gray-900">
+                            {vaccine.expiry_date}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-gray-500">Location</p>
+                          <p className="font-medium text-gray-900">
+                            {vaccine.location}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2 border-t border-gray-100">
+                        <button className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 py-2 text-sm">
+                          <SquarePen className="w-4 h-4" />
+                          <span>Edit</span>
+                        </button>
+                        <button className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-800 py-2 text-sm">
+                          <Trash className="w-4 h-4" />
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No vaccines found.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {isModalOpen && (
             <div
-              className="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50"
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
               onClick={closeModal}
             >
               <div
-                className="bg-white p-8 rounded-xl shadow-xl w-full max-w-2xl"
+                className="bg-white p-6 md:p-8 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -224,4 +291,3 @@ export default function Inventory({
     </div>
   );
 }
-// ...existing code...
