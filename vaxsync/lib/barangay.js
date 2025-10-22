@@ -47,8 +47,31 @@ export async function updateBarangay(id, payload) {
   }
 }
 
+/** Delete a barangay by id */
+export async function deleteBarangay(id) {
+  try {
+    const { data, error, status, statusText } = await supabase
+      .from("barangays")
+      .delete()
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      return { data: null, error: { ...error, status, statusText } };
+    }
+
+    return { data: data || null, error: null };
+  } catch (err) {
+    return {
+      data: null,
+      error: { message: err.message || String(err), stack: err.stack },
+    };
+  }
+}
+
 export default {
   fetchBarangays,
   insertBarangay,
   updateBarangay,
+  deleteBarangay,
 };
