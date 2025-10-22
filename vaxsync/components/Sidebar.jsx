@@ -9,7 +9,7 @@ import {
   Syringe,
   CalendarDays,
   User,
-  CheckCircle,
+
   FileText,
   Bell,
   Users,
@@ -32,7 +32,6 @@ export default function Sidebar() {
     { name: "Vaccination", icon: Syringe, path: "/vaccination" },
     { name: "Schedule", icon: CalendarDays, path: "/schedule" },
     { name: "Resident Data", icon: User, path: "/residents" },
-    { name: "Resident Approval", icon: CheckCircle, path: "/resident-approval" },
     { name: "Vaccine Requests", icon: FileText, path: "/vaccine-requests" },
     { name: "Request Approval", icon: FileCheck, path: "/request-approval" },
     { name: "Reports", icon: ClipboardCheck, path: "/reports" },

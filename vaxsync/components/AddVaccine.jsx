@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import { insertVaccine, updateVaccine, fetchVaccines as fetchVaccinesLib } from '@/lib/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,14 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables');
-}
-
-const supabase = createClient(supabaseUrl || '', supabaseKey || '');
+// we use the inventory lib for data operations
 
 const AddVaccine = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -42,10 +35,7 @@ const AddVaccine = ({ onSuccess }) => {
   const fetchVaccines = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('vaccines')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await fetchVaccinesLib();
       
       if (error) {
         console.error('Error fetching vaccines:', {
@@ -91,9 +81,24 @@ const AddVaccine = ({ onSuccess }) => {
     try {
       const qty = formData.quantity_available === '' ? null : parseInt(formData.quantity_available, 10);
 
+<<<<<<< Updated upstream
       const { data, error } = await supabase
         .from('vaccines')
         .insert({
+=======
+      if (initialVaccine && initialVaccine.id) {
+        ({ data, error } = await updateVaccine(initialVaccine.id, {
+          name: formData.name,
+          batch_number: formData.batch_number,
+          quantity_available: qty,
+          expiry_date: formData.expiry_date,
+          location: formData.location,
+          notes: formData.notes,
+          status: formData.status || 'Good'
+        }));
+      } else {
+        ({ data, error } = await insertVaccine({
+>>>>>>> Stashed changes
           name: formData.name,
           batch_number: formData.batch_number,
           quantity_available: qty,
@@ -102,8 +107,13 @@ const AddVaccine = ({ onSuccess }) => {
           notes: formData.notes,
           status: formData.status || 'Good',
           created_at: new Date().toISOString()
+<<<<<<< Updated upstream
         })
         .select();
+=======
+        }));
+      }
+>>>>>>> Stashed changes
       
       if (error) {
         console.error('Error inserting vaccine:', {
@@ -140,6 +150,36 @@ const AddVaccine = ({ onSuccess }) => {
     }
   };
 
+<<<<<<< Updated upstream
+=======
+  const handleDelete = async () => {
+    if (!initialVaccine || !initialVaccine.id) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!initialVaccine || !initialVaccine.id) return;
+    setShowDeleteConfirm(false);
+    setIsSubmitting(true);
+    try {
+  const { error } = await deleteVaccineById(initialVaccine.id);
+      if (error) {
+        console.error('Error deleting vaccine:', error);
+        showAlert('error', `Failed to delete: ${error.message || 'Unknown error'}`);
+      } else {
+        showAlert('success', 'Vaccine deleted');
+        if (typeof onSuccess === 'function') onSuccess();
+        if (typeof onClose === 'function') onClose();
+      }
+    } catch (err) {
+      console.error('Unexpected error deleting:', err);
+      showAlert('error', 'Unexpected error deleting vaccine');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+>>>>>>> Stashed changes
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card>
@@ -246,6 +286,7 @@ const AddVaccine = ({ onSuccess }) => {
                     <option value="Good">Good</option>
                     <option value="Expired">Expired</option>
                     <option value="Low Stock">Low Stock</option>
+                    <option value="Damaged">Damaged</option>
                   </select>
                 </div>
 
@@ -277,6 +318,20 @@ const AddVaccine = ({ onSuccess }) => {
                   'Add Vaccine'
                 )}
               </Button>
+<<<<<<< Updated upstream
+=======
+              {initialVaccine && initialVaccine.id && (
+                <div className="mt-3">
+                  <Button
+                    variant="destructive"
+                    className="w-full bg-red-600 text-white"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  >
+                    <Trash className="w-4 h-4 mr-2 inline" /> Delete Vaccine
+                  </Button>
+                </div>
+              )}
+>>>>>>> Stashed changes
             </form>
           )}
         </CardContent>

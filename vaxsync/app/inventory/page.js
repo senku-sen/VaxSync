@@ -8,18 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Search, Plus, SquarePen, Trash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
+<<<<<<< Updated upstream
 import { createClient } from "@supabase/supabase-js";
+=======
+import DeleteConfirm from "@/components/DeleteConfirm";
+import {
+  fetchVaccines as fetchVaccinesLib,
+  deleteVaccineById,
+} from "@/lib/inventory";
+>>>>>>> Stashed changes
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error(
-    "Missing Supabase envs. Make sure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are defined and restart the dev server."
-  );
-}
-
-const supabase = createClient(SUPABASE_URL || "", SUPABASE_ANON_KEY || "");
+// Supabase client is provided by `lib/inventory` via `lib/supabase.js`.
 
 export default function Inventory({
   title = "Inventory Management",
@@ -30,6 +29,7 @@ export default function Inventory({
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
+<<<<<<< Updated upstream
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
 
     const fetchVaccines = async () => {
@@ -46,6 +46,21 @@ export default function Inventory({
     fetchVaccines();
   }, []);
 
+=======
+    fetchVaccines();
+  }, []);
+
+  // expose fetch function so other handlers can refresh
+  const fetchVaccines = async () => {
+    const { data, error } = await fetchVaccinesLib();
+    if (error) {
+      console.error("Error fetching vaccines:", error);
+    } else {
+      setVaccines(data || []);
+    }
+  };
+
+>>>>>>> Stashed changes
   const handleAddVaccineClick = () => {
     setIsModalOpen(true);
   };
@@ -54,6 +69,32 @@ export default function Inventory({
     setIsModalOpen(false);
   };
 
+<<<<<<< Updated upstream
+=======
+  const handleEdit = (vaccine) => {
+    setSelectedVaccine(vaccine);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (vaccine) => {
+    if (!vaccine || !vaccine.id) return;
+    setToDelete(vaccine);
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete || !toDelete.id) return;
+    const { error } = await deleteVaccineById(toDelete.id);
+    if (error) {
+      console.error("Error deleting vaccine:", error);
+      alert("Failed to delete vaccine");
+    } else {
+      // refresh list
+      fetchVaccines();
+    }
+    setToDelete(null);
+  };
+
+>>>>>>> Stashed changes
   const filteredVaccines = vaccines.filter(
     (vaccine) =>
       (vaccine.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -84,6 +125,12 @@ export default function Inventory({
       case "Expired":
         return (
           <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
+            {status}
+          </span>
+        );
+      case "Damaged":
+        return (
+          <span className="px-2 py-1 rounded-full text-xs bg-pink-100 text-pink-800">
             {status}
           </span>
         );
