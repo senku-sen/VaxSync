@@ -26,7 +26,29 @@ export async function insertBarangay(payload) {
   }
 }
 
+export async function updateBarangay(id, payload) {
+  try {
+    const { data, error, status, statusText } = await supabase
+      .from("barangays")
+      .update(payload)
+      .eq("id", id)
+      .select();
+
+    if (error) {
+      return { data: null, error: { ...error, status, statusText } };
+    }
+
+    return { data: data || null, error: null };
+  } catch (err) {
+    return {
+      data: null,
+      error: { message: err.message || String(err), stack: err.stack },
+    };
+  }
+}
+
 export default {
   fetchBarangays,
   insertBarangay,
+  updateBarangay,
 };
