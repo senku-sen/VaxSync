@@ -87,9 +87,11 @@ export default function Sidebar() {
     setToast({ show: true, message: 'Logging out...', type: 'info' });
     
     setTimeout(() => {
-      // Clear any stored user data (localStorage, sessionStorage, etc.)
-      // localStorage.removeItem('userToken');
-      // sessionStorage.clear();
+      // Clear any stored user data
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userName');
+      sessionStorage.clear();
       
       setToast({ show: true, message: 'Logged out successfully!', type: 'success' });
       
