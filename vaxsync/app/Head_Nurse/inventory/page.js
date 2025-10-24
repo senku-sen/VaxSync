@@ -1,7 +1,7 @@
 "use client";
 
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
 import AddVaccine from "@/components/AddVaccine";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, SquarePen, Trash } from "lucide-react";
@@ -143,7 +143,7 @@ export default function Inventory({
               {/* Desktop Table View */}
               <div className="hidden md:block">
                 <table className="w-full text-sm text-left text-gray-600">
-                  <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                  <thead className="text-xs text-gray-700  bg-gray-100">
                     <tr>
                       <th className="px-6 py-3">Vaccine Name</th>
                       <th className="px-6 py-3">Batch</th>
