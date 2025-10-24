@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Home,
   Package,
+  MapPin,
   Syringe,
   Calendar,
   Users,
@@ -37,6 +38,7 @@ export default function Sidebar() {
   const allMenuItems = [
     { name: "Dashboard", icon: Home, path: basePath },
     { name: "Inventory", icon: Package, path: `${basePath}/inventory` },
+    { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
     { name: "Vaccine Usage", icon: Syringe, path: `${basePath}/vaccine-usage` },
     { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/schedule` },
     { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
