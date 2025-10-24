@@ -7,11 +7,29 @@ import Image from "next/image";
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle sign in logic here
-    console.log("Sign in:", { email, password });
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
+      // On success, redirect to inventory (or home)
+      window.location.href = '/inventory';
+    } catch (err) {
+      setError(err.message || "Invalid credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -34,6 +52,13 @@ export default function SignIn() {
           <p className="text-gray-600 text-sm">Enter your credentials to access your account</p>
         </div>
 
+        {/* Error Banner */}
+        {error ? (
+          <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        ) : null}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email Field */}
@@ -47,8 +72,8 @@ export default function SignIn() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900"
-              style={{ '--tw-ring-color': '#3E5F44' }}
+              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
+              style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
               required
             />
             <p className="text-xs text-gray-500 mt-1">Please use the email you registered with</p>
@@ -70,8 +95,8 @@ export default function SignIn() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900"
-              style={{ '--tw-ring-color': '#3E5F44' }}
+              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
+              style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
               required
             />
           </div>
@@ -79,10 +104,11 @@ export default function SignIn() {
           {/* Sign In Button */}
           <button
             type="submit"
-            className="w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors font-medium"
+            disabled={isSubmitting}
+            className={`w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
             style={{ backgroundColor: '#3E5F44', '--tw-ring-color': '#3E5F44' }}
           >
-            Sign In
+            {isSubmitting ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
 
