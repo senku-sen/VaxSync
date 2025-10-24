@@ -116,7 +116,7 @@ export default function SignIn() {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Don't have an account?{" "}
-            <Link href="/signup" className="font-medium" style={{ color: '#3E5F44' }}>
+            <Link href="/Pages/SignUpPage" className="font-medium" style={{ color: '#3E5F44' }}>
               Sign up
             </Link>
           </p>
