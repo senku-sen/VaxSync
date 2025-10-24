@@ -25,8 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Edit, Plus, Trash2 } from "lucide-react";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
 import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '@/lib/barangay';
 
 export default function Inventory({
