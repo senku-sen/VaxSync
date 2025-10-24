@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client";
 
 import Sidebar from "../../../components/Sidebar";
@@ -12,11 +13,16 @@ import {
   fetchVaccines as fetchVaccinesLib,
   deleteVaccineById,
 } from "@/lib/inventory";
+=======
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
+>>>>>>> 8226bd133c1aa14829c0e569cf80549efdd85608
 
 export default function Inventory({
   title = "Inventory Management",
   subtitle = "Manage vaccine stock and supplies",
 }) {
+<<<<<<< HEAD
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [vaccines, setVaccines] = useState([]);
   const [selectedVaccine, setSelectedVaccine] = useState(null);
@@ -103,6 +109,8 @@ export default function Inventory({
     }
   };
 
+=======
+>>>>>>> 8226bd133c1aa14829c0e569cf80549efdd85608
   return (
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
@@ -110,6 +118,7 @@ export default function Inventory({
       <div className="flex-1 flex flex-col w-full lg:ml-64">
         <Header title={title} subtitle={subtitle} />
 
+<<<<<<< HEAD
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:space-x-2 mb-6">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -302,6 +311,9 @@ export default function Inventory({
             />
           )}
         </main>
+=======
+        <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto"></main>
+>>>>>>> 8226bd133c1aa14829c0e569cf80549efdd85608
       </div>
     </div>
   );
