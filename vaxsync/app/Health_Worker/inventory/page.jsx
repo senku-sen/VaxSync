@@ -1,5 +1,5 @@
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
 
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
@@ -20,14 +20,18 @@ export default function Inventory({
 
         {/* Main Content */}
         <main className="p-9  flex-1 overflow-auto">
+          {/* SEARCH BAR */}
           <div className="flex items-center space-x-2 ">
-            <Search className="text-gray-400" /> {/* makes the icon lighter */}
-            <Input
-              type="text"
-              placeholder="Search by vaccine name or batch..."
-              className="w-full text-sm"
-            />
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Search by vaccine name or batch..."
+                className="w-full text-sm pl-10"
+              />
+            </div>
           </div>
+          {/* SEARCH BAR */}
 
           {children}
         </main>
