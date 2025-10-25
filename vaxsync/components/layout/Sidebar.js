@@ -99,9 +99,9 @@ export default function Sidebar() {
     router.push('/');
   };
 
-  // Health Worker sidebar menu items (7 items as shown in image)
+  // Health Worker sidebar menu items (7 items)
   const healthWorkerMenuItems = [
-    { name: 'Dashboard', path: '/health-worker', icon: 'dashboard' },
+    { name: 'Dashboard', path: '/Health_Worker', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
@@ -110,9 +110,9 @@ export default function Sidebar() {
     { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
 
-  // Head Nurse sidebar menu items (full access)
+  // Head Nurse sidebar menu items (11 items - full access)
   const headNurseMenuItems = [
-    { name: 'Dashboard', path: '/head-nurse', icon: 'dashboard' },
+    { name: 'Dashboard', path: '/Head_Nurse', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },

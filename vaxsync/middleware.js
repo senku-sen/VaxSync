@@ -3,9 +3,9 @@ import { NextResponse } from 'next/server';
 export function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // Redirect root to dashboard
+  // Redirect root - will be handled by page.js based on role
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.next();
   }
 
   // Allow access to all routes
