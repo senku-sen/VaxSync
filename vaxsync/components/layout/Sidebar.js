@@ -101,7 +101,7 @@ export default function Sidebar() {
 
   // Health Worker sidebar menu items (7 items as shown in image)
   const healthWorkerMenuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
+    { name: 'Dashboard', path: '/health-worker', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
@@ -112,7 +112,7 @@ export default function Sidebar() {
 
   // Head Nurse sidebar menu items (full access)
   const headNurseMenuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
+    { name: 'Dashboard', path: '/head-nurse', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
