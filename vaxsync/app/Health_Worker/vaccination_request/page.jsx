@@ -64,6 +64,15 @@ export default function Inventory({
 
           </div>
 
+            <div className="relative flex-1 max-w">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search by request ID or vaccine type..."
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+              />
+            </div>
+
             
 
           {/* Vaccine Request Modal */}
