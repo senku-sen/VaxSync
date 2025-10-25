@@ -1,11 +1,9 @@
-export default function StatsCard({ title, value, subtitle, valueColor = 'text-gray-700' }) {
+export default function StatsCard({ title, value, subtitle, valueColor = "text-[#93DA97]" }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
-      <h3 className="text-xs font-medium text-gray-500 mb-3">{title}</h3>
-      <p className={`text-3xl font-bold ${valueColor} mb-1`}>
-        {typeof value === 'number' ? value.toLocaleString() : value}
-      </p>
-      <p className="text-xs text-gray-400">{subtitle}</p>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
+      <p className="text-xs font-medium text-gray-500 uppercase mb-2">{title}</p>
+      <p className={`text-3xl font-bold ${valueColor} mb-1`}>{value}</p>
+      <p className="text-xs text-gray-500">{subtitle}</p>
     </div>
   );
 }

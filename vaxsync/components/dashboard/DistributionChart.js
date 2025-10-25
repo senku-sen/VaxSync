@@ -2,41 +2,31 @@
 
 import { useEffect, useRef } from 'react';
 
-export default function DistributionChart() {
+export default function DistributionChart({ data }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvasRef.current || !data) return;
 
+    const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const width = canvas.width;
     const height = canvas.height;
 
-    // Sample data (barangay distribution percentages)
-    const data = [
-      { name: 'Barangay A', value: 35, color: '#3E5F44' },
-      { name: 'Barangay B', value: 28, color: '#5E936C' },
-      { name: 'Barangay C', value: 22, color: '#93DA97' },
-      { name: 'Barangay D', value: 15, color: '#E8FFD7' }
-    ];
-
     // Clear canvas
     ctx.clearRect(0, 0, width, height);
 
-    // Calculate center and radius
-    const centerX = width / 3;
+    const centerX = width / 2;
     const centerY = height / 2;
-    const radius = Math.min(centerX, centerY) - 20;
+    const radius = Math.min(width, height) / 2 - 20;
 
-    // Draw pie chart
-    let currentAngle = -Math.PI / 2; // Start from top
+    let currentAngle = -Math.PI / 2; // Start at top
 
-    data.forEach((segment) => {
-      const sliceAngle = (segment.value / 100) * 2 * Math.PI;
+    data.forEach((item) => {
+      const sliceAngle = (item.value / 100) * 2 * Math.PI;
 
       // Draw slice
-      ctx.fillStyle = segment.color;
+      ctx.fillStyle = item.color;
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
@@ -44,42 +34,38 @@ export default function DistributionChart() {
       ctx.fill();
 
       // Draw border
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = '#FFFFFF';
       ctx.lineWidth = 2;
       ctx.stroke();
 
       currentAngle += sliceAngle;
     });
 
-    // Draw legend
-    const legendX = width * 0.6;
-    const legendY = 40;
-    const legendSpacing = 35;
-
-    ctx.font = '14px Arial';
-    data.forEach((segment, index) => {
-      const y = legendY + index * legendSpacing;
-
-      // Color box
-      ctx.fillStyle = segment.color;
-      ctx.fillRect(legendX, y - 10, 20, 20);
-
-      // Text
-      ctx.fillStyle = '#374151';
-      ctx.textAlign = 'left';
-      ctx.fillText(`${segment.name}: ${segment.value}%`, legendX + 30, y + 5);
-    });
-
-  }, []);
+  }, [data]);
 
   return (
-    <div className="w-full h-64">
+    <div className="flex items-center justify-between h-64">
       <canvas
         ref={canvasRef}
-        width={600}
-        height={256}
-        className="w-full h-full"
+        width={200}
+        height={200}
+        className="w-48 h-48"
       />
+      
+      {/* Legend */}
+      <div className="flex flex-col gap-2">
+        {data.map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded-sm" 
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-xs text-gray-600">
+              {item.name}: {item.value}%
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
