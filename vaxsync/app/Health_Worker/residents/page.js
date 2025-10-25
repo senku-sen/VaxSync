@@ -1,7 +1,8 @@
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
-<<<<<<< Updated upstream
-=======
+"use client";
+
+import { useState, useEffect } from "react";
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -262,22 +263,17 @@ export default function ResidentsPage() {
     fetchResidents(activeTab);
     fetchCounts();
   }, [activeTab, searchTerm, selectedBarangay]);
->>>>>>> Stashed changes
 
-export default function Inventory({
-  title = "Resident Information Management",
-  subtitle = "Manage Resident Data and Approvals",
-}) {
   return (
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
-        <Header title={title} subtitle={subtitle} />
+        <Header 
+          title="Resident Information Management" 
+          subtitle={`Assigned Barangay: ${selectedBarangay === "all" ? "All Barangays" : selectedBarangay}`} 
+        />
 
-<<<<<<< Updated upstream
-        <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto"></main>
-=======
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto max-w-5xl mx-auto w-full">
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-4 mb-6">
@@ -434,7 +430,7 @@ export default function Inventory({
                 {activeTab === "pending" ? "Pending Residents" : "Approved Residents"} - {selectedBarangay === "all" ? "All Barangays" : selectedBarangay}
               </CardTitle>
               <p className="text-sm text-gray-600">
-                Total {activeTab} residents: {residents.length}
+                Total pending residents: {residents.length}
               </p>
             </CardHeader>
             <CardContent>
@@ -623,7 +619,6 @@ export default function Inventory({
             </DialogContent>
           </Dialog>
         </main>
->>>>>>> Stashed changes
       </div>
     </div>
   );
