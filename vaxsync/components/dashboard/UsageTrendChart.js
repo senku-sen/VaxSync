@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-export default function UsageTrendChart() {
+export default function UsageTrendChart({ data: chartData }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -13,9 +13,19 @@ export default function UsageTrendChart() {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Sample data points (doses used per day)
-    const data = [80, 95, 120, 110, 125, 115, 90, 105];
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Use provided data or fallback to default
+    const dataPoints = chartData || [
+      { day: 'Mon', value: 80 },
+      { day: 'Tue', value: 95 },
+      { day: 'Wed', value: 100 },
+      { day: 'Thu', value: 110 },
+      { day: 'Fri', value: 125 },
+      { day: 'Sat', value: 90 },
+      { day: 'Sun', value: 80 }
+    ];
+    
+    const data = dataPoints.map(d => d.value);
+    const labels = dataPoints.map(d => d.day);
     const maxValue = Math.max(...data) + 20;
 
     // Clear canvas
@@ -84,7 +94,7 @@ export default function UsageTrendChart() {
       ctx.fillText(value.toString(), padding - 10, y + 4);
     }
 
-  }, []);
+  }, [chartData]);
 
   return (
     <div className="w-full h-64">

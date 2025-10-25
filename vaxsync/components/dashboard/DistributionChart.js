@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-export default function DistributionChart() {
+export default function DistributionChart({ data: chartData }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -13,8 +13,8 @@ export default function DistributionChart() {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Sample data (barangay distribution percentages)
-    const data = [
+    // Use provided data or fallback to default
+    const data = chartData || [
       { name: 'Barangay A', value: 35, color: '#3E5F44' },
       { name: 'Barangay B', value: 28, color: '#5E936C' },
       { name: 'Barangay C', value: 22, color: '#93DA97' },
@@ -70,7 +70,7 @@ export default function DistributionChart() {
       ctx.fillText(`${segment.name}: ${segment.value}%`, legendX + 30, y + 5);
     });
 
-  }, []);
+  }, [chartData]);
 
   return (
     <div className="w-full h-64">

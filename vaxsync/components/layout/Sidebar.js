@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -75,10 +76,29 @@ const Icon = ({ name, isActive }) => {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState('Health Worker');
 
-  const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
-    { name: 'Inventory', path: '/inventory', icon: 'inventory' },
+  // Get user role on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('userRole') || 'Health Worker';
+      setUserRole(role);
+    }
+  }, []);
+
+  // Health Worker menu items (6 items)
+  const healthWorkerMenuItems = [
+    { name: 'Dashboard', path: '/Health_Worker', icon: 'dashboard' },
+    { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
+    { name: 'Resident Data', path: '/resident-data', icon: 'users' },
+    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
+    { name: 'Notifications', path: '/notifications', icon: 'bell' },
+    { name: 'Settings', path: '/settings', icon: 'settings' },
+  ];
+
+  // Head Nurse menu items (11 items)
+  const headNurseMenuItems = [
+    { name: 'Dashboard', path: '/Head_Nurse', icon: 'dashboard' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
     { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
@@ -89,6 +109,9 @@ export default function Sidebar() {
     { name: 'User Management', path: '/user-management', icon: 'user' },
     { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
+
+  // Select menu items based on role
+  const menuItems = userRole === 'Head Nurse' ? headNurseMenuItems : healthWorkerMenuItems;
 
   return (
     <div className="w-56 bg-white min-h-screen flex flex-col shadow-sm">
