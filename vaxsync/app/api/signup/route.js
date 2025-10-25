@@ -49,7 +49,7 @@ export async function POST(request) {
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/pages/SignInPage`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/pages/signin`,
         data: {
           first_name: firstName,
           last_name: lastName,
