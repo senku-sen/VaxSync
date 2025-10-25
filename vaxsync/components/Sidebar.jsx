@@ -62,8 +62,13 @@ export default function Sidebar() {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-6 border-b border-gray-300">
-          <div className="font-semibold text-lg text-gray-900 tracking-wide">
-            VaxSync
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#3E5F44] rounded flex items-center justify-center">
+              <span className="text-white font-bold text-lg">V</span>
+            </div>
+            <div className="font-semibold text-lg text-gray-900 tracking-wide">
+              VaxSync
+            </div>
           </div>
           <Button
             variant="ghost"
