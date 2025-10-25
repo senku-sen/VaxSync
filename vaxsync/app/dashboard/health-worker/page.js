@@ -1,0 +1,279 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import DashboardLayout from '@/components/layout/DashboardLayout';
+
+export default function HealthWorkerDashboard() {
+  // DASH-01: Dashboard data with real-time updates (Barangay-specific)
+  const [dashboardData, setDashboardData] = useState({
+    totalStock: 2450,
+    usedToday: 145,
+    lowStockAlerts: 3,
+    activeUsers: 12,
+    lastUpdated: new Date().toLocaleTimeString()
+  });
+
+  // Weekly usage data (dynamic)
+  const [weeklyData] = useState([
+    { day: 'Mon', value: 110 },
+    { day: 'Tue', value: 145 },
+    { day: 'Wed', value: 95 },
+    { day: 'Thu', value: 165 },
+    { day: 'Fri', value: 125 },
+    { day: 'Sat', value: 85 },
+    { day: 'Sun', value: 75 }
+  ]);
+
+  // Barangay distribution data (dynamic)
+  const [barangayData] = useState([
+    { name: 'Barangay A', percentage: 36, color: '#3E5F44' },
+    { name: 'Barangay B', percentage: 28, color: '#5E936C' },
+    { name: 'Barangay C', percentage: 17, color: '#93DA97' },
+    { name: 'Barangay D', percentage: 19, color: '#C8E6C9' }
+  ]);
+
+  // Set user role for Health Worker (different sidebar than Head Nurse)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('userRole', 'Health Worker');
+    }
+  }, []);
+
+  // DASH-01: Auto-refresh - updates automatically every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Simulate real-time data updates
+      // In production, this would fetch from API
+      setDashboardData(prev => ({
+        ...prev,
+        usedToday: prev.usedToday + Math.floor(Math.random() * 2),
+        lastUpdated: new Date().toLocaleTimeString()
+      }));
+    }, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <div className="min-h-screen bg-[#f5f5f5]">
+        {/* Header */}
+        <div className="bg-white px-8 py-6 border-b border-gray-200">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-1">Real-time vaccine inventory overview</p>
+            </div>
+            
+            {/* Header Actions */}
+            <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+              
+              {/* User Profile */}
+              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="p-8">
+          {/* DASH-01: Stock Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {/* Total Stock Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Total Stock</p>
+              <p className="text-4xl font-bold text-[#5E936C] mb-1">{dashboardData.totalStock}</p>
+              <p className="text-xs text-gray-500">Doses available</p>
+            </div>
+
+            {/* Used Today Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Used Today</p>
+              <p className="text-4xl font-bold text-[#5E936C] mb-1">{dashboardData.usedToday}</p>
+              <p className="text-xs text-gray-500">Doses administered</p>
+            </div>
+
+            {/* Low Stock Alerts Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Low Stock Alerts</p>
+              <p className="text-4xl font-bold text-[#5E936C] mb-1">{dashboardData.lowStockAlerts}</p>
+              <p className="text-xs text-gray-500">Vaccines below threshold</p>
+            </div>
+
+            {/* Active Users Card */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-2">Active Users</p>
+              <p className="text-4xl font-bold text-[#5E936C] mb-1">{dashboardData.activeUsers}</p>
+              <p className="text-xs text-gray-500">Health workers online</p>
+            </div>
+          </div>
+
+          {/* Charts Section - NO ALERT BANNER for Health Worker */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Weekly Usage Trend Chart - Dynamic */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-gray-800">Weekly Usage Trend</h3>
+                <p className="text-xs text-gray-500">Vaccine doses used per day</p>
+              </div>
+              <div className="h-64">
+                <svg className="w-full h-full" viewBox="0 0 500 250">
+                  {/* Chart axes */}
+                  <line x1="40" y1="10" x2="40" y2="210" stroke="#e5e7eb" strokeWidth="2"/>
+                  <line x1="40" y1="210" x2="480" y2="210" stroke="#e5e7eb" strokeWidth="2"/>
+                  
+                  {/* Y-axis labels */}
+                  <text x="25" y="15" fontSize="12" fill="#9ca3af">180</text>
+                  <text x="25" y="65" fontSize="12" fill="#9ca3af">135</text>
+                  <text x="30" y="115" fontSize="12" fill="#9ca3af">90</text>
+                  <text x="30" y="165" fontSize="12" fill="#9ca3af">45</text>
+                  <text x="35" y="215" fontSize="12" fill="#9ca3af">0</text>
+                  
+                  {/* X-axis labels - Dynamic */}
+                  {weeklyData.map((item, index) => (
+                    <text key={item.day} x={60 + index * 60} y="230" fontSize="12" fill="#9ca3af">
+                      {item.day}
+                    </text>
+                  ))}
+                  
+                  {/* Line chart - Dynamic with animation */}
+                  <polyline
+                    points={weeklyData.map((item, index) => 
+                      `${70 + index * 60},${210 - (item.value / 180) * 200}`
+                    ).join(' ')}
+                    fill="none"
+                    stroke="#5E936C"
+                    strokeWidth="3"
+                    strokeDasharray="1000"
+                    strokeDashoffset="1000"
+                    style={{
+                      animation: 'drawLine 2s ease-out forwards'
+                    }}
+                  />
+                  
+                  {/* Data points - Dynamic with animation */}
+                  {weeklyData.map((item, index) => (
+                    <circle
+                      key={`point-${item.day}`}
+                      cx={70 + index * 60}
+                      cy={210 - (item.value / 180) * 200}
+                      r="4"
+                      fill="#5E936C"
+                      style={{
+                        animation: `fadeIn 0.5s ease-out ${0.3 + index * 0.1}s forwards`,
+                        opacity: 0
+                      }}
+                    />
+                  ))}
+                  
+                  {/* Legend */}
+                  <line x1="200" y1="245" x2="220" y2="245" stroke="#5E936C" strokeWidth="2"/>
+                  <text x="225" y="250" fontSize="11" fill="#6b7280">usage</text>
+                  
+                  <style>{`
+                    @keyframes drawLine {
+                      to { stroke-dashoffset: 0; }
+                    }
+                    @keyframes fadeIn {
+                      to { opacity: 1; }
+                    }
+                  `}</style>
+                </svg>
+              </div>
+            </div>
+
+            {/* Distribution by Barangay Chart - Dynamic Pie Chart */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-gray-800">Distribution by Barangay</h3>
+                <p className="text-xs text-gray-500">Vaccine allocation percentage</p>
+              </div>
+              <div className="h-64 flex items-center justify-between">
+                <svg className="w-48 h-48" viewBox="0 0 200 200">
+                  {(() => {
+                    let currentAngle = -90;
+                    return barangayData.map((item, index) => {
+                      const angle = (item.percentage / 100) * 360;
+                      const startAngle = currentAngle;
+                      const endAngle = currentAngle + angle;
+                      currentAngle = endAngle;
+                      
+                      const startRad = (startAngle * Math.PI) / 180;
+                      const endRad = (endAngle * Math.PI) / 180;
+                      
+                      // Round to 2 decimal places to avoid hydration mismatch
+                      const x1 = Math.round((100 + 80 * Math.cos(startRad)) * 100) / 100;
+                      const y1 = Math.round((100 + 80 * Math.sin(startRad)) * 100) / 100;
+                      const x2 = Math.round((100 + 80 * Math.cos(endRad)) * 100) / 100;
+                      const y2 = Math.round((100 + 80 * Math.sin(endRad)) * 100) / 100;
+                      
+                      const largeArc = angle > 180 ? 1 : 0;
+                      
+                      return (
+                        <path
+                          key={item.name}
+                          d={`M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                          fill={item.color}
+                          style={{
+                            animation: `scaleIn 0.8s ease-out ${index * 0.2}s forwards`,
+                            transformOrigin: '100px 100px',
+                            opacity: 0
+                          }}
+                        />
+                      );
+                    });
+                  })()}
+                  
+                  <style>{`
+                    @keyframes scaleIn {
+                      from { opacity: 0; transform: scale(0); }
+                      to { opacity: 1; transform: scale(1); }
+                    }
+                  `}</style>
+                </svg>
+                
+                {/* Legend - Dynamic */}
+                <div className="flex flex-col gap-2">
+                  {barangayData.map((item, index) => (
+                    <div 
+                      key={item.name} 
+                      className="flex items-center gap-2"
+                      style={{
+                        animation: `slideIn 0.5s ease-out ${0.5 + index * 0.1}s forwards`,
+                        opacity: 0
+                      }}
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-sm" 
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className="text-xs text-gray-600">
+                        {item.name}: {item.percentage}%
+                      </span>
+                    </div>
+                  ))}
+                  <style>{`
+                    @keyframes slideIn {
+                      from { opacity: 0; transform: translateX(-10px); }
+                      to { opacity: 1; transform: translateX(0); }
+                    }
+                  `}</style>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

@@ -3,27 +3,12 @@ import { NextResponse } from 'next/server';
 export function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/signup', '/forgot-password'];
-  
-  // Check if the current path is a public route
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
-
-  // If it's a public route, allow access
-  if (isPublicRoute) {
-    return NextResponse.next();
-  }
-
-  // For protected routes, check authentication
-  // Note: In a real app, you'd check for a valid JWT token in cookies or headers
-  // For now, we'll just redirect to login if accessing protected routes
-  
-  // If accessing root, redirect to login
+  // Redirect root to dashboard
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  // Allow access to all other routes (they will check localStorage on client side)
+  // Allow access to all routes
   return NextResponse.next();
 }
 

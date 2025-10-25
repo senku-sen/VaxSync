@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import ConfirmDialog from '@/components/common/ConfirmDialog';
-import Toast from '@/components/common/Toast';
 
 const Icon = ({ name, isActive }) => {
   const iconClass = `w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`;
@@ -79,30 +77,41 @@ const Icon = ({ name, isActive }) => {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [userRole, setUserRole] = useState('Health Worker');
+
+  // Get user role on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const role = localStorage.getItem('userRole') || 'Health Worker';
+      setUserRole(role);
+    }
+  }, []);
 
   const handleLogout = () => {
-    // Simulate logout process
-    setToast({ show: true, message: 'Logging out...', type: 'info' });
+    // Clear any stored user data
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
+    localStorage.removeItem('userRole');
+    sessionStorage.clear();
     
-    setTimeout(() => {
-      // Clear any stored user data
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('userEmail');
-      localStorage.removeItem('userName');
-      sessionStorage.clear();
-      
-      setToast({ show: true, message: 'Logged out successfully!', type: 'success' });
-      
-      // Redirect to login page after a short delay
-      setTimeout(() => {
-        router.push('/login');
-      }, 1000);
-    }, 500);
+    // Redirect to home page
+    router.push('/');
   };
 
-  const menuItems = [
+  // Health Worker sidebar menu items (7 items as shown in image)
+  const healthWorkerMenuItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
+    { name: 'Inventory', path: '/inventory', icon: 'inventory' },
+    { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
+    { name: 'Resident Data', path: '/resident-data', icon: 'users' },
+    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
+    { name: 'Notifications', path: '/notifications', icon: 'bell' },
+    { name: 'Settings', path: '/settings', icon: 'settings' },
+  ];
+
+  // Head Nurse sidebar menu items (full access)
+  const headNurseMenuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
@@ -115,6 +124,9 @@ export default function Sidebar() {
     { name: 'User Management', path: '/user-management', icon: 'user' },
     { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
+
+  // Select menu items based on role
+  const menuItems = userRole === 'Head Nurse' ? headNurseMenuItems : healthWorkerMenuItems;
 
   return (
     <div className="w-56 bg-white min-h-screen flex flex-col shadow-sm">
@@ -152,33 +164,13 @@ export default function Sidebar() {
       {/* Logout */}
       <div className="p-2 border-t border-gray-200">
         <button 
-          onClick={() => setShowLogoutDialog(true)}
+          onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
         >
           <Icon name="logout" isActive={false} />
           <span>Logout</span>
         </button>
       </div>
-
-      {/* Logout Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={showLogoutDialog}
-        onClose={() => setShowLogoutDialog(false)}
-        onConfirm={handleLogout}
-        title="Logout"
-        message="Are you sure you want to logout? You will need to login again to access the system."
-        confirmText="Logout"
-        cancelText="Cancel"
-        type="warning"
-      />
-
-      {/* Toast Notification */}
-      <Toast
-        message={toast.message}
-        type={toast.type}
-        isVisible={toast.show}
-        onClose={() => setToast({ ...toast, show: false })}
-      />
     </div>
   );
 }
