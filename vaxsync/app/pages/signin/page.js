@@ -23,8 +23,16 @@ export default function SignIn() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
-      // On success, redirect to inventory (or home)
-      window.location.href = '/inventory';
+      
+      // Redirect based on user role
+      if (data.userRole === 'Health Worker') {
+        window.location.href = '/Health_Worker/inventory';
+      } else if (data.userRole === 'Head Nurse') {
+        window.location.href = '/Head_Nurse/inventory';
+      } else {
+        // Fallback for unknown roles
+        window.location.href = '/inventory';
+      }
     } catch (err) {
       setError(err.message || "Invalid credentials.");
     } finally {

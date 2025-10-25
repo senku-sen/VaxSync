@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '../../../../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 export async function POST(request) {
   try {
@@ -28,7 +28,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
 
     // Validate authentication codes based on user role
     const validAuthCodes = {
@@ -71,7 +70,6 @@ export async function POST(request) {
       hasError: !!authError,
       errorMessage: authError?.message 
     });
-
 
     if (authError) {
       console.error('Auth error:', authError);
