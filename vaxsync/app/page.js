@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
 export default function Home() {
-  redirect('/dashboard');
+  // Redirect to Head Nurse dashboard (DASH-03)
+  redirect('/Head_Nurse');
 }

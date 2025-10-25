@@ -77,8 +77,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
-    { name: 'Usage Trends', path: '/usage-trends', icon: 'chart' },
+    { name: 'Dashboard', path: '/Head_Nurse', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
