@@ -57,7 +57,7 @@ export default function RegistrationSuccess() {
 
         {/* Action Button */}
         <button
-          onClick={() => window.location.href = '/pages/SignInPage'}
+          onClick={() => window.location.href = '/pages/signin'}
           className="w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors font-medium"
           style={{ backgroundColor: '#3E5F44', '--tw-ring-color': '#3E5F44' }}
         >

@@ -430,7 +430,7 @@ export default function SignUp() {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Already have an account?{" "}
-            <a href="/pages/SignInPage" className="font-medium" style={{ color: '#3E5F44' }}>
+            <a href="/pages/signin" className="font-medium" style={{ color: '#3E5F44' }}>
               Sign In
             </a>
           </p>
