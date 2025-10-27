@@ -1,7 +1,7 @@
-"use client";
 
-import Sidebar from "../../../components/Sidebar";
-import Header from "../../../components/Header";
+
+import Sidebar from "../../components/Sidebar";
+import Header from "../../components/Header";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -36,7 +36,7 @@ export default function Inventory({
   });
 
   return (
-    <div className="flex h]int-screen flex-col lg:flex-row">
+    <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
