@@ -7,7 +7,7 @@ const DeleteConfirm = ({ open, title = 'Delete item', message = 'Are you sure yo
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
