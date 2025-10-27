@@ -1,7 +1,7 @@
 "use client";
 
-import Sidebar from "../../../components/Sidebar";
-import Header from "../../../components/Header";
+import Sidebar from "../../components/Sidebar";
+import Header from "../../components/Header";
 import AddVaccine from "@/components/AddVaccine";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, SquarePen, Trash } from "lucide-react";
@@ -49,23 +49,28 @@ export default function Inventory({
     }
   };
 
-  const handleAddVaccineClick = () => {
+  const openAddModal = () => {
     setSelectedVaccine(null);
     setIsModalOpen(true);
+    setToDelete(null);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setSelectedVaccine(null);
   };
 
   const handleEdit = (vaccine) => {
     setSelectedVaccine(vaccine);
     setIsModalOpen(true);
+    setToDelete(null);
   };
 
   const handleDelete = (vaccine) => {
     if (!vaccine || !vaccine.id) return;
     setToDelete(vaccine);
+    setIsModalOpen(false);
+    setSelectedVaccine(null);
   };
 
   const confirmDelete = async () => {
@@ -82,6 +87,7 @@ export default function Inventory({
       fetchVaccines();
     }
     setToDelete(null);
+    setSelectedVaccine(null);
   };
 
   const filteredVaccines = vaccines.filter(
@@ -93,9 +99,9 @@ export default function Inventory({
   );
 
   const handleVaccineAdded = () => {
-    // refresh list after add/update/delete
     fetchVaccines();
     setIsModalOpen(false);
+    setSelectedVaccine(null);
   };
 
   const statusBadge = (status) => {
@@ -142,7 +148,7 @@ export default function Inventory({
             </div>
             <Button
               className="w-full md:w-auto py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] text-white rounded-md hover:bg-[#2F4B35]"
-              onClick={handleAddVaccineClick}
+              onClick={openAddModal}
             >
               <Plus className="w-4 h-4" />
               <span>Add Vaccine</span>
