@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Plus, Search } from "lucide-react";
-import Sidebar from "../../../components/Sidebar";
-import Header from "../../../components/Header";
-import VaccineRequestModal from "../../../components/VaccineRequestModal";
+import Sidebar from "../../components/Sidebar";
+import Header from "../../components/Header";
+import VaccineRequestModal from "../../components/VaccineRequestModal";
 
 export default function Inventory({
   title = "Vaccine Requisition Requests",
