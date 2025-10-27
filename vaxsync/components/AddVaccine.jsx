@@ -1,8 +1,12 @@
-// ...existing code...
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import {
+  insertVaccine,
+  updateVaccine,
+  fetchVaccines as fetchVaccinesLib,
+  deleteVaccineById,
+} from '@/lib/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,7 +33,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     expiry_date: '',
     location: '',
     notes: '',
-    status: 'Good' // default status
+    status: 'Good',
   });
   const [vaccines, setVaccines] = useState([]);
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
@@ -73,24 +77,10 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
   const fetchVaccines = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('vaccines')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      const { data, error } = await fetchVaccinesLib();
       if (error) {
-        console.error('Error fetching vaccines:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        
-        if (error.code === '42501' || (error.message && error.message.includes('policy'))) {
-          showAlert('error', 'Access denied. Please ensure you are logged in with proper permissions.');
-        } else {
-          showAlert('error', `Failed to fetch vaccines: ${error.message || 'Unknown error'}`);
-        }
+        console.error('Error fetching vaccines:', error);
+        showAlert('error', `Failed to fetch vaccines: ${error.message || 'Unknown'}`);
       } else {
         setVaccines(data || []);
       }
@@ -109,16 +99,12 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
     try {
       const qty = formData.quantity_available === '' ? null : parseInt(formData.quantity_available, 10);
       let data, error;
@@ -156,29 +142,10 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
       }
       
       if (error) {
-        console.error('Error inserting vaccine:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        
-        if (error.code === '42501' || (error.message && error.message.includes('policy'))) {
-          showAlert('error', 'Access denied. You need admin or officer permissions to add vaccines.');
-        } else {
-          showAlert('error', `Failed to add vaccine: ${error.message || 'Unknown error'}`);
-        }
+        console.error('Error saving vaccine:', error);
+        showAlert('error', `Failed to save vaccine: ${error.message || 'Unknown'}`);
       } else {
-        setFormData({
-          name: '',
-          batch_number: '',
-          quantity_available: '',
-          expiry_date: '',
-          location: '',
-          notes: '',
-          status: 'Good'
-        });
-        showAlert('success', 'Vaccine added successfully!');
+        showAlert('success', initialVaccine && initialVaccine.id ? 'Vaccine updated' : 'Vaccine added');
         fetchVaccines();
         if (typeof onSuccess === 'function') onSuccess();
         if (typeof onClose === 'function') onClose();
@@ -222,7 +189,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     <div className="max-w-2xl mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle>Add New Vaccine</CardTitle>
+          <CardTitle>{initialVaccine ? 'Edit Vaccine' : 'Add New Vaccine'}</CardTitle>
         </CardHeader>
         <CardContent>
           {alert.show && (
@@ -248,108 +215,50 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Vaccine Name</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="e.g., COVID-19, Influenza"
-                    required
-                  />
+                  <Input id="name" name="name" type="text" value={formData.name} onChange={handleChange} placeholder="e.g., COVID-19, Influenza" required />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="batch_number">Batch Number</Label>
-                  <Input
-                    id="batch_number"
-                    name="batch_number"
-                    type="text"
-                    value={formData.batch_number}
-                    onChange={handleChange}
-                    placeholder="e.g., BN12345"
-                    required
-                  />
+                  <Input id="batch_number" name="batch_number" type="text" value={formData.batch_number} onChange={handleChange} placeholder="e.g., BN12345" required />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="quantity_available">Quantity Available</Label>
-                  <Input
-                    id="quantity_available"
-                    name="quantity_available"
-                    type="number"
-                    min="0"
-                    value={formData.quantity_available}
-                    onChange={handleChange}
-                    placeholder="Enter quantity"
-                    required
-                  />
+                  <Input id="quantity_available" name="quantity_available" type="number" min="0" value={formData.quantity_available} onChange={handleChange} placeholder="Enter quantity" required />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="expiry_date">Expiry Date</Label>
-                  <Input
-                    id="expiry_date"
-                    name="expiry_date"
-                    type="date"
-                    value={formData.expiry_date}
-                    onChange={handleChange}
-                    required
-                  />
+                  <Input id="expiry_date" name="expiry_date" type="date" value={formData.expiry_date} onChange={handleChange} required />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="location">Storage Location</Label>
-                  <Input
-                    id="location"
-                    name="location"
-                    type="text"
-                    value={formData.location}
-                    onChange={handleChange}
-                    placeholder="e.g., Refrigerator A, Shelf 2"
-                    required
-                  />
+                  <Input id="location" name="location" type="text" value={formData.location} onChange={handleChange} placeholder="e.g., Refrigerator A, Shelf 2" required />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    className="w-full border rounded px-2 py-2"
-                    required
-                  >
+                  <select id="status" name="status" value={formData.status} onChange={handleChange} className="w-full border rounded px-2 py-2" required>
                     <option value="Good">Good</option>
                     <option value="Expired">Expired</option>
                     <option value="Low Stock">Low Stock</option>
+                    <option value="Damaged">Damaged</option>
                   </select>
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleChange}
-                    placeholder="Additional information..."
-                    className="resize-none"
-                    rows={3}
-                  />
+                  <Textarea id="notes" name="notes" value={formData.notes} onChange={handleChange} placeholder="Additional information..." className="resize-none" rows={3} />
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding Vaccine...
+                    {initialVaccine ? 'Updating...' : 'Adding...'}
                   </>
                 ) : (
                   (initialVaccine && initialVaccine.id) ? 'Update Vaccine' : 'Add Vaccine'
@@ -378,4 +287,3 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
 };
 
 export default AddVaccine;
-// ...existing code...
