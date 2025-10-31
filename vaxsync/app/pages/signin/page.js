@@ -23,6 +23,18 @@ export default function SignIn() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
+
+      // Cache minimal profile for client-only pages
+      try {
+        localStorage.setItem('vaxsync_user', JSON.stringify({
+          id: data.id,
+          email: data.email,
+          first_name: data.firstName,
+          last_name: data.lastName,
+          user_role: data.userRole,
+          address: data.address || "",
+        }));
+      } catch {}
       
       // Redirect based on user role
       if (data.userRole === 'Health Worker') {
