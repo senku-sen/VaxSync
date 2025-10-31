@@ -28,7 +28,7 @@ export async function POST(req) {
     // Get user profile to retrieve role
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('first_name, last_name, user_role')
+      .select('first_name, last_name, user_role, address')
       .eq('id', authData.user.id)
       .single();
 
@@ -44,7 +44,8 @@ export async function POST(req) {
       firstName: profile.first_name,
       lastName: profile.last_name,
       userRole: profile.user_role,
-      email: authData.user.email
+      email: authData.user.email,
+      address: profile.address || ""
     });
   } catch (err) {
     console.error('Signin error:', err);

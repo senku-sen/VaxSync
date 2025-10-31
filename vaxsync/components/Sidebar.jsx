@@ -16,7 +16,6 @@ import {
   BarChart3,
   Bell,
   UserCog,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -29,10 +28,11 @@ export default function Sidebar() {
 
   const isHealthWorker = pathname.startsWith("/Health_Worker");
   const isHeadNurse = pathname.startsWith("/Head_Nurse");
+  const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
-  if (!isHealthWorker && !isHeadNurse) return null;
+  if (!isHealthWorker && !isHeadNurse && !isSettingsStandalone) return null;
 
-  const basePath = isHealthWorker ? "/Health_Worker" : "/Head_Nurse";
+  const basePath = isHealthWorker ? "/Health_Worker" : isHeadNurse ? "/Head_Nurse" : "/Head_Nurse";
 
   // Full list of items
   const allMenuItems = [
@@ -48,7 +48,6 @@ export default function Sidebar() {
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
-    { name: "Settings", icon: Settings, path: `${basePath}/settings` },
   ];
 
   // Filter: Health Worker = no admin items | Head Nurse = all
@@ -74,9 +73,9 @@ export default function Sidebar() {
           lg:translate-x-0`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-6 border-b border-gray-300">
-          <div className="font-semibold text-lg text-gray-900 tracking-wide">
-            VaxSync
+        <div className="flex items-center justify-between h-20 px-4 border-b border-gray-300 overflow-hidden">
+          <div className="flex items-center h-full">
+            <img src="/VSyncLogo.png" alt="VaxSync" className="h-25 w-auto" />
           </div>
           <Button
             variant="ghost"
