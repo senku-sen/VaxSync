@@ -1,7 +1,7 @@
 "use client";
 
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
+import Sidebar from "../../../../components/Sidebar";
+import Header from "../../../../components/Header";
 import AddVaccine from "@/components/AddVaccine";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, SquarePen, Trash } from "lucide-react";
