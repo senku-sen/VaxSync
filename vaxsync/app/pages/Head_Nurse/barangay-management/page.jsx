@@ -11,8 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, Plus } from "lucide-react";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
+import Sidebar from "../../../../components/Sidebar";
+import Header from "../../../../components/Header";
 import BarangayCard from "@/components/BarangayCard";
 import BarangayForm from "@/components/BarangayForm";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
