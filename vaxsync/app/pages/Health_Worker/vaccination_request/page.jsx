@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
-import VaccineRequestModal from "../../components/VaccineRequestModal";
-import VaccineSummaryCards from "../../components/VaccineSummaryCards";
-import VaccineRequestsTable from "../../components/VaccineRequestsTable";
+import Sidebar from "../../../../components/Sidebar";
+import Header from "../../../../components/Header";
+import VaccineRequestModal from "../../../../components/VaccineRequestModal";
+import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
+import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
 import { fetchVaccineRequests, deleteVaccineRequest, createVaccineRequest } from "@/lib/vaccineRequest";
 import { fetchVaccines } from "@/lib/vaccine";
 
