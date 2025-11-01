@@ -27,12 +27,12 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isHealthWorker = pathname.startsWith("/Health_Worker");
-  const isHeadNurse = pathname.startsWith("/Head_Nurse");
+  const isHealthWorker = pathname.startsWith("/pages/Health_Worker");
+  const isHeadNurse = pathname.startsWith("/pages/Head_Nurse");
 
   if (!isHealthWorker && !isHeadNurse) return null;
 
-  const basePath = isHealthWorker ? "/Health_Worker" : "/Head_Nurse";
+  const basePath = isHealthWorker ? "/pages/Health_Worker" : "/pages/Head_Nurse";
 
   // Full list of items
   const allMenuItems = [
