@@ -17,6 +17,17 @@ const Icon = ({ name, isActive }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
       </svg>
     ),
+    barangay: (
+      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    usage: (
+      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    ),
     calendar: (
       <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -76,18 +87,13 @@ const Icon = ({ name, isActive }) => {
 export default function Sidebar() {
   const pathname = usePathname();
 
+  // Health Worker sidebar - SCH-03
   const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
     { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
-    { name: 'Request Approval', path: '/request-approval', icon: 'download' },
-    { name: 'Reports', path: '/reports', icon: 'chart' },
-    { name: 'Notifications', path: '/notifications', icon: 'bell' },
-    { name: 'User Management', path: '/user-management', icon: 'user' },
-    { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
 
   return (
@@ -122,14 +128,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Logout */}
-      <div className="p-2 border-t border-gray-200">
-        <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-gray-100 transition-colors">
-          <Icon name="logout" isActive={false} />
-          <span>Logout</span>
-        </button>
-      </div>
     </div>
   );
 }
