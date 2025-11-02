@@ -76,18 +76,14 @@ const Icon = ({ name, isActive }) => {
 export default function Sidebar() {
   const pathname = usePathname();
 
+  // Health Worker menu items (6 items)
   const menuItems = [
     { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
     { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
-    { name: 'Request Approval', path: '/request-approval', icon: 'download' },
-    { name: 'Reports', path: '/reports', icon: 'chart' },
     { name: 'Notifications', path: '/notifications', icon: 'bell' },
-    { name: 'User Management', path: '/user-management', icon: 'user' },
-    { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
 
   return (
@@ -122,14 +118,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Logout */}
-      <div className="p-2 border-t border-gray-200">
-        <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-gray-100 transition-colors">
-          <Icon name="logout" isActive={false} />
-          <span>Logout</span>
-        </button>
-      </div>
     </div>
   );
 }
