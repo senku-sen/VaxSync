@@ -10,6 +10,9 @@ import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
 import { fetchVaccineRequests, deleteVaccineRequest, createVaccineRequest } from "@/lib/vaccineRequest";
 import { fetchVaccines } from "@/lib/vaccine";
 import { supabase } from "@/lib/supabase";
+import { requireAuth, getUserProfile } from "@/lib/accAuth"
+
+
 
 export default function VaccinationRequest({
   title = "Vaccine Requisition Requests",
@@ -31,54 +34,33 @@ export default function VaccinationRequest({
     fetchUserProfile();
   }, []);
 
-  const fetchUserProfile = async () => {
-    try {
-      // Get authenticated user from Supabase
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError) {
-        console.error('Error fetching auth user:', authError);
-        return;
-      }
+  // In fetchUserProfile:
+const fetchUserProfile = async () => {
+  try {
+    // Check if logged in
+    const localUser = requireAuth();
+    if (!localUser) return;
 
-      if (!user) {
-        console.log('No authenticated user found');
-        return;
-      }
-
-      console.log('Authenticated user:', user.email);
-
-      // Fetch user profile from user_profiles table with barangay info
-      const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
-        .select(`
-          *,
-          barangays:assigned_barangay_id (
-            id,
-            name,
-            municipality,
-            health_center_name
-          )
-        `)
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError);
-        return;
-      }
-
-      console.log('User profile:', profile);
-      setUserProfile(profile);
-      
-      // Set barangay name for display
-      if (profile.barangays) {
-        setBarangayName(profile.barangays.name);
-      }
-    } catch (err) {
-      console.error('Error in fetchUserProfile:', err);
+    // Verify with Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      window.location.href = '/login';
+      return;
     }
-  };
+
+    // Get profile with barangay
+    const profile = await getUserProfile(session.user.id);
+    if (!profile) return;
+
+    setUserProfile(profile);
+    if (profile.barangays) {
+      setBarangayName(profile.barangays.name);
+    }
+  } catch (err) {
+    console.error('Error in fetchUserProfile:', err);
+    window.location.href = '/login';
+  }
+};
 
   const loadRequests = async () => {
     setIsLoading(true);
