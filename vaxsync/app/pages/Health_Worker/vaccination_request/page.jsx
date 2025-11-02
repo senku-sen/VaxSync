@@ -23,6 +23,11 @@ export default function VaccinationRequest({
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
 
   useEffect(() => {
+    // Log authentication status and user info
+    const userData = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
+    console.log('Current user authentication status:', userData ? 'Authenticated' : 'Not authenticated');
+    console.log('User data from localStorage:', userData);
+    
     loadRequests();
     loadVaccines();
   }, []);
@@ -30,8 +35,13 @@ export default function VaccinationRequest({
   const loadRequests = async () => {
     setIsLoading(true);
     try {
+      const userData = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
+      console.log('Loading requests for user:', userData?.email || 'Unknown user');
+      
       const { data, error } = await fetchVaccineRequests();
       if (error) throw error;
+      
+      console.log('Fetched requests:', data?.length || 0);
       setRequests(data || []);
       setError(null);
     } catch (err) {
