@@ -7,6 +7,10 @@ import UsageTrendChart from '@/components/dashboard/UsageTrendChart';
 import DistributionChart from '@/components/dashboard/DistributionChart';
 
 export default function HealthWorkerDashboard() {
+<<<<<<< Updated upstream
+=======
+  
+>>>>>>> Stashed changes
   // Dashboard data
   const [dashboardData, setDashboardData] = useState({
     totalStock: 520,
