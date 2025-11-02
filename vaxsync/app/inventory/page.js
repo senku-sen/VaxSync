@@ -44,7 +44,7 @@ export default function Inventory() {
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <div className="bg-white px-6 py-5 flex items-start justify-between">
+        <div className="bg-white px-6 py-5 border-b border-gray-200 flex items-start justify-between">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">Inventory Management</h1>
             <p className="text-xs text-gray-500 mt-0.5">Track and manage vaccine stock</p>
@@ -57,7 +57,7 @@ export default function Inventory() {
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
             
             {/* User Profile */}
@@ -87,6 +87,22 @@ export default function Inventory() {
             </div>
           </div>
 
+          {/* Vaccine Summary Cards */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-600 mb-1">Polio</p>
+              <p className="text-3xl font-bold text-[#5E936C]">450</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-600 mb-1">Covid-19</p>
+              <p className="text-3xl font-bold text-[#5E936C]">380</p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-sm text-gray-600 mb-1">Measles</p>
+              <p className="text-3xl font-bold text-[#5E936C]">520</p>
+            </div>
+          </div>
+
           {/* Vaccine Stock Table */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-100">
             <div className="px-5 py-4 border-b border-gray-200">
@@ -98,12 +114,12 @@ export default function Inventory() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Vaccine Name</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Batch</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Quantity</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Expiry</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Location</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600">Notes</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Vaccine Name</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Batch</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Quantity</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Expiry</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Location</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Notes</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">

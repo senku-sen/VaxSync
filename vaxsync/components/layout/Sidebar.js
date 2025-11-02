@@ -81,12 +81,8 @@ export default function Sidebar() {
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
     { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
-    { name: 'Request Approval', path: '/request-approval', icon: 'download' },
-    { name: 'Reports', path: '/reports', icon: 'chart' },
     { name: 'Notifications', path: '/notifications', icon: 'bell' },
-    { name: 'User Management', path: '/user-management', icon: 'user' },
     { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
 
