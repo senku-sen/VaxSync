@@ -9,6 +9,7 @@ import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
 import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
 import { fetchVaccineRequests, deleteVaccineRequest, createVaccineRequest } from "@/lib/vaccineRequest";
 import { fetchVaccines } from "@/lib/vaccine";
+import { supabase } from "@/lib/supabase";
 
 export default function VaccinationRequest({
   title = "Vaccine Requisition Requests",
@@ -21,23 +22,67 @@ export default function VaccinationRequest({
   const [error, setError] = useState(null);
   const [vaccines, setVaccines] = useState([]);
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
+  const [userProfile, setUserProfile] = useState(null);
+  const [barangayName, setBarangayName] = useState("");
 
   useEffect(() => {
-    // Log authentication status and user info
-    const userData = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
-    console.log('Current user authentication status:', userData ? 'Authenticated' : 'Not authenticated');
-    console.log('User data from localStorage:', userData);
-    
     loadRequests();
     loadVaccines();
+    fetchUserProfile();
   }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      // Get authenticated user from Supabase
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Error fetching auth user:', authError);
+        return;
+      }
+
+      if (!user) {
+        console.log('No authenticated user found');
+        return;
+      }
+
+      console.log('Authenticated user:', user.email);
+
+      // Fetch user profile from user_profiles table with barangay info
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select(`
+          *,
+          barangays:assigned_barangay_id (
+            id,
+            name,
+            municipality,
+            health_center_name
+          )
+        `)
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        return;
+      }
+
+      console.log('User profile:', profile);
+      setUserProfile(profile);
+      
+      // Set barangay name for display
+      if (profile.barangays) {
+        setBarangayName(profile.barangays.name);
+      }
+    } catch (err) {
+      console.error('Error in fetchUserProfile:', err);
+    }
+  };
 
   const loadRequests = async () => {
     setIsLoading(true);
     try {
-      const userData = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
-      console.log('Loading requests for user:', userData?.email || 'Unknown user');
-      
       const { data, error } = await fetchVaccineRequests();
       if (error) throw error;
       
@@ -55,12 +100,11 @@ export default function VaccinationRequest({
   const loadVaccines = async () => {
     setIsLoadingVaccines(true);
     try {
-      const { data, error } = await fetchVaccines(); // Add this function to lib/vaccine.js
+      const { data, error } = await fetchVaccines();
       if (error) throw error;
       setVaccines(data || []);
     } catch (err) {
       console.error('Error loading vaccines:', err);
-      // We don't set the main error state here to avoid blocking the main UI
     } finally {
       setIsLoadingVaccines(false);
     }
@@ -71,7 +115,6 @@ export default function VaccinationRequest({
       const { error } = await deleteVaccineRequest(requestId);
       if (error) throw error;
       
-      // Refresh the requests list
       await loadRequests();
     } catch (err) {
       console.error('Error deleting request:', err);
@@ -84,7 +127,6 @@ export default function VaccinationRequest({
       const { data, error } = await createVaccineRequest(formData);
       if (error) throw error;
       
-      // Refresh the requests list
       await loadRequests();
       setIsModalOpen(false);
     } catch (err) {
@@ -98,7 +140,10 @@ export default function VaccinationRequest({
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
-        <Header title={title} subtitle={subtitle} />
+        <Header 
+          title={title} 
+          subtitle={barangayName ? `Barangay: ${barangayName}` : subtitle} 
+        />
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-0 sm:px-2">
@@ -131,7 +176,16 @@ export default function VaccinationRequest({
             <div className="bg-white rounded-lg sm:rounded-xl shadow-md overflow-hidden">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900">My Vaccine Requests</h3>
-                <p className="mt-1 text-xs sm:text-sm text-gray-500">Total requests for Barangay A: {requests.length}</p>
+                {userProfile && userProfile.barangays && (
+                  <p className="mt-1 text-xs sm:text-sm text-gray-500">
+                    Total requests for {userProfile.barangays.name}: {requests.length}
+                  </p>
+                )}
+                {userProfile && !userProfile.barangays && (
+                  <p className="mt-1 text-xs sm:text-sm text-amber-600">
+                    No barangay assigned to your account
+                  </p>
+                )}
               </div>
               
               <div className="overflow-x-auto">
@@ -153,7 +207,7 @@ export default function VaccinationRequest({
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleSubmitRequest}
-                barangayName="Barangay A"
+                barangayName={barangayName || "Barangay A"}
                 vaccines={vaccines}
                 isLoading={isLoadingVaccines}
               />
