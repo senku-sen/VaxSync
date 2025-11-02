@@ -4,6 +4,7 @@ import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 
 export default function VaccinationSchedulePage() {
+  const [view, setView] = useState('monthly'); // 'weekly' or 'monthly'
   const [sessions, setSessions] = useState([
     {
       id: 1,
@@ -31,8 +32,47 @@ export default function VaccinationSchedulePage() {
       target: 120,
       administered: 45,
       status: 'in-progress'
+    },
+    {
+      id: 4,
+      barangay: 'Barangay D',
+      dateTime: '2025-08-05 10:00',
+      vaccine: 'Hepatitis B',
+      target: 90,
+      administered: 0,
+      status: 'scheduled'
     }
   ]);
+
+  // Filter sessions based on view (weekly or monthly)
+  const getFilteredSessions = () => {
+    const now = new Date();
+    const currentDate = new Date(2025, 6, 25); // July 25, 2025 for demo
+    
+    if (view === 'weekly') {
+      // Get sessions from current week (7 days from today)
+      const weekStart = new Date(currentDate);
+      weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      return sessions.filter(session => {
+        const sessionDate = new Date(session.dateTime);
+        return sessionDate >= weekStart && sessionDate <= weekEnd;
+      });
+    } else {
+      // Get sessions from current month
+      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      
+      return sessions.filter(session => {
+        const sessionDate = new Date(session.dateTime);
+        return sessionDate >= monthStart && sessionDate <= monthEnd;
+      });
+    }
+  };
+
+  const filteredSessions = getFilteredSessions();
 
   const getStatusStyle = (status) => {
     switch (status) {
@@ -118,21 +158,47 @@ export default function VaccinationSchedulePage() {
 
         {/* Main Content */}
         <div className="p-6">
-          {/* Schedule Session Button */}
-          <div className="mb-6">
+          {/* Top Actions */}
+          <div className="flex items-center justify-between mb-6">
             <button className="flex items-center gap-2 px-4 py-2 bg-[#3E5F44] text-white text-sm font-medium rounded-md hover:bg-[#2d4532] transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Schedule Session
             </button>
+
+            {/* View Toggle */}
+            <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
+              <button
+                onClick={() => setView('weekly')}
+                className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                  view === 'weekly'
+                    ? 'bg-[#3E5F44] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setView('monthly')}
+                className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
+                  view === 'monthly'
+                    ? 'bg-[#3E5F44] text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
           </div>
 
           {/* Scheduled Sessions Table */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-800">Scheduled Sessions</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Upcoming and past vaccination sessions</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {view === 'weekly' ? 'Current week sessions' : 'Current month sessions'} ({filteredSessions.length} total)
+              </p>
             </div>
 
             <div className="overflow-x-auto">
@@ -163,7 +229,7 @@ export default function VaccinationSchedulePage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {sessions.map((session) => (
+                  {filteredSessions.map((session) => (
                     <tr key={session.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {session.barangay}
