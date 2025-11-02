@@ -10,8 +10,8 @@ export default function VaccineRequestModal({
   isLoading = false
 }) {
   const [formData, setFormData] = useState({
-    vaccine: "",
-    quantity: "",
+    vaccine_id: "",
+    quantity_requested: "",
     notes: ""
   });
 
@@ -24,14 +24,19 @@ export default function VaccineRequestModal({
   };
 
   const handleSubmit = () => {
-    if (formData.vaccine && formData.quantity) {
-      onSubmit(formData);
-      setFormData({ vaccine: "", quantity: "", notes: "" });
+    if (formData.vaccine_id && formData.quantity_requested) {
+      // Since RLS is off, we don't need to include auth fields
+      const requestData = {
+        ...formData,
+        status: 'pending' // Set initial status
+      };
+      onSubmit(requestData);
+      setFormData({ vaccine_id: "", quantity_requested: "", notes: "" });
     }
   };
 
   const handleCancel = () => {
-    setFormData({ vaccine: "", quantity: "", notes: "" });
+    setFormData({ vaccine_id: "", quantity_requested: "", notes: "" });
     onClose();
   };
 
@@ -58,13 +63,13 @@ export default function VaccineRequestModal({
         <div className="p-6">
           {/* Vaccine Select */}
           <div className="mb-4">
-            <label htmlFor="vaccine" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="vaccine_id" className="block text-sm font-medium text-gray-700 mb-2">
               Vaccine Type
             </label>
             <select
-              id="vaccine"
-              name="vaccine"
-              value={formData.vaccine}
+              id="vaccine_id"
+              name="vaccine_id"
+              value={formData.vaccine_id}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
             >
@@ -75,7 +80,7 @@ export default function VaccineRequestModal({
                 <option value="" disabled>No vaccines available</option>
               ) : (
                 vaccines.map((vaccine) => (
-                  <option key={vaccine.id} value={vaccine.type}>
+                  <option key={vaccine.id} value={vaccine.id}>
                     {vaccine.name}
                   </option>
                 ))
@@ -85,14 +90,14 @@ export default function VaccineRequestModal({
 
           {/* Quantity Input */}
           <div className="mb-4">
-            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="quantity_requested" className="block text-sm font-medium text-gray-700 mb-2">
               Quantity (doses)
             </label>
             <input
               type="number"
-              id="quantity"
-              name="quantity"
-              value={formData.quantity}
+              id="quantity_requested"
+              name="quantity_requested"
+              value={formData.quantity_requested}
               onChange={handleChange}
               placeholder="Number of doses needed"
               min="1"
