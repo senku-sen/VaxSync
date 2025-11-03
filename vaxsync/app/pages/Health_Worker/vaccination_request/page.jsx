@@ -7,10 +7,13 @@ import Header from "../../../../components/Header";
 import VaccineRequestModal from "../../../../components/VaccineRequestModal";
 import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
 import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
-import { fetchVaccineRequests, deleteVaccineRequest, createVaccineRequest } from "@/lib/vaccineRequest";
-import { fetchVaccines } from "@/lib/vaccine";
-import { supabase } from "@/lib/supabase";
-import { requireAuth, getUserProfile } from "@/lib/accAuth"
+import {
+  loadUserProfile,
+  loadVaccineRequestsData,
+  loadVaccinesData,
+  deleteVaccineRequestData,
+  createVaccineRequestData,
+} from "@/lib/vaccineRequest";
 
 
 
@@ -29,91 +32,54 @@ export default function VaccinationRequest({
   const [barangayName, setBarangayName] = useState("");
 
   useEffect(() => {
-    loadRequests();
-    loadVaccines();
-    fetchUserProfile();
+    initializeData();
   }, []);
 
-  // In fetchUserProfile:
-const fetchUserProfile = async () => {
-  try {
-    // Check if logged in
-    const localUser = requireAuth();
-    if (!localUser) return;
-
-    // Verify with Supabase
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      window.location.href = '/login';
-      return;
+  const initializeData = async () => {
+    // Load user profile
+    const profile = await loadUserProfile();
+    if (profile) {
+      setUserProfile(profile);
+      if (profile.barangays) {
+        setBarangayName(profile.barangays.name);
+      }
     }
 
-    // Get profile with barangay
-    const profile = await getUserProfile(session.user.id);
-    if (!profile) return;
-
-    setUserProfile(profile);
-    if (profile.barangays) {
-      setBarangayName(profile.barangays.name);
-    }
-  } catch (err) {
-    console.error('Error in fetchUserProfile:', err);
-    window.location.href = '/login';
-  }
-};
+    // Load requests and vaccines in parallel
+    await Promise.all([loadRequests(), loadVaccines()]);
+  };
 
   const loadRequests = async () => {
     setIsLoading(true);
-    try {
-      const { data, error } = await fetchVaccineRequests();
-      if (error) throw error;
-      
-      console.log('Fetched requests:', data?.length || 0);
-      setRequests(data || []);
-      setError(null);
-    } catch (err) {
-      console.error('Error loading requests:', err);
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    const { data, error } = await loadVaccineRequestsData();
+    setRequests(data);
+    if (error) setError(error);
+    setIsLoading(false);
   };
 
   const loadVaccines = async () => {
     setIsLoadingVaccines(true);
-    try {
-      const { data, error } = await fetchVaccines();
-      if (error) throw error;
-      setVaccines(data || []);
-    } catch (err) {
-      console.error('Error loading vaccines:', err);
-    } finally {
-      setIsLoadingVaccines(false);
-    }
+    const { data, error } = await loadVaccinesData();
+    setVaccines(data);
+    setIsLoadingVaccines(false);
   };
 
   const handleDeleteRequest = async (requestId) => {
-    try {
-      const { error } = await deleteVaccineRequest(requestId);
-      if (error) throw error;
-      
+    const { success, error } = await deleteVaccineRequestData(requestId);
+    if (success) {
       await loadRequests();
-    } catch (err) {
-      console.error('Error deleting request:', err);
-      setError(err.message);
+    } else {
+      setError(error);
     }
   };
 
   const handleSubmitRequest = async (formData) => {
-    try {
-      const { data, error } = await createVaccineRequest(formData);
-      if (error) throw error;
-      
+    const { success, error } = await createVaccineRequestData(formData);
+    if (success) {
       await loadRequests();
       setIsModalOpen(false);
-    } catch (err) {
-      console.error('Error submitting request:', err);
-      setError(err.message);
+    } else {
+      setError(error);
     }
   };
 

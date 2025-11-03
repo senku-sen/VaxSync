@@ -27,13 +27,13 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  const isHealthWorker = pathname.startsWith("/Health_Worker");
-  const isHeadNurse = pathname.startsWith("/Head_Nurse");
+  const isHealthWorker = pathname.includes("Health_Worker");
+  const isHeadNurse = pathname.includes("Head_Nurse");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
   if (!isHealthWorker && !isHeadNurse && !isSettingsStandalone) return null;
 
-  const basePath = isHealthWorker ? "/Health_Worker" : isHeadNurse ? "/Head_Nurse" : "/Head_Nurse";
+  const basePath = isHealthWorker ? "/pages/Health_Worker" : isHeadNurse ? "/pages/Head_Nurse" : "/pages/Head_Nurse";
 
   // Full list of items
   const allMenuItems = [
@@ -49,7 +49,7 @@ export default function Sidebar() {
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
-    { name: "Settings", icon: Settings, path: `${basePath}/settings` },
+    { name: "Settings", icon: Settings, path: `${basePath}/settings-privacy` },
   ];
 
   // Filter: Health Worker = no admin items | Head Nurse = all

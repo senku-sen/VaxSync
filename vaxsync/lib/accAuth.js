@@ -5,13 +5,25 @@ export const checkAuth = () => {
   if (!userData) {
     return null;
   }
-  return JSON.parse(userData);
+  try {
+    const parsed = JSON.parse(userData);
+    if (parsed && typeof parsed === 'object' && parsed.id && parsed.email) {
+      return parsed;
+    }
+  } catch (e) {
+    console.warn('Invalid vaxsync_user in localStorage, clearing.', e);
+  }
+  // Clear corrupted/invalid cache and treat as logged out
+  localStorage.removeItem('vaxsync_user');
+  return null;
 };
 
 export const requireAuth = () => {
   const user = checkAuth();
+  console.log('requireAuth called, user:', user);
   if (!user) {
-    window.location.href = '/login';
+    console.warn('No user found, redirecting to /pages/signin');
+    window.location.href = '/pages/signin';
     return null;
   }
   return user;
@@ -20,15 +32,7 @@ export const requireAuth = () => {
 export const getUserProfile = async (userId) => {
   const { data: profile, error } = await supabase
     .from('user_profiles')
-    .select(`
-      *,
-      barangays:assigned_barangay_id (
-        id,
-        name,
-        municipality,
-        health_center_name
-      )
-    `)
+    .select('*')
     .eq('id', userId)
     .single();
 
@@ -37,11 +41,24 @@ export const getUserProfile = async (userId) => {
     return null;
   }
 
+  // If profile has assigned_barangay_id, fetch barangay separately
+  if (profile && profile.assigned_barangay_id) {
+    const { data: barangay, error: barangayError } = await supabase
+      .from('barangays')
+      .select('id, name, municipality, health_center_name')
+      .eq('id', profile.assigned_barangay_id)
+      .single();
+
+    if (!barangayError && barangay) {
+      profile.barangays = barangay;
+    }
+  }
+
   return profile;
 };
 
 export const logout = async () => {
   await supabase.auth.signOut();
   localStorage.removeItem('vaxsync_user');
-  window.location.href = '/login';
+  window.location.href = '/pages/signin';
 };
