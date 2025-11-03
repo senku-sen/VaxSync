@@ -51,7 +51,7 @@ export default function VaccinationRequest({
 
   const loadRequests = async () => {
     setIsLoading(true);
-    const { data, error } = await loadVaccineRequestsData();
+    const { data, error } = await loadVaccineRequestsData({ isAdmin: false });
     setRequests(data);
     if (error) setError(error);
     setIsLoading(false);
@@ -74,7 +74,12 @@ export default function VaccinationRequest({
   };
 
   const handleSubmitRequest = async (formData) => {
-    const { success, error } = await createVaccineRequestData(formData);
+    // Add current user ID to the form data
+    const requestData = {
+      ...formData,
+      requested_by: userProfile?.id,
+    };
+    const { success, error } = await createVaccineRequestData(requestData);
     if (success) {
       await loadRequests();
       setIsModalOpen(false);
@@ -156,6 +161,7 @@ export default function VaccinationRequest({
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleSubmitRequest}
                 barangayName={barangayName || "Barangay A"}
+                barangayId={userProfile?.assigned_barangay_id}
                 vaccines={vaccines}
                 isLoading={isLoadingVaccines}
               />

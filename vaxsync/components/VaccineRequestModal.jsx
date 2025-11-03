@@ -6,6 +6,7 @@ export default function VaccineRequestModal({
   onClose, 
   onSubmit, 
   barangayName = "Barangay A",
+  barangayId = null,
   vaccines = [],
   isLoading = false
 }) {
@@ -25,10 +26,14 @@ export default function VaccineRequestModal({
 
   const handleSubmit = () => {
     if (formData.vaccine_id && formData.quantity_requested) {
-      // Since RLS is off, we don't need to include auth fields
+      if (!barangayId) {
+        alert("Barangay ID is missing. Please refresh the page.");
+        return;
+      }
       const requestData = {
         ...formData,
-        status: 'pending' // Set initial status
+        barangay_id: barangayId,
+        status: 'pending'
       };
       onSubmit(requestData);
       setFormData({ vaccine_id: "", quantity_requested: "", notes: "" });

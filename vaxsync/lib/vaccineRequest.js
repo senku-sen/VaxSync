@@ -54,9 +54,11 @@ export const loadUserProfile = async () => {
 };
 
 /**
- * Fetch all vaccine requests
+ * Fetch vaccine requests for current user (Health Worker) or all (Head Nurse via RLS)
  * @param {Object} options - Query options
  * @param {string} options.barangayId - Optional barangay ID to filter by
+ * @param {boolean} options.isAdmin - If true, fetch all requests (Head Nurse)
+ * @param {string} options.userId - Current user ID (from localStorage)
  * @returns {Promise<{ data: Array, error: Object }>}
  */
 export async function fetchVaccineRequests(options = {}) {
@@ -64,6 +66,12 @@ export async function fetchVaccineRequests(options = {}) {
     .from("vaccine_requests")
     .select("*")
     .order("created_at", { ascending: false });
+
+  // Health Worker: only see their own requests
+  // Head Nurse: RLS policy will allow them to see all
+  if (!options.isAdmin && options.userId) {
+    query = query.eq("requested_by", options.userId);
+  }
 
   if (options.barangayId) {
     query = query.eq("barangay_id", options.barangayId);
@@ -75,11 +83,28 @@ export async function fetchVaccineRequests(options = {}) {
 
 /**
  * Load vaccine requests with error handling
+ * @param {Object} options - Query options
+ * @param {boolean} options.isAdmin - If true, fetch all requests (Head Nurse)
  * @returns {Promise<{data: Array, error: string|null}>}
  */
-export const loadVaccineRequestsData = async () => {
+export const loadVaccineRequestsData = async (options = {}) => {
   try {
-    const { data, error } = await fetchVaccineRequests();
+    // Get user ID from localStorage for client-side filtering
+    const userData = localStorage.getItem('vaxsync_user');
+    let userId = null;
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        userId = parsed.id;
+      } catch (e) {
+        console.warn('Failed to parse user data from localStorage');
+      }
+    }
+
+    const { data, error } = await fetchVaccineRequests({
+      ...options,
+      userId
+    });
     console.log('fetchVaccineRequests result:', { data, error });
     if (error) {
       console.error('Supabase error details:', error);
@@ -97,21 +122,35 @@ export const loadVaccineRequestsData = async () => {
 
 /**
  * Create a new vaccine request
- * @param {Object} request - The request data
+ * @param {Object} request - The request data (must include requested_by: userId)
  * @returns {Promise<{ data: Object, error: Object }>}
  */
 export async function createVaccineRequest(request) {
+  if (!request.requested_by) {
+    console.error('requested_by is required');
+    return { data: null, error: { message: 'User ID is required' } };
+  }
+
+  console.log('Creating vaccine request for user:', request.requested_by);
+  console.log('Request data:', request);
+
+  const requestData = {
+    ...request,
+    status: "pending",
+    created_at: new Date().toISOString(),
+  };
+
+  console.log('Final request data to insert:', requestData);
+
   const { data, error } = await supabase
     .from("vaccine_requests")
-    .insert([
-      {
-        ...request,
-        status: "pending",
-        created_at: new Date().toISOString(),
-      },
-    ])
+    .insert([requestData])
     .select()
     .single();
+
+  if (error) {
+    console.error('Supabase insert error:', error);
+  }
 
   return { data, error };
 }
@@ -132,6 +171,23 @@ export async function updateVaccineRequest(id, updates) {
 
   return { data, error };
 }
+
+/**
+ * Update vaccine request status with error handling (for admin)
+ * @param {string} requestId - The request ID
+ * @param {string} status - The new status (pending, approved, rejected, released)
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const updateVaccineRequestStatus = async (requestId, status) => {
+  try {
+    const { error } = await updateVaccineRequest(requestId, { status });
+    if (error) throw error;
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error updating request status:', err);
+    return { success: false, error: err.message || 'Failed to update request status' };
+  }
+};
 
 /**
  * Delete a vaccine request
@@ -205,6 +261,7 @@ export default {
   loadVaccinesData,
   deleteVaccineRequestData,
   createVaccineRequestData,
+  updateVaccineRequestStatus,
   fetchVaccineRequests,
   createVaccineRequest,
   updateVaccineRequest,
