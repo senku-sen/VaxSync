@@ -204,7 +204,7 @@ export default function HealthWorkerDashboard() {
     <DashboardLayout>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <div className="bg-white px-6 py-5 flex items-start justify-between">
+        <div className="bg-white px-6 py-5 border-b border-gray-200 flex items-start justify-between">
           <div>
             <h1 className="text-xl font-semibold text-gray-800">Dashboard - Health Worker</h1>
             <p className="text-xs text-gray-500 mt-0.5">Real-time vaccine inventory overview</p>
@@ -285,30 +285,30 @@ export default function HealthWorkerDashboard() {
             <StatsCard
               title="Total Stock"
               value={dashboardData.totalStock}
-              subtitle="Good standing"
+              subtitle="doses available"
               valueColor="text-[#93DA97]"
             />
             <StatsCard
               title="Used Today"
               value={dashboardData.usedToday}
-              subtitle="Doses administered"
+              subtitle="doses administered"
               valueColor="text-[#93DA97]"
             />
             <StatsCard
               title="Low Stock Items"
               value={dashboardData.lowStockItems}
-              subtitle="Vaccines Below threshold"
+              subtitle="vaccines below threshold"
               valueColor="text-[#93DA97]"
             />
             <StatsCard
               title="Active Users"
               value={dashboardData.activeUsers}
-              subtitle="Health workers online"
+              subtitle="health workers online"
               valueColor="text-[#93DA97]"
             />
           </div>
 
-          {/* NO Alert Banner for Health Worker */}
+          {/* NO Alert Banner for Health Worker - DASH-03 design decision */}
 
           {/* DASH-02: Charts Section - DASH-04: Charts update based on selected barangay */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

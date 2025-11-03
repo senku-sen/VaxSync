@@ -6,7 +6,7 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import UsageTrendChart from '@/components/dashboard/UsageTrendChart';
 import DistributionChart from '@/components/dashboard/DistributionChart';
 
-export default function HeadNurseDashboard() {
+export default function Dashboard() {
   // DASH-04: Barangay filter state
   const [selectedBarangay, setSelectedBarangay] = useState('all');
 
@@ -168,13 +168,6 @@ export default function HeadNurseDashboard() {
 
   const [chartData, setChartData] = useState(getBarangayChartData('all'));
 
-  // Set user role for Head Nurse
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('userRole', 'Head Nurse');
-    }
-  }, []);
-
   // DASH-03: Alert data
   const [alertData] = useState({
     criticalAlerts: [
@@ -255,7 +248,7 @@ export default function HeadNurseDashboard() {
         {/* Header */}
         <div className="bg-white px-6 py-5 flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-gray-800">Dashboard - Head Nurse</h1>
+            <h1 className="text-xl font-semibold text-gray-800">Dashboard</h1>
             <p className="text-xs text-gray-500 mt-0.5">Real-time vaccine inventory overview</p>
           </div>
           
