@@ -128,19 +128,44 @@ export const loadVaccineRequestsData = async (options = {}) => {
 
 /**
  * Create a new vaccine request
- * @param {Object} request - The request data (vaccine_id, quantity_requested, notes, barangay_id)
+ * @param {Object} request - The request data (vaccine_id, quantity_dose, quantity_vial, notes, barangay_id)
  * @returns {Promise<{ data: Object, error: Object }>}
  */
 export async function createVaccineRequest(request) {
   console.log('Creating vaccine request');
   console.log('Request data:', request);
 
-  // Don't include requested_by - the database trigger will set it from auth.uid()
+  // Use requested_by from request if provided, otherwise try profile_id, otherwise get from localStorage
+  let requested_by = request.requested_by || request.profile_id;
+  
+  console.log('requested_by from request:', requested_by);
+  
+  if (!requested_by) {
+    console.log('requested_by not in request, checking localStorage');
+    const userData = localStorage.getItem('vaxsync_user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        requested_by = user.id;
+        console.log('Got requested_by from localStorage:', requested_by);
+      } catch (e) {
+        console.error('Failed to parse user data from localStorage:', e);
+      }
+    }
+  }
+
+  if (!requested_by) {
+    console.error('User ID not found in request or localStorage');
+    throw new Error('User not authenticated');
+  }
+
   const requestData = {
     vaccine_id: request.vaccine_id,
-    quantity_requested: request.quantity_requested,
+    quantity_dose: request.quantity_dose,
+    quantity_vial: request.quantity_vial || null,
     notes: request.notes || "",
     barangay_id: request.barangay_id,
+    requested_by: requested_by,
     status: "pending",
   };
 
@@ -148,12 +173,12 @@ export async function createVaccineRequest(request) {
 
   const { data, error } = await supabase
     .from("vaccine_requests")
-    .insert([requestData])
-    .select()
-    .single();
+    .insert([requestData]);
 
   if (error) {
     console.error('Supabase insert error:', error);
+  } else {
+    console.log('Vaccine request created successfully:', data);
   }
 
   return { data, error };
@@ -201,7 +226,7 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
 /**
  * Update vaccine request fields (quantity and notes) with error handling
  * @param {string} requestId - The request ID
- * @param {Object} updates - Fields to update (quantity_requested, notes)
+ * @param {Object} updates - Fields to update (quantity_dose, quantity_vial, notes)
  * @returns {Promise<{success: boolean, error: string|null}>}
  */
 export const updateVaccineRequestData = async (requestId, updates) => {

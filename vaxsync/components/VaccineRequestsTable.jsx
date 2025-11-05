@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Trash2 } from "lucide-react";
+import { Check, X, Trash2 } from "lucide-react";
 import VaccineRequestDetailModal from "./VaccineRequestDetailModal";
 import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
@@ -127,7 +127,8 @@ export default function VaccineRequestsTable({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vaccine Type</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (dose)</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (vial)</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -150,56 +151,60 @@ export default function VaccineRequestsTable({
                 {vaccines.find(v => v.id === request.vaccine_id)?.name || 'Loading...'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                {request.quantity_requested} doses
+                {request.quantity_dose} doses
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {request.quantity_vial || '-'} vials
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                {isAdmin ? (
-                  <select
-                    value={request.status}
-                    onChange={(e) => onUpdateStatus && onUpdateStatus(request.id, e.target.value)}
-                    className={`px-3 py-1 text-xs font-semibold rounded-full border-0 cursor-pointer
-                      ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
-                        request.status === 'approved' ? 'bg-green-100 text-green-700' : 
-                        request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                        'bg-gray-100 text-gray-700'}`}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="released">Released</option>
-                  </select>
-                ) : (
-                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
-                      request.status === 'approved' ? 'bg-green-100 text-green-700' : 
-                      request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                      'bg-gray-100 text-gray-700'}`}>
-                    {request.status}
-                  </span>
-                )}
+              <td className="px-6 py-4 whitespace-nowrap">
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                  ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                    request.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                    request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                    'bg-gray-100 text-gray-700'}`}>
+                  {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                </span>
               </td>
               <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                 {request.notes || '-'}
               </td>
               
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" onClick={(e) => e.stopPropagation()}>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => handleViewDetails(request)}
-                    className="text-blue-600 hover:text-blue-800 transition-colors" 
-                    title="View details"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  {request.status === 'pending' && (
-                    <button 
-                      onClick={() => handleDeleteClick(request)}
-                      className="text-red-600 hover:text-red-800 transition-colors"
-                      title="Delete request"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                <div className="flex gap-2">
+                  {isAdmin ? (
+                    <>
+                      {request.status === 'pending' && (
+                        <>
+                          <button 
+                            onClick={() => onUpdateStatus && onUpdateStatus(request.id, 'approved')}
+                            className="text-green-600 hover:text-green-800 transition-colors p-1 rounded hover:bg-green-50" 
+                            title="Approve request"
+                          >
+                            <Check size={18} />
+                          </button>
+                          <button 
+                            onClick={() => onUpdateStatus && onUpdateStatus(request.id, 'rejected')}
+                            className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50" 
+                            title="Reject request"
+                          >
+                            <X size={18} />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {request.status === 'pending' && (
+                        <button 
+                          onClick={() => handleDeleteClick(request)}
+                          className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50"
+                          title="Delete request"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </td>

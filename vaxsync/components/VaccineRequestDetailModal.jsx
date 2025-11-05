@@ -21,7 +21,8 @@ export default function VaccineRequestDetailModal({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
-    quantity_requested: 0,
+    quantity_dose: 0,
+    quantity_vial: 0,
     notes: "",
     status: "pending",
   });
@@ -29,7 +30,8 @@ export default function VaccineRequestDetailModal({
   useEffect(() => {
     if (request) {
       setEditData({
-        quantity_requested: request.quantity_requested || 0,
+        quantity_dose: request.quantity_dose || 0,
+        quantity_vial: request.quantity_vial || 0,
         notes: request.notes || "",
         status: request.status || "pending",
       });
@@ -118,23 +120,43 @@ export default function VaccineRequestDetailModal({
               </p>
             </div>
 
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Quantity Requested
-              </label>
-              {isEditing ? (
-                <input
-                  type="number"
-                  min="1"
-                  value={editData.quantity_requested}
-                  onChange={(e) => setEditData({ ...editData, quantity_requested: parseInt(e.target.value) || 0 })}
-                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
-                />
-              ) : (
-                <p className="mt-1 text-sm text-gray-900 font-medium">
-                  {editData.quantity_requested} doses
-                </p>
-              )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Quantity (doses)
+                </label>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="1"
+                    value={editData.quantity_dose}
+                    onChange={(e) => setEditData({ ...editData, quantity_dose: parseInt(e.target.value) || 0 })}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
+                  />
+                ) : (
+                  <p className="mt-1 text-sm text-gray-900 font-medium">
+                    {editData.quantity_dose} doses
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Quantity (vials)
+                </label>
+                {isEditing ? (
+                  <input
+                    type="number"
+                    min="1"
+                    value={editData.quantity_vial}
+                    onChange={(e) => setEditData({ ...editData, quantity_vial: parseInt(e.target.value) || 0 })}
+                    className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
+                  />
+                ) : (
+                  <p className="mt-1 text-sm text-gray-900 font-medium">
+                    {editData.quantity_vial || '-'} vials
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>

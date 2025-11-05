@@ -30,6 +30,7 @@ export default function VaccinationRequest({
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
   const [userProfile, setUserProfile] = useState(null);
   const [barangayName, setBarangayName] = useState("");
+  const [profileID, setProfileID] = useState(null);
 
   useEffect(() => {
     initializeData();
@@ -40,6 +41,8 @@ export default function VaccinationRequest({
     const profile = await loadUserProfile();
     if (profile) {
       setUserProfile(profile);
+      // Always capture profile ID for requested_by linkage
+      setProfileID(profile.id);
       if (profile.barangays) {
         setBarangayName(profile.barangays.name);
       }
@@ -74,13 +77,25 @@ export default function VaccinationRequest({
   };
 
   const handleSubmitRequest = async (formData) => {
-    // Don't include requested_by - RLS will set it from auth.uid()
-    const { success, error } = await createVaccineRequestData(formData);
-    if (success) {
-      await loadRequests();
-      setIsModalOpen(false);
-    } else {
-      setError(error);
+    try {
+      console.log('handleSubmitRequest called with:', formData);
+      const { success, error } = await createVaccineRequestData(formData);
+      console.log('createVaccineRequestData result:', { success, error });
+      
+      if (success) {
+        console.log('Request created successfully');
+        await loadRequests();
+        setIsModalOpen(false);
+        setError(null);
+      } else {
+        console.error('Request creation failed:', error);
+        setError(error);
+        alert('Error: ' + error);
+      }
+    } catch (err) {
+      console.error('Unexpected error in handleSubmitRequest:', err);
+      setError(err.message);
+      alert('Unexpected error: ' + err.message);
     }
   };
 
@@ -156,6 +171,7 @@ export default function VaccinationRequest({
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleSubmitRequest}
+                profileID={profileID}
                 barangayName={barangayName || "Barangay A"}
                 barangayId={userProfile?.assigned_barangay_id}
                 vaccines={vaccines}

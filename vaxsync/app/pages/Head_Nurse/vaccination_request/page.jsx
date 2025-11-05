@@ -15,7 +15,7 @@ import {
 import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
 
 export default function VaccinationRequest({
-  title = "Vaccine Requisition Requests",
+  title = "Vaccine Request Approval",
 }) {
   const [userProfile, setUserProfile] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -82,11 +82,35 @@ export default function VaccinationRequest({
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-0 sm:px-2">
-            {/* Summary Cards */}
-            <VaccineSummaryCards requests={requests} />
+            {/* Summary Cards - Status Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {/* Pending Card */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+                <p className="text-4xl font-bold text-gray-900 mb-2">
+                  {requests.filter(r => r.status === 'pending').length}
+                </p>
+                <p className="text-sm text-gray-600 font-medium">Pending Requests</p>
+              </div>
 
-            {/* Controls Section */}
-            <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
+              {/* Approved Card */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+                <p className="text-4xl font-bold text-green-600 mb-2">
+                  {requests.filter(r => r.status === 'approved').length}
+                </p>
+                <p className="text-sm text-gray-600 font-medium">Approved</p>
+              </div>
+
+              {/* Rejected Card */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+                <p className="text-4xl font-bold text-red-600 mb-2">
+                  {requests.filter(r => r.status === 'rejected').length}
+                </p>
+                <p className="text-sm text-gray-600 font-medium">Rejected</p>
+              </div>
+            </div>
+
+            {/* Search Section */}
+            <div className="mb-6">
               <div className="relative w-full">
                 <Search
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
@@ -94,19 +118,23 @@ export default function VaccinationRequest({
                 />
                 <input
                   type="text"
-                  placeholder="Search by request ID or vaccine type..."
-                  className="w-full pl-10 pr-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent text-sm sm:text-base"
+                  placeholder="Search by request ID, barangay, or health worker..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent text-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
             </div>
             
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-md overflow-hidden">
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                  Vaccine Requests
+            {/* Pending Requests Table */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-base font-semibold text-gray-900">
+                  Pending Requests
                 </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Review and approve vaccine requisition requests
+                </p>
               </div>
 
               <div className="overflow-x-auto">
