@@ -1,5 +1,12 @@
+// ============================================
+// VACCINE REQUEST MODAL
+// ============================================
+// Modal form for submitting vaccine requests
+// Validates required fields before submission
+// ============================================
+
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 
 export default function VaccineRequestModal({ 
   isOpen, 
@@ -11,6 +18,7 @@ export default function VaccineRequestModal({
   vaccines = [],
   isLoading = false
 }) {
+  // Form data state
   const [formData, setFormData] = useState({
     vaccine_id: "",
     quantity_dose: "",
@@ -18,49 +26,83 @@ export default function VaccineRequestModal({
     notes: ""
   });
   
+  // Validation errors
+  const [errors, setErrors] = useState({});
+  
+  // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Validate form before submission
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Check vaccine is selected
+    if (!formData.vaccine_id) {
+      newErrors.vaccine_id = "Please select a vaccine";
+    }
+
+    // Check quantity dose is filled
+    if (!formData.quantity_dose) {
+      newErrors.quantity_dose = "Quantity (doses) is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
+  // Handle form submission with validation
   const handleSubmit = async () => {
-    if (formData.vaccine_id && formData.quantity_dose) {
-      if (!barangayId) {
-        alert("Barangay ID is missing. Please refresh the page.");
-        return;
-      }
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
+    // Check system IDs
+    if (!barangayId) {
+      alert("Barangay ID is missing. Please refresh the page.");
+      return;
+    }
+    
+    if (!profileID) {
+      alert("Profile ID is missing. Please refresh the page.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Prepare request data
+      const requestData = {
+        ...formData,
+        barangay_id: barangayId,
+        requested_by: profileID,
+        status: 'pending'
+      };
       
-      if (!profileID) {
-        alert("Profile ID is missing. Please refresh the page.");
-        return;
-      }
+      console.log('Submitting request:', requestData);
+      await onSubmit(requestData);
       
-      setIsSubmitting(true);
-      
-      try {
-        const requestData = {
-          ...formData,
-          barangay_id: barangayId,
-          requested_by: profileID,
-          status: 'pending'
-        };
-        
-        console.log('Submitting request:', requestData);
-        await onSubmit(requestData);
-        setFormData({ vaccine_id: "", quantity_dose: "", quantity_vial: "", notes: "" });
-      } catch (error) {
-        console.error('Error submitting request:', error);
-        alert('Error submitting request: ' + (error.message || 'Unknown error'));
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else {
-      alert("Please fill in all required fields");
+      // Reset form after successful submission
+      setFormData({ vaccine_id: "", quantity_dose: "", quantity_vial: "", notes: "" });
+      setErrors({});
+    } catch (error) {
+      console.error('Error submitting request:', error);
+      alert('Error submitting request: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -90,17 +132,32 @@ export default function VaccineRequestModal({
 
         {/* Modal Body */}
         <div className="p-6">
+          {/* Show validation errors */}
+          {Object.keys(errors).length > 0 && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-700">Please fill in all required fields</p>
+                {Object.values(errors).map((error, idx) => (
+                  error && <p key={idx} className="text-sm text-red-600">{error}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Vaccine Select */}
           <div className="mb-4">
             <label htmlFor="vaccine_id" className="block text-sm font-medium text-gray-700 mb-2">
-              Vaccine Type
+              Vaccine Type <span className="text-red-500">*</span>
             </label>
             <select
               id="vaccine_id"
               name="vaccine_id"
               value={formData.vaccine_id}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
+                errors.vaccine_id ? 'border-red-500' : 'border-gray-300'
+              }`}
             >
               <option value="">Select vaccine type</option>
               {isLoading ? (
@@ -121,7 +178,7 @@ export default function VaccineRequestModal({
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label htmlFor="quantity_dose" className="block text-sm font-medium text-gray-700 mb-2">
-                Quantity (doses)
+                Quantity (doses) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -131,7 +188,9 @@ export default function VaccineRequestModal({
                 onChange={handleChange}
                 placeholder="Number"
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
+                  errors.quantity_dose ? 'border-red-500' : 'border-gray-300'
+                }`}
               />
             </div>
             <div>

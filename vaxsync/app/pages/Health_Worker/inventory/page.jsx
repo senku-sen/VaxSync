@@ -1,3 +1,10 @@
+// ============================================
+// HEALTH WORKER INVENTORY PAGE
+// ============================================
+// Displays vaccine inventory and stock levels
+// Health workers can view vaccines available
+// ============================================
+
 "use client";
 
 import Sidebar from "../../../../components/Sidebar";
@@ -12,10 +19,19 @@ export default function Inventory({
   title = "Inventory Management",
   subtitle = "View vaccine stock and supplies",
 }) {
+  // List of all vaccines in inventory
   const [vaccines, setVaccines] = useState([]);
+  
+  // Search term for filtering vaccines
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Loading state for data fetching
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Error messages if any occur
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -41,6 +57,7 @@ export default function Inventory({
     }
   };
 
+  // Fetch vaccines from database
   const fetchList = async () => {
     try {
       const { data, error } = await fetchVaccinesLib();
@@ -56,6 +73,7 @@ export default function Inventory({
     }
   };
 
+  // Filter vaccines based on search term
   const filtered = vaccines.filter((v) => {
     const term = searchTerm.toLowerCase();
     return (

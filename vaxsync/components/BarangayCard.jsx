@@ -12,7 +12,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, MapPin } from "lucide-react";
 
+const registeredDateFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
 export default function BarangayCard({ barangay, onEdit, onDelete }) {
+  const registeredDate = barangay?.created_at
+    ? registeredDateFormatter.format(new Date(barangay.created_at))
+    : "Unknown";
+
   return (
     <Card className="overflow-hidden border border-gray-200 hover:shadow-lg transition-shadow">
       <CardContent className="p-6">
@@ -30,18 +39,17 @@ export default function BarangayCard({ barangay, onEdit, onDelete }) {
           </Badge>
         </div>
 
-        {/* Health Center Address */}
-        <div className="mb-4 py-3 border-y border-gray-200">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-            Health Center Address
-          </p>
-          <p className="text-sm text-gray-900">{barangay.health_center_address}</p>
+        {/* Population & Registration Date */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Population</p>
+            <p className="text-sm font-semibold text-gray-900">{barangay.population?.toLocaleString() || "0"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Registered</p>
+            <p className="text-sm text-gray-900">{registeredDate}</p>
+          </div>
         </div>
-
-        {/* Registration Date */}
-        <p className="text-xs text-gray-500 mb-4">
-          Registered: {new Date(barangay.created_at).toLocaleDateString()}
-        </p>
 
         {/* Action Buttons */}
         <div className="flex gap-2">

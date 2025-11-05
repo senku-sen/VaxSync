@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,6 +15,7 @@ import BarangayCard from "@/components/BarangayCard";
 import BarangayForm from "@/components/BarangayForm";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '@/lib/barangay';
+import { loadUserProfile } from "@/lib/vaccineRequest";
 
 // PAGE COMPONENT: Handles UI rendering and state management
 export default function BarangayManagement({
@@ -33,12 +32,15 @@ export default function BarangayManagement({
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
-    municipality: "",
-    health_center_address: "",
+    municipality: "Daet",
+    population: 0,
   });
   const [successMessage, setSuccessMessage] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userProfile, setUserProfile] = useState(null);
+  const [authError, setAuthError] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // ========== FORM SUBMISSION HANDLER ==========
   // Handles both insert and update operations
@@ -70,7 +72,7 @@ export default function BarangayManagement({
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), editMode ? 6000 : 3000);
     if (!result.error) {
-      setFormData({ name: "", municipality: "", health_center_address: "" });
+      setFormData({ name: "", municipality: "Daet", population: 0 });
       setIsOpen(false);
       setEditMode(false);
       setSelectedBarangay(null);
@@ -116,6 +118,26 @@ export default function BarangayManagement({
     }
   };
 
+  // ========== INITIALIZE DATA ==========
+  const initializeData = async () => {
+    try {
+      // Load user profile first
+      const profile = await loadUserProfile();
+      if (profile) {
+        setUserProfile(profile);
+        console.log('User profile loaded:', profile);
+      }
+      
+      // Then fetch barangays
+      await loadBarangays();
+    } catch (err) {
+      console.error('Error initializing data:', err);
+      setAuthError(err.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   // ========== FETCH BARANGAYS ==========
   const loadBarangays = async () => {
     setIsLoading(true);
@@ -129,13 +151,13 @@ export default function BarangayManagement({
   };
 
   useEffect(() => {
-    loadBarangays();
+    initializeData();
   }, []);
 
   // Filter barangays based on search term
   const filteredBarangays = barangays.filter((barangay) =>
-    barangay.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    barangay.health_center_name.toLowerCase().includes(searchTerm.toLowerCase())
+    barangay.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    barangay.municipality?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -146,6 +168,33 @@ export default function BarangayManagement({
         <Header title={title} subtitle={subtitle} />
 
         <main className="p-4 sm:p-6 lg:p-8 flex-1 overflow-auto">
+          {/* User Info Display */}
+          {userProfile && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900">
+                <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
+              </p>
+            </div>
+          )}
+
+          {/* Auth Error Display */}
+          {authError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-900">
+                <span className="font-semibold">Error:</span> {authError}
+              </p>
+            </div>
+          )}
+
+          {/* Auth Loading State */}
+          {isAuthLoading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#4A7C59] border-t-transparent"></div>
+              <p className="ml-3 text-gray-600">Loading user profile...</p>
+            </div>
+          )}
+
+          {!isAuthLoading && (
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
 
             <div className="w-full ">
@@ -174,21 +223,22 @@ export default function BarangayManagement({
               />
             </Dialog>
           </div>
+          )}
 
-          {showSuccess && (
+          {showSuccess &&  
             <Alert className="mb-6">
               <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
               <AlertDescription className="text-sm sm:text-base">{successMessage}</AlertDescription>
             </Alert>
-          )}
+          }
 
           {/* ========== BARANGAY CARDS GRID VIEW ========== */}
           {/* Displays barangays in a responsive 2-column grid using BarangayCard component */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredBarangays.length > 0 ? (
-              filteredBarangays.map((barangay) => (
+              filteredBarangays.map((barangay, index) => (
                 <BarangayCard
-                  key={barangay.id}
+                  key={barangay.id || `barangay-${index}`}
                   barangay={barangay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
@@ -210,6 +260,7 @@ export default function BarangayManagement({
             onConfirm={confirmDelete}
             onCancel={() => setIsDeleteConfirmOpen(false)}
           />
+          
         </main>
       </div>
     </div>

@@ -40,16 +40,16 @@ export default function Sidebar() {
     { name: "Dashboard", icon: Home, path: basePath },
     { name: "Inventory", icon: Package, path: `${basePath}/inventory` },
     { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
-    { name: "Vaccine Usage", icon: Syringe, path: `${basePath}/vaccine-usage` },
+    
     { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/schedule` },
     { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
     { name: "Resident Approval", icon: CheckCircle, path: `${basePath}/resident-approval`, adminOnly: true },
     { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
-    { name: "Request Approval", icon: ArrowUpCircle, path: `${basePath}/request-approval`, adminOnly: true },
+   
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
-    { name: "Settings", icon: Settings, path: `${basePath}/settings-privacy` },
+  
   ];
 
   // Filter: Health Worker = no admin items | Head Nurse = all

@@ -1,3 +1,10 @@
+// ============================================
+// HEALTH WORKER VACCINATION REQUEST PAGE
+// ============================================
+// Allows health workers to submit vaccine requests
+// View their own vaccine requests and status
+// ============================================
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -15,21 +22,38 @@ import {
   createVaccineRequestData,
 } from "@/lib/vaccineRequest";
 
-
-
 export default function VaccinationRequest({
   title = "Vaccine Requisition Requests",
   subtitle = "Barangay: Barangay A",
 }) {
+  // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // List of vaccine requests
   const [requests, setRequests] = useState([]);
+  
+  // Loading state for requests
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Search query for filtering requests
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Error messages
   const [error, setError] = useState(null);
+  
+  // List of available vaccines
   const [vaccines, setVaccines] = useState([]);
+  
+  // Loading state for vaccines
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
+  
+  // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Barangay name of current user
   const [barangayName, setBarangayName] = useState("");
+  
+  // User profile ID for request creation
   const [profileID, setProfileID] = useState(null);
 
   useEffect(() => {
@@ -45,6 +69,14 @@ export default function VaccinationRequest({
       setProfileID(profile.id);
       if (profile.barangays) {
         setBarangayName(profile.barangays.name);
+        // Log barangay info for debugging
+        console.log('Barangay loaded:', {
+          barangayId: profile.barangays.id,
+          barangayName: profile.barangays.name,
+          municipality: profile.barangays.municipality
+        });
+      } else {
+        console.warn('No barangay assigned to user profile:', profile);
       }
     }
 
@@ -173,7 +205,7 @@ export default function VaccinationRequest({
                 onSubmit={handleSubmitRequest}
                 profileID={profileID}
                 barangayName={barangayName || "Barangay A"}
-                barangayId={userProfile?.assigned_barangay_id}
+                barangayId={userProfile?.barangays?.id || userProfile?.assigned_barangay_id}
                 vaccines={vaccines}
                 isLoading={isLoadingVaccines}
               />

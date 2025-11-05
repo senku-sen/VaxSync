@@ -45,7 +45,7 @@ export const getUserProfile = async (userId) => {
   if (profile && profile.assigned_barangay_id) {
     const { data: barangay, error: barangayError } = await supabase
       .from('barangays')
-      .select('id, name, municipality, health_center_name')
+      .select('id, name, municipality, population')
       .eq('id', profile.assigned_barangay_id)
       .single();
 

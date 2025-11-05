@@ -1,3 +1,11 @@
+// ============================================
+// HEAD NURSE INVENTORY PAGE
+// ============================================
+// Manage vaccine inventory and stock
+// Add, edit, and delete vaccines
+// Head nurses have full inventory control
+// ============================================
+
 "use client";
 
 import Sidebar from "../../../../components/Sidebar";
@@ -11,6 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import DeleteConfirm from "@/components/DeleteConfirm";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 
+// Initialize Supabase environment variables
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -20,19 +29,35 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   );
 }
 
+// Create Supabase client
 const supabase = createClient(SUPABASE_URL || "", SUPABASE_ANON_KEY || "");
 
 export default function Inventory({
   title = "Inventory Management",
   subtitle = "Manage vaccine stock and supplies",
 }) {
+  // Modal visibility for adding/editing vaccines
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // List of all vaccines
   const [vaccines, setVaccines] = useState([]);
+  
+  // Currently selected vaccine for editing
   const [selectedVaccine, setSelectedVaccine] = useState(null);
+  
+  // Vaccine to delete (for confirmation)
   const [toDelete, setToDelete] = useState(null);
+  
+  // Search term for filtering vaccines
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
+  
+  // Loading state
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Error messages
   const [error, setError] = useState(null);
 
   useEffect(() => {

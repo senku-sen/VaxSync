@@ -1,3 +1,10 @@
+// ============================================
+// ADD VACCINE COMPONENT
+// ============================================
+// Form for adding/editing vaccines
+// Validates all required fields before submission
+// ============================================
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -17,6 +24,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, AlertCircle, Loader2, Trash} from 'lucide-react';
 import DeleteConfirm from './DeleteConfirm';
 
+// Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -27,6 +35,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
+  // Form state for vaccine data
   const [formData, setFormData] = useState({
     name: '',
     batch_number: '',
@@ -35,8 +44,17 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     notes: '',
     status: 'Good',
   });
+  
+  // Validation errors state
+  const [errors, setErrors] = useState({});
+  
+  // List of vaccines
   const [vaccines, setVaccines] = useState([]);
+  
+  // Alert messages
   const [alert, setAlert] = useState({ show: false, type: '', message: '' });
+  
+  // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -96,13 +114,54 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     setTimeout(() => setAlert({ show: false, type: '', message: '' }), 5000);
   };
 
+  // Validate form fields
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Check vaccine name
+    if (!formData.name || formData.name.trim() === '') {
+      newErrors.name = 'Vaccine name is required';
+    }
+
+    // Check batch number
+    if (!formData.batch_number || formData.batch_number.trim() === '') {
+      newErrors.batch_number = 'Batch number is required';
+    }
+
+    // Check quantity
+    if (formData.quantity_available === '') {
+      newErrors.quantity_available = 'Quantity is required';
+    }
+
+    // Check expiry date
+    if (!formData.expiry_date) {
+      newErrors.expiry_date = 'Expiry date is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
   };
 
+  // Handle form submission with validation
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate before submitting
+    if (!validateForm()) {
+      showAlert('error', 'Please fill in all required fields');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const qty = formData.quantity_available === '' ? null : parseInt(formData.quantity_available, 10);

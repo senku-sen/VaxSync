@@ -1,3 +1,11 @@
+// ============================================
+// HEAD NURSE VACCINE REQUEST APPROVAL PAGE
+// ============================================
+// Approve, reject, or release vaccine requests
+// View all vaccine requests from health workers
+// Head nurses manage request fulfillment
+// ============================================
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -17,12 +25,25 @@ import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
 export default function VaccinationRequest({
   title = "Vaccine Request Approval",
 }) {
+  // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
+  
+  // All vaccine requests from health workers
   const [requests, setRequests] = useState([]);
+  
+  // Loading state for requests
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Search query for filtering requests
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Error messages
   const [error, setError] = useState(null);
+  
+  // List of available vaccines
   const [vaccines, setVaccines] = useState([]);
+  
+  // Loading state for vaccines
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
 
   useEffect(() => {
