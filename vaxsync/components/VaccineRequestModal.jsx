@@ -6,14 +6,19 @@ export default function VaccineRequestModal({
   onClose, 
   onSubmit, 
   barangayName = "Barangay A",
+  profileID = null,
+  barangayId = null,
   vaccines = [],
   isLoading = false
 }) {
   const [formData, setFormData] = useState({
-    vaccine: "",
-    quantity: "",
+    vaccine_id: "",
+    quantity_dose: "",
+    quantity_vial: "",
     notes: ""
   });
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,15 +28,44 @@ export default function VaccineRequestModal({
     }));
   };
 
-  const handleSubmit = () => {
-    if (formData.vaccine && formData.quantity) {
-      onSubmit(formData);
-      setFormData({ vaccine: "", quantity: "", notes: "" });
+  const handleSubmit = async () => {
+    if (formData.vaccine_id && formData.quantity_dose) {
+      if (!barangayId) {
+        alert("Barangay ID is missing. Please refresh the page.");
+        return;
+      }
+      
+      if (!profileID) {
+        alert("Profile ID is missing. Please refresh the page.");
+        return;
+      }
+      
+      setIsSubmitting(true);
+      
+      try {
+        const requestData = {
+          ...formData,
+          barangay_id: barangayId,
+          requested_by: profileID,
+          status: 'pending'
+        };
+        
+        console.log('Submitting request:', requestData);
+        await onSubmit(requestData);
+        setFormData({ vaccine_id: "", quantity_dose: "", quantity_vial: "", notes: "" });
+      } catch (error) {
+        console.error('Error submitting request:', error);
+        alert('Error submitting request: ' + (error.message || 'Unknown error'));
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      alert("Please fill in all required fields");
     }
   };
 
   const handleCancel = () => {
-    setFormData({ vaccine: "", quantity: "", notes: "" });
+    setFormData({ vaccine_id: "", quantity_dose: "", quantity_vial: "", notes: "" });
     onClose();
   };
 
@@ -58,13 +92,13 @@ export default function VaccineRequestModal({
         <div className="p-6">
           {/* Vaccine Select */}
           <div className="mb-4">
-            <label htmlFor="vaccine" className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="vaccine_id" className="block text-sm font-medium text-gray-700 mb-2">
               Vaccine Type
             </label>
             <select
-              id="vaccine"
-              name="vaccine"
-              value={formData.vaccine}
+              id="vaccine_id"
+              name="vaccine_id"
+              value={formData.vaccine_id}
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
             >
@@ -75,7 +109,7 @@ export default function VaccineRequestModal({
                 <option value="" disabled>No vaccines available</option>
               ) : (
                 vaccines.map((vaccine) => (
-                  <option key={vaccine.id} value={vaccine.type}>
+                  <option key={vaccine.id} value={vaccine.id}>
                     {vaccine.name}
                   </option>
                 ))
@@ -83,21 +117,38 @@ export default function VaccineRequestModal({
             </select>
           </div>
 
-          {/* Quantity Input */}
-          <div className="mb-4">
-            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
-              Quantity (doses)
-            </label>
-            <input
-              type="number"
-              id="quantity"
-              name="quantity"
-              value={formData.quantity}
-              onChange={handleChange}
-              placeholder="Number of doses needed"
-              min="1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
-            />
+          {/* Quantity Inputs - Side by Side */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label htmlFor="quantity_dose" className="block text-sm font-medium text-gray-700 mb-2">
+                Quantity (doses)
+              </label>
+              <input
+                type="number"
+                id="quantity_dose"
+                name="quantity_dose"
+                value={formData.quantity_dose}
+                onChange={handleChange}
+                placeholder="Number"
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label htmlFor="quantity_vial" className="block text-sm font-medium text-gray-700 mb-2">
+                Quantity (vial)
+              </label>
+              <input
+                type="number"
+                id="quantity_vial"
+                name="quantity_vial"
+                value={formData.quantity_vial}
+                onChange={handleChange}
+                placeholder="Number"
+                min="1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* Notes Textarea */}
@@ -121,16 +172,18 @@ export default function VaccineRequestModal({
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex-1 px-4 py-2.5 bg-[#004085] hover:bg-[#003366] text-white font-medium rounded-lg transition-colors"
+              disabled={isSubmitting}
+              className="flex-1 px-4 py-2.5 bg-[#004085] hover:bg-[#003366] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
             >
-              Submit Request
+              {isSubmitting ? "Submitting..." : "Submit Request"}
             </button>
           </div>
         </div>
