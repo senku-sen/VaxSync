@@ -28,6 +28,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { BARANGAYS } from "@/lib/utils";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
@@ -48,6 +49,65 @@ export default function ResidentsPage() {
     contact: "",
     barangay: ""
   });
+
+  // Export currently visible residents to CSV
+  const handleExport = () => {
+    try {
+      if (!residents || residents.length === 0) {
+        toast.info("No data to export for current view");
+        return;
+      }
+
+      const escapeCell = (value) => {
+        if (value === null || value === undefined) return "";
+        const str = String(value);
+        if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+        return str;
+      };
+
+      const headers = [
+        "Name",
+        "Age",
+        "Address",
+        "Barangay",
+        "Vaccine Status",
+        "Contact",
+        "Submitted"
+      ];
+
+      const rows = residents.map((r) => [
+        r.name,
+        r.age,
+        r.address,
+        r.barangay || "",
+        r.vaccine_status,
+        r.contact,
+        r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : ""
+      ]);
+
+      const csv = [headers, ...rows]
+        .map((row) => row.map(escapeCell).join(","))
+        .join("\n");
+
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`;
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Export started");
+    } catch (err) {
+      console.error("Error exporting data:", err);
+      toast.error("Failed to export data");
+    }
+  };
 
   // Fetch residents from API
   const fetchResidents = async (status = "pending") => {
@@ -360,9 +420,9 @@ export default function ResidentsPage() {
                         <SelectValue placeholder="Select barangay" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Barangay A">Barangay A</SelectItem>
-                        <SelectItem value="Barangay B">Barangay B</SelectItem>
-                        <SelectItem value="Barangay C">Barangay C</SelectItem>
+                        {BARANGAYS.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -379,7 +439,7 @@ export default function ResidentsPage() {
               </DialogContent>
             </Dialog>
             
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export Data
             </Button>
@@ -416,9 +476,9 @@ export default function ResidentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Barangays</SelectItem>
-                <SelectItem value="Barangay A">Barangay A</SelectItem>
-                <SelectItem value="Barangay B">Barangay B</SelectItem>
-                <SelectItem value="Barangay C">Barangay C</SelectItem>
+                {BARANGAYS.map((b) => (
+                  <SelectItem key={b} value={b}>{b}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -600,9 +660,9 @@ export default function ResidentsPage() {
                       <SelectValue placeholder="Select barangay" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Barangay A">Barangay A</SelectItem>
-                      <SelectItem value="Barangay B">Barangay B</SelectItem>
-                      <SelectItem value="Barangay C">Barangay C</SelectItem>
+                      {BARANGAYS.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

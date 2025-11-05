@@ -31,7 +31,7 @@ export default function Sidebar() {
     { name: "Inventory", icon: Boxes, path: "/inventory" },
     { name: "Vaccination", icon: Syringe, path: "/vaccination" },
     { name: "Schedule", icon: CalendarDays, path: "/schedule" },
-    { name: "Resident Data", icon: User, path: "/residents" },
+    { name: "Resident Data", icon: User, path: "/Head_Nurse/residents" },
     { name: "Vaccine Requests", icon: FileText, path: "/vaccine-requests" },
     { name: "Request Approval", icon: FileCheck, path: "/request-approval" },
     { name: "Reports", icon: ClipboardCheck, path: "/reports" },

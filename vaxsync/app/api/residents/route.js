@@ -56,7 +56,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, age, address, contact, vaccine_status, barangay } = body;
+    const { name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by } = body;
 
     // Validate required fields
     if (!name || !age || !address || !contact) {
@@ -64,6 +64,41 @@ export async function POST(request) {
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
+    }
+
+    // Resolve barangay_id: accept explicit barangay_id, otherwise map from barangay name (and create if missing)
+    let resolvedBarangayId = barangay_id || null;
+    if (!resolvedBarangayId && barangay) {
+      // Try get existing
+      const { data: foundBarangay, error: findBarangayError } = await supabase
+        .from('barangays')
+        .select('id')
+        .eq('name', barangay)
+        .maybeSingle?.();
+
+      if (foundBarangay && foundBarangay.id) {
+        resolvedBarangayId = foundBarangay.id;
+      } else {
+        // If not found, insert
+        const { data: newBarangay, error: insertBarangayError } = await supabase
+          .from('barangays')
+          .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
+          .select('id')
+          .single();
+
+        if (insertBarangayError) {
+          console.error('Supabase error (create barangay):', insertBarangayError);
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to resolve barangay',
+              details: process.env.NODE_ENV === 'development' ? insertBarangayError : undefined
+            },
+            { status: 500 }
+          );
+        }
+        resolvedBarangayId = newBarangay.id;
+      }
     }
 
     // Create new resident in Supabase
@@ -78,6 +113,8 @@ export async function POST(request) {
           vaccine_status: vaccine_status || 'not_vaccinated',
           status: 'pending',
           barangay: barangay || null,
+          barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
+          submitted_by: submitted_by || 'system',
           submitted_at: new Date().toISOString()
         }
       ])
@@ -85,9 +122,13 @@ export async function POST(request) {
       .single();
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error (create resident):', error);
       return NextResponse.json(
-        { success: false, error: 'Failed to create resident' },
+        {
+          success: false,
+          error: 'Failed to create resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
         { status: 500 }
       );
     }
@@ -110,13 +151,35 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, age, address, contact, vaccine_status, barangay } = body;
+    const { id, name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality } = body;
 
     if (!id) {
       return NextResponse.json(
         { success: false, error: 'Resident ID is required' },
         { status: 400 }
       );
+    }
+
+    // Resolve barangay_id if provided as name
+    let resolvedBarangayId = barangay_id || null;
+    if (!resolvedBarangayId && barangay) {
+      const { data: foundBarangay } = await supabase
+        .from('barangays')
+        .select('id')
+        .eq('name', barangay)
+        .maybeSingle?.();
+      if (foundBarangay?.id) {
+        resolvedBarangayId = foundBarangay.id;
+      } else {
+        const { data: newBarangay, error: insertBarangayError } = await supabase
+          .from('barangays')
+          .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
+          .select('id')
+          .single();
+        if (!insertBarangayError) {
+          resolvedBarangayId = newBarangay.id;
+        }
+      }
     }
 
     // Update resident in Supabase
@@ -129,6 +192,7 @@ export async function PUT(request) {
         contact,
         vaccine_status: vaccine_status || 'not_vaccinated',
         barangay: barangay || null,
+        barangay_id: resolvedBarangayId ?? undefined,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -136,7 +200,7 @@ export async function PUT(request) {
       .single();
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error (update resident):', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json(
           { success: false, error: 'Resident not found' },
@@ -144,7 +208,11 @@ export async function PUT(request) {
         );
       }
       return NextResponse.json(
-        { success: false, error: 'Failed to update resident' },
+        {
+          success: false,
+          error: 'Failed to update resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
         { status: 500 }
       );
     }
@@ -196,7 +264,7 @@ export async function PATCH(request) {
       .single();
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error (update status):', error);
       if (error.code === 'PGRST116') {
         return NextResponse.json(
           { success: false, error: 'Resident not found' },
@@ -204,7 +272,11 @@ export async function PATCH(request) {
         );
       }
       return NextResponse.json(
-        { success: false, error: 'Failed to update resident status' },
+        {
+          success: false,
+          error: 'Failed to update resident status',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
         { status: 500 }
       );
     }
@@ -243,9 +315,13 @@ export async function DELETE(request) {
       .eq('id', id);
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error (delete resident):', error);
       return NextResponse.json(
-        { success: false, error: 'Failed to delete resident' },
+        {
+          success: false,
+          error: 'Failed to delete resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
         { status: 500 }
       );
     }
