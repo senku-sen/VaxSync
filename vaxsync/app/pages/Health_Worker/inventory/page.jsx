@@ -131,7 +131,7 @@ export default function Inventory({
                       <th className="px-6 py-3 text-left">Batch</th>
                       <th className="px-6 py-3 text-left">Quantity</th>
                       <th className="px-6 py-3 text-left">Expiry</th>
-                      <th className="px-6 py-3 text-left">Location</th>
+   
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -199,10 +199,6 @@ export default function Inventory({
                         <div>
                           <p className="text-gray-500">Expiry</p>
                           <p className="font-medium">{v.expiry_date}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Location</p>
-                          <p className="font-medium">{v.location}</p>
                         </div>
                       </div>
                     </div>
