@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DeleteConfirm from "@/components/DeleteConfirm";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -30,11 +31,33 @@ export default function Inventory({
   const [selectedVaccine, setSelectedVaccine] = useState(null);
   const [toDelete, setToDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-    fetchVaccines();
+    initializeData();
   }, []);
+
+  const initializeData = async () => {
+    try {
+      // Load user profile first
+      const profile = await loadUserProfile();
+      if (profile) {
+        setUserProfile(profile);
+        console.log('User profile loaded:', profile);
+      }
+      
+      // Then fetch vaccines
+      await fetchVaccines();
+    } catch (err) {
+      console.error('Error initializing data:', err);
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // expose fetch function so other handlers can refresh
   const fetchVaccines = async () => {
@@ -135,27 +158,56 @@ export default function Inventory({
         <Header title={title} subtitle={subtitle} />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:space-x-2 mb-6">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Search className="text-gray-400 shrink-0" />
-              <Input
-                type="text"
-                placeholder="Search by vaccine name or batch..."
-                className="w-full text-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          {/* User Info Display */}
+          {userProfile && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900">
+                <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
+              </p>
             </div>
-            <Button
-              className="w-full md:w-auto py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] text-white rounded-md hover:bg-[#2F4B35]"
-              onClick={openAddModal}
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Vaccine</span>
-            </Button>
-          </div>
+          )}
 
-          <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-900">
+                <span className="font-semibold">Error:</span> {error}
+              </p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#4A7C59] border-t-transparent"></div>
+              <p className="ml-3 text-gray-600">Loading inventory...</p>
+            </div>
+          )}
+
+          {/* Content */}
+          {!isLoading && (
+            <>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:space-x-2 mb-6">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Search className="text-gray-400 shrink-0" />
+                  <Input
+                    type="text"
+                    placeholder="Search by vaccine name or batch..."
+                    className="w-full text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Button
+                  className="w-full md:w-auto py-2 text-sm flex items-center justify-center space-x-2 bg-[#3E5F44] text-white rounded-md hover:bg-[#2F4B35]"
+                  onClick={openAddModal}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Vaccine</span>
+                </Button>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-100">
             <div className="px-4 md:px-6 py-4 border-b border-gray-200 bg-gray-50">
               <h2 className="text-lg md:text-xl font-semibold text-gray-800 tracking-wide">
                 Vaccine Stock Overview
@@ -175,7 +227,7 @@ export default function Inventory({
                       <th className="px-6 py-3">Batch</th>
                       <th className="px-6 py-3">Quantity</th>
                       <th className="px-6 py-3">Expiry</th>
-                      <th className="px-6 py-3">Location</th>
+                      
                       <th className="px-6 py-3">Status</th>
                       <th className="px-6 py-3 text-center">Actions</th>
                     </tr>
@@ -197,7 +249,7 @@ export default function Inventory({
                             : "N/A"}
                         </td>
                         <td className="px-6 py-4">{vaccine.expiry_date}</td>
-                        <td className="px-6 py-4">{vaccine.location}</td>
+                  
                         <td className="px-6 py-4">
                           {statusBadge(vaccine.status)}
                         </td>
@@ -299,8 +351,10 @@ export default function Inventory({
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+              </div>
+              </div>
+            </>
+          )}
 
           {isModalOpen && (
             <div

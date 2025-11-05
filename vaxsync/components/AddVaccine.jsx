@@ -32,7 +32,6 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     batch_number: '',
     quantity_available: '',
     expiry_date: '',
-    location: '',
     notes: '',
     status: 'Good',
   });
@@ -65,7 +64,6 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
         batch_number: '',
         quantity_available: '',
         expiry_date: '',
-        location: '',
         notes: '',
         status: 'Good'
       });
@@ -119,7 +117,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
             batch_number: formData.batch_number,
             quantity_available: qty,
             expiry_date: formData.expiry_date,
-            location: formData.location,
+         
             notes: formData.notes,
             status: formData.status || 'Good'
           })
@@ -134,7 +132,6 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
             batch_number: formData.batch_number,
             quantity_available: qty,
             expiry_date: formData.expiry_date,
-            location: formData.location,
             notes: formData.notes,
             status: formData.status || 'Good',
             created_at: new Date().toISOString()
@@ -234,10 +231,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
                   <Input id="expiry_date" name="expiry_date" type="date" value={formData.expiry_date} onChange={handleChange} required />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="location">Storage Location</Label>
-                  <Input id="location" name="location" type="text" value={formData.location} onChange={handleChange} placeholder="e.g., Refrigerator A, Shelf 2" required />
-                </div>
+       
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status</Label>
