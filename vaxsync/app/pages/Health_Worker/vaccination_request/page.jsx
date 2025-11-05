@@ -15,8 +15,6 @@ import {
   createVaccineRequestData,
 } from "@/lib/vaccineRequest";
 
-
-
 export default function VaccinationRequest({
   title = "Vaccine Requisition Requests",
   subtitle = "Barangay: Barangay A",

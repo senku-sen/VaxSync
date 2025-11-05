@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "../../../components/Sidebar";
-import Header from "../../../components/Header";
+import Sidebar from "../../../../components/Sidebar";
+import Header from "../../../../components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
@@ -41,6 +42,9 @@ export default function ResidentsPage() {
   const [selectedResident, setSelectedResident] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [userProfile, setUserProfile] = useState(null);
+  const [authError, setAuthError] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     age: "",
@@ -49,6 +53,27 @@ export default function ResidentsPage() {
     contact: "",
     barangay: ""
   });
+
+  // Initialize data with auth check
+  const initializeData = async () => {
+    try {
+      setIsAuthLoading(true);
+      const profile = await loadUserProfile();
+      if (profile) {
+        setUserProfile(profile);
+        console.log('User profile loaded:', profile);
+        // Auto-select user's barangay if available
+        if (profile.barangays?.name) {
+          setSelectedBarangay(profile.barangays.name);
+        }
+      }
+    } catch (err) {
+      console.error('Auth error:', err);
+      setAuthError(err.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
 
   // Export currently visible residents to CSV
   const handleExport = () => {
@@ -320,9 +345,15 @@ export default function ResidentsPage() {
   };
 
   useEffect(() => {
-    fetchResidents(activeTab);
-    fetchCounts();
-  }, [activeTab, searchTerm, selectedBarangay]);
+    initializeData();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthLoading && userProfile) {
+      fetchResidents(activeTab);
+      fetchCounts();
+    }
+  }, [activeTab, searchTerm, selectedBarangay, isAuthLoading, userProfile]);
 
   return (
     <div className="flex h-screen flex-col lg:flex-row">
@@ -335,115 +366,143 @@ export default function ResidentsPage() {
         />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto max-w-5xl mx-auto w-full">
+          {/* User Info Display */}
+          {userProfile && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900">
+                <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
+              </p>
+            </div>
+          )}
+
+          {/* Auth Error Display */}
+          {authError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-900">
+                <span className="font-semibold">Error:</span> {authError}
+              </p>
+            </div>
+          )}
+
+          {/* Auth Loading State */}
+          {isAuthLoading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#4A7C59] border-t-transparent"></div>
+              <p className="ml-3 text-gray-600">Loading user profile...</p>
+            </div>
+          )}
+
           {/* Action Buttons */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <Button className="bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white">
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Master List
-            </Button>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Resident
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Resident</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleCreateResident} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Full Name *</Label>
-                    <Input
-                      id="name"
-                      placeholder="Enter full name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="address">Address *</Label>
-                    <Input
-                      id="address"
-                      placeholder="Enter address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
+          {!isAuthLoading && (
+            <div className="flex flex-wrap gap-4 mb-6">
+              <Button className="bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white">
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Master List
+              </Button>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Resident
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Add New Resident</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateResident} className="space-y-4">
                     <div>
-                      <Label htmlFor="age">Age *</Label>
+                      <Label htmlFor="name">Full Name *</Label>
                       <Input
-                        id="age"
-                        type="number"
-                        placeholder="Age"
-                        value={formData.age}
-                        onChange={(e) => setFormData({...formData, age: e.target.value})}
+                        id="name"
+                        placeholder="Enter full name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
                         required
                       />
                     </div>
+                    
                     <div>
-                      <Label htmlFor="contact">Contact Number *</Label>
+                      <Label htmlFor="address">Address *</Label>
                       <Input
-                        id="contact"
-                        placeholder="09XXXXXXXXX"
-                        value={formData.contact}
-                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        id="address"
+                        placeholder="Enter address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({...formData, address: e.target.value})}
                         required
                       />
                     </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="vaccine_status">Vaccine Status</Label>
-                    <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select vaccine status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                        <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                        <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="barangay">Barangay</Label>
-                    <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select barangay" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BARANGAYS.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
-                      Create Resident
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-            
-            <Button variant="outline" onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Export Data
-            </Button>
-          </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="age">Age *</Label>
+                        <Input
+                          id="age"
+                          type="number"
+                          placeholder="Age"
+                          value={formData.age}
+                          onChange={(e) => setFormData({...formData, age: e.target.value})}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="contact">Contact Number *</Label>
+                        <Input
+                          id="contact"
+                          placeholder="09XXXXXXXXX"
+                          value={formData.contact}
+                          onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="vaccine_status">Vaccine Status</Label>
+                      <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select vaccine status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
+                          <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
+                          <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="barangay">Barangay</Label>
+                      <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select barangay" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BARANGAYS.map((b) => (
+                            <SelectItem key={b} value={b}>{b}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2">
+                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                        Create Resident
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+              
+              <Button variant="outline" onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Data
+              </Button>
+            </div>
+          )}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
@@ -586,98 +645,99 @@ export default function ResidentsPage() {
             </CardContent>
           </Card>
 
-          {/* Edit Dialog */}
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Resident</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleUpdateResident} className="space-y-4">
-                <div>
-                  <Label htmlFor="edit-name">Full Name *</Label>
-                  <Input
-                    id="edit-name"
-                    placeholder="Enter full name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-address">Address *</Label>
-                  <Input
-                    id="edit-address"
-                    placeholder="Enter address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+            {/* Edit Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Resident</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleUpdateResident} className="space-y-4">
                   <div>
-                    <Label htmlFor="edit-age">Age *</Label>
+                    <Label htmlFor="edit-name">Full Name *</Label>
                     <Input
-                      id="edit-age"
-                      type="number"
-                      placeholder="Age"
-                      value={formData.age}
-                      onChange={(e) => setFormData({...formData, age: e.target.value})}
+                      id="edit-name"
+                      placeholder="Enter full name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
                       required
                     />
                   </div>
+                  
                   <div>
-                    <Label htmlFor="edit-contact">Contact Number *</Label>
+                    <Label htmlFor="edit-address">Address *</Label>
                     <Input
-                      id="edit-contact"
-                      placeholder="09XXXXXXXXX"
-                      value={formData.contact}
-                      onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                      id="edit-address"
+                      placeholder="Enter address"
+                      value={formData.address}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
                       required
                     />
                   </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
-                  <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select vaccine status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                      <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                      <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-barangay">Barangay</Label>
-                  <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select barangay" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BARANGAYS.map((b) => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
-                    Update Resident
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-age">Age *</Label>
+                      <Input
+                        id="edit-age"
+                        type="number"
+                        placeholder="Age"
+                        value={formData.age}
+                        onChange={(e) => setFormData({...formData, age: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-contact">Contact Number *</Label>
+                      <Input
+                        id="edit-contact"
+                        placeholder="09XXXXXXXXX"
+                        value={formData.contact}
+                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
+                    <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select vaccine status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
+                        <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
+                        <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-barangay">Barangay</Label>
+                    <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select barangay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BARANGAYS.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                      Update Resident
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          
         </main>
       </div>
     </div>
