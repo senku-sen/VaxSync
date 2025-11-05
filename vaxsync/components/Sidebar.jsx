@@ -27,8 +27,8 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [cachedRole, setCachedRole] = useState("");
 
-  const isHealthWorker = pathname.startsWith("/Health_Worker");
-  const isHeadNurse = pathname.startsWith("/Head_Nurse");
+  const isHealthWorker = pathname.startsWith("/pages/Health_Worker");
+  const isHeadNurse = pathname.startsWith("/pages/Head_Nurse");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function Sidebar() {
 
   if (!roleIsHW && !roleIsHN && !isSettingsStandalone) return null;
 
-  const basePath = roleIsHW ? "/Health_Worker" : "/Head_Nurse";
+  const basePath = roleIsHW ? "/pages/Health_Worker" : "/pages/Head_Nurse";
 
   // Full list of items
   const allMenuItems = [
