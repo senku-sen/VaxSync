@@ -38,9 +38,9 @@ export default function SignIn() {
       
       // Redirect based on user role
       if (data.userRole === 'Health Worker') {
-        window.location.href = '/Health_Worker/inventory';
+        window.location.href = '/pages/Health_Worker/inventory';
       } else if (data.userRole === 'Head Nurse') {
-        window.location.href = '/Head_Nurse/inventory';
+        window.location.href = '/pages/Head_Nurse/inventory';
       } else {
         // Fallback for unknown roles
         window.location.href = '/inventory';
@@ -105,7 +105,7 @@ export default function SignIn() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <Link href="/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
+              <Link href="/pages/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
                 Forgot password?
               </Link>
             </div>
