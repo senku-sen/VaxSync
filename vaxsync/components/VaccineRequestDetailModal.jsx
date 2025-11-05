@@ -7,6 +7,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -15,8 +16,34 @@ export default function VaccineRequestDetailModal({
   request,
   vaccine,
   onClose,
+  isAdmin = false,
+  onUpdate = null,
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    quantity_requested: 0,
+    notes: "",
+    status: "pending",
+  });
+
+  useEffect(() => {
+    if (request) {
+      setEditData({
+        quantity_requested: request.quantity_requested || 0,
+        notes: request.notes || "",
+        status: request.status || "pending",
+      });
+    }
+  }, [request]);
+
   if (!isOpen || !request) return null;
+
+  const handleSave = async () => {
+    if (onUpdate) {
+      await onUpdate(request.id, editData);
+      setIsEditing(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -53,15 +80,28 @@ export default function VaccineRequestDetailModal({
 
         {/* Modal Body */}
         <div className="p-6 space-y-6">
-          {/* Status Badge */}
+          {/* Status Badge / Dropdown */}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-gray-700">Status</span>
-            <Badge
-              variant="default"
-              className={`${getStatusColor(request.status)} border-0 px-3 py-1`}
-            >
-              {request.status}
-            </Badge>
+            {isEditing && isAdmin ? (
+              <select
+                value={editData.status}
+                onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
+              >
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="released">Released</option>
+              </select>
+            ) : (
+              <Badge
+                variant="default"
+                className={`${getStatusColor(editData.status)} border-0 px-3 py-1`}
+              >
+                {editData.status}
+              </Badge>
+            )}
           </div>
 
           {/* Divider */}
@@ -82,9 +122,19 @@ export default function VaccineRequestDetailModal({
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Quantity Requested
               </label>
-              <p className="mt-1 text-sm text-gray-900 font-medium">
-                {request.quantity_requested} doses
-              </p>
+              {isEditing ? (
+                <input
+                  type="number"
+                  min="1"
+                  value={editData.quantity_requested}
+                  onChange={(e) => setEditData({ ...editData, quantity_requested: parseInt(e.target.value) || 0 })}
+                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
+                />
+              ) : (
+                <p className="mt-1 text-sm text-gray-900 font-medium">
+                  {editData.quantity_requested} doses
+                </p>
+              )}
             </div>
 
             <div>
@@ -109,23 +159,37 @@ export default function VaccineRequestDetailModal({
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="border-t border-gray-200"></div>
+          {/* Notes Section - Only editable for Health Worker */}
+          {!isAdmin && (
+            <>
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
 
-          {/* Notes Section */}
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-              Notes
-            </label>
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-700">
-                {request.notes || "No notes provided"}
-              </p>
-            </div>
-          </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Notes
+                </label>
+                {isEditing ? (
+                  <textarea
+                    value={editData.notes}
+                    onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A7C59]"
+                    rows="3"
+                    placeholder="Add notes..."
+                  />
+                ) : (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-700">
+                      {editData.notes || "No notes provided"}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-          {/* Divider */}
-          <div className="border-t border-gray-200"></div>
+              {/* Divider */}
+              <div className="border-t border-gray-200"></div>
+            </>
+          )}
 
           {/* Additional Information */}
           <div className="space-y-4">
@@ -141,13 +205,40 @@ export default function VaccineRequestDetailModal({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 sticky bottom-0">
-          <button
-            onClick={onClose}
-            className="w-full px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
-          >
-            Close
-          </button>
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 sticky bottom-0 flex gap-2">
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setIsEditing(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              {(isAdmin || request.status === "pending") && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

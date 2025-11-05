@@ -83,7 +83,7 @@ export default function VaccinationRequest({
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-0 sm:px-2">
             {/* Summary Cards */}
-            <VaccineSummaryCards />
+            <VaccineSummaryCards requests={requests} />
 
             {/* Controls Section */}
             <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">

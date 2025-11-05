@@ -74,12 +74,8 @@ export default function VaccinationRequest({
   };
 
   const handleSubmitRequest = async (formData) => {
-    // Add current user ID to the form data
-    const requestData = {
-      ...formData,
-      requested_by: userProfile?.id,
-    };
-    const { success, error } = await createVaccineRequestData(requestData);
+    // Don't include requested_by - RLS will set it from auth.uid()
+    const { success, error } = await createVaccineRequestData(formData);
     if (success) {
       await loadRequests();
       setIsModalOpen(false);
@@ -101,7 +97,7 @@ export default function VaccinationRequest({
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
           <div className="max-w-7xl mx-auto px-0 sm:px-2">
             {/* Summary Cards */}
-            <VaccineSummaryCards />
+            <VaccineSummaryCards requests={requests} />
 
             {/* Controls Section */}
             <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">

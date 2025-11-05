@@ -10,7 +10,9 @@ export default function VaccineRequestsTable({
   error = null,
   searchQuery = "",
   onDelete,
-  onRetry
+  onRetry,
+  onUpdateStatus,
+  isAdmin = false
 }) {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -48,6 +50,25 @@ export default function VaccineRequestsTable({
   const handleCancelDelete = () => {
     setDeleteConfirmOpen(false);
     setRequestToDelete(null);
+  };
+
+  const handleUpdateRequest = async (requestId, updatedData) => {
+    if (!onUpdateStatus) return;
+    
+    // For Health Worker: only update quantity and notes
+    // For Head Nurse: update quantity, notes, and status
+    const updatePayload = isAdmin 
+      ? updatedData 
+      : { quantity_requested: updatedData.quantity_requested, notes: updatedData.notes };
+    
+    // Call the update function from parent
+    if (isAdmin && updatedData.status !== selectedRequest.status) {
+      await onUpdateStatus(requestId, updatedData.status);
+    }
+    
+    // Handle quantity and notes update if needed
+    setIsDetailModalOpen(false);
+    setSelectedRequest(null);
   };
   if (isLoading) {
     return (
@@ -132,14 +153,31 @@ export default function VaccineRequestsTable({
                 {request.quantity_requested} doses
               </td>
 
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                  ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
-                    request.status === 'approved' ? 'bg-green-100 text-green-700' : 
-                    request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
-                    'bg-gray-100 text-gray-700'}`}>
-                  {request.status}
-                </span>
+              <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                {isAdmin ? (
+                  <select
+                    value={request.status}
+                    onChange={(e) => onUpdateStatus && onUpdateStatus(request.id, e.target.value)}
+                    className={`px-3 py-1 text-xs font-semibold rounded-full border-0 cursor-pointer
+                      ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                        request.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                        request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                        'bg-gray-100 text-gray-700'}`}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="released">Released</option>
+                  </select>
+                ) : (
+                  <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                      request.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                      request.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                      'bg-gray-100 text-gray-700'}`}>
+                    {request.status}
+                  </span>
+                )}
               </td>
               <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                 {request.notes || '-'}
@@ -177,6 +215,8 @@ export default function VaccineRequestsTable({
         request={selectedRequest}
         vaccine={vaccines.find(v => v.id === selectedRequest?.vaccine_id)}
         onClose={handleCloseModal}
+        isAdmin={isAdmin}
+        onUpdate={handleUpdateRequest}
       />
 
       {/* Delete Confirmation Modal */}

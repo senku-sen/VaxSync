@@ -54,23 +54,28 @@ export const loadUserProfile = async () => {
 };
 
 /**
- * Fetch vaccine requests for current user (Health Worker) or all (Head Nurse via RLS)
+ * Fetch vaccine requests - Filter by user role
  * @param {Object} options - Query options
  * @param {string} options.barangayId - Optional barangay ID to filter by
- * @param {boolean} options.isAdmin - If true, fetch all requests (Head Nurse)
- * @param {string} options.userId - Current user ID (from localStorage)
+ * @param {boolean} options.isAdmin - If true, fetch all requests (for Head Nurse)
+ * @param {string} options.userId - Current user ID (required for filtering)
  * @returns {Promise<{ data: Array, error: Object }>}
  */
 export async function fetchVaccineRequests(options = {}) {
+  console.log('fetchVaccineRequests called with options:', options);
+
   let query = supabase
     .from("vaccine_requests")
     .select("*")
     .order("created_at", { ascending: false });
 
-  // Health Worker: only see their own requests
-  // Head Nurse: RLS policy will allow them to see all
+  // If not admin (Health Worker), filter by requested_by
   if (!options.isAdmin && options.userId) {
+    console.log('Health Worker: Filtering by requested_by:', options.userId);
     query = query.eq("requested_by", options.userId);
+  } else if (!options.isAdmin) {
+    console.log('Health Worker but no userId provided - returning empty');
+    return { data: [], error: null };
   }
 
   if (options.barangayId) {
@@ -78,6 +83,7 @@ export async function fetchVaccineRequests(options = {}) {
   }
 
   const { data, error } = await query;
+  console.log('Query executed:', { hasData: !!data, hasError: !!error, dataLength: data?.length, error });
   return { data, error };
 }
 
@@ -89,22 +95,22 @@ export async function fetchVaccineRequests(options = {}) {
  */
 export const loadVaccineRequestsData = async (options = {}) => {
   try {
-    // Get user ID from localStorage for client-side filtering
-    const userData = localStorage.getItem('vaxsync_user');
+    // Get user ID from localStorage for Health Worker filtering
     let userId = null;
-    if (userData) {
-      try {
-        const parsed = JSON.parse(userData);
-        userId = parsed.id;
-      } catch (e) {
-        console.warn('Failed to parse user data from localStorage');
+    if (!options.isAdmin) {
+      const userData = localStorage.getItem('vaxsync_user');
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          userId = user.id;
+        } catch (e) {
+          console.error('Failed to parse user data:', e);
+        }
       }
     }
 
-    const { data, error } = await fetchVaccineRequests({
-      ...options,
-      userId
-    });
+    // Fetch requests with userId for filtering
+    const { data, error } = await fetchVaccineRequests({ ...options, userId });
     console.log('fetchVaccineRequests result:', { data, error });
     if (error) {
       console.error('Supabase error details:', error);
@@ -122,22 +128,20 @@ export const loadVaccineRequestsData = async (options = {}) => {
 
 /**
  * Create a new vaccine request
- * @param {Object} request - The request data (must include requested_by: userId)
+ * @param {Object} request - The request data (vaccine_id, quantity_requested, notes, barangay_id)
  * @returns {Promise<{ data: Object, error: Object }>}
  */
 export async function createVaccineRequest(request) {
-  if (!request.requested_by) {
-    console.error('requested_by is required');
-    return { data: null, error: { message: 'User ID is required' } };
-  }
-
-  console.log('Creating vaccine request for user:', request.requested_by);
+  console.log('Creating vaccine request');
   console.log('Request data:', request);
 
+  // Don't include requested_by - the database trigger will set it from auth.uid()
   const requestData = {
-    ...request,
+    vaccine_id: request.vaccine_id,
+    quantity_requested: request.quantity_requested,
+    notes: request.notes || "",
+    barangay_id: request.barangay_id,
     status: "pending",
-    created_at: new Date().toISOString(),
   };
 
   console.log('Final request data to insert:', requestData);
@@ -180,12 +184,39 @@ export async function updateVaccineRequest(id, updates) {
  */
 export const updateVaccineRequestStatus = async (requestId, status) => {
   try {
-    const { error } = await updateVaccineRequest(requestId, { status });
-    if (error) throw error;
+    console.log('Updating request status:', requestId, 'to', status);
+    const { data, error } = await updateVaccineRequest(requestId, { status });
+    console.log('Update result:', { data, error });
+    if (error) {
+      console.error('Supabase update error details:', error);
+      throw error;
+    }
     return { success: true, error: null };
   } catch (err) {
     console.error('Error updating request status:', err);
     return { success: false, error: err.message || 'Failed to update request status' };
+  }
+};
+
+/**
+ * Update vaccine request fields (quantity and notes) with error handling
+ * @param {string} requestId - The request ID
+ * @param {Object} updates - Fields to update (quantity_requested, notes)
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export const updateVaccineRequestData = async (requestId, updates) => {
+  try {
+    console.log('Updating request data:', requestId, updates);
+    const { data, error } = await updateVaccineRequest(requestId, updates);
+    console.log('Update result:', { data, error });
+    if (error) {
+      console.error('Supabase update error details:', error);
+      throw error;
+    }
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error updating request data:', err);
+    return { success: false, error: err.message || 'Failed to update request' };
   }
 };
 
@@ -262,6 +293,7 @@ export default {
   deleteVaccineRequestData,
   createVaccineRequestData,
   updateVaccineRequestStatus,
+  updateVaccineRequestData,
   fetchVaccineRequests,
   createVaccineRequest,
   updateVaccineRequest,
