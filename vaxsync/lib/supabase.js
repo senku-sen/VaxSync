@@ -1,14 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Prefer server-only env vars when available, fall back to NEXT_PUBLIC for dev
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  // runtime check — client code may still import this but will handle empty strings
   console.warn(
-    "Supabase env vars are missing. Set SUPABASE_URL/SUPABASE_ANON_KEY or NEXT_PUBLIC_* variants."
+    "Supabase env vars are missing. Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set."
   );
 }
 
