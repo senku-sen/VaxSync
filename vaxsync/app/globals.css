@@ -1,7 +1,18 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  
+  /* VaxSync Theme Colors */
+  --primary-green: #3E5F44;
+  --secondary-green: #5E936C;
+  --light-green: #93DA97;
+  --pale-green: #E8FFD7;
+  --alert-red: #FEE2E2;
+  --alert-red-text: #991B1B;
+}
 
 @theme inline {
   --color-background: var(--background);
