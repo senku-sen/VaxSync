@@ -105,7 +105,7 @@ export default function SignIn() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <Link href="/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
+              <Link href="/pages/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
                 Forgot password?
               </Link>
             </div>

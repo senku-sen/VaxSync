@@ -120,7 +120,11 @@ export default function SignUp() {
       const data = await res.json();
       
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create account');
+        const message = (data && data.error) || 'Failed to create account';
+        if (/already\s+(registered|been registered|exists)/i.test(message)) {
+          setFieldErrors(prev => ({ ...prev, email: message }));
+        }
+        throw new Error(message);
       }
       
       // Store email for success page
