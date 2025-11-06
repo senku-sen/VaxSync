@@ -177,15 +177,15 @@ export default function SettingsPrivacyPage() {
               <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label className="text-gray-800">First Name</Label>
-                  <Input value={profile?.first_name || ""} readOnly className="mt-1" />
+                  <Input value={profile?.first_name || ""} readOnly className="mt-1"  />
                 </div>
                 <div>
                   <Label className="text-gray-800">Last Name</Label>
-                  <Input value={profile?.last_name || ""} readOnly className="mt-1" />
+                  <Input value={profile?.last_name || ""} readOnly className="mt-1"  />
                 </div>
                 <div>
                   <Label className="text-gray-800">Email</Label>
-                  <Input value={profile?.email || ""} readOnly className="mt-1" />
+                  <Input value={profile?.email || ""} readOnly className="mt-1"  />
                 </div>
                 <div>
                   <Label className="text-gray-800">Address</Label>
