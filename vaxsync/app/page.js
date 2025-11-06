@@ -1,11 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import Hero from "@/components/hero"
-import Features from "@/components/features"
-import Tutorial from "@/components/tutorial"
-import CTA from "@/components/cta"
-import Navigation from "@/components/navigation"
+import Hero from "@/components/landing/hero"
+import Features from "@/components/landing/features"
+import Tutorial from "@/components/landing/tutorial"
+import CTA from "@/components/landing/cta"
+import Navigation from "@/components/landing/navigation"
 
 export default function Home() {
   const [showAuth, setShowAuth] = useState(false)

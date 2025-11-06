@@ -5,7 +5,7 @@ export default function Navigation({ onGetStarted }) {
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
       <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/70"></div>
+          <img src="/logo.png" alt="RHU 1 Logo" className="w-10 h-12 square-full" />
           <span className="font-bold text-xl text-foreground">VaxSync</span>
         </div>
         <div className="hidden md:flex items-center gap-8">

@@ -10,25 +10,25 @@ export default function Tutorial() {
       title: "About RHU 1 Daet",
       description:
         "Rural Health Unit 1 of Daet, Camarines Norte is a primary healthcare facility serving the communities of Daet. We provide comprehensive health services including immunization, maternal health, disease surveillance, and health promotion programs.",
-      icon: "🏥",
+      icon: <img src="/task.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
     },
     {
       title: "Our Services",
       description:
         "We offer immunization services, prenatal and postnatal care, family planning services, basic healthcare consultations, and disease prevention programs. Our team is committed to providing accessible and quality healthcare to all residents.",
-      icon: "⚕️",
-    },
+         icon: <img src="/nurse.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
+     },
     {
       title: "Vaccine Management",
       description:
         "We maintain a comprehensive vaccine inventory including routine immunizations for infants, children, adolescents, and adults. All vaccines are stored in proper cold chain conditions to ensure efficacy and safety.",
-      icon: "💉",
-    },
+      icon: <img src="/injection.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
+      },
     {
       title: "Operating Hours & Location",
       description:
         "RHU 1 is located in Daet, Camarines Norte. We are open Monday to Friday from 8:00 AM to 5:00 PM. For emergencies, we provide referral services to higher health facilities. Contact us for more information about our services.",
-      icon: "🕐",
+      icon: <img src="/clock.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
     },
   ]
 

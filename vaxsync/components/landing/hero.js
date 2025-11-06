@@ -21,10 +21,6 @@ export default function Hero({ onGetStarted }) {
             </p>
             <div className="flex items-center gap-8 pt-4">
               <div>
-                <p className="text-2xl font-bold text-foreground">10K+</p>
-                <p className="text-sm text-foreground/60">Active Users</p>
-              </div>
-              <div>
                 <p className="text-2xl font-bold text-foreground">99.9%</p>
                 <p className="text-sm text-foreground/60">Uptime</p>
               </div>

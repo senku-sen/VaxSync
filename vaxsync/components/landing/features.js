@@ -7,12 +7,12 @@ export default function Features() {
     },
     {
       title: "Smart Inventory",
-      description: "Automatic stock predictions and reorder suggestions based on usage patterns.",
+      description: "Stock predictions and reorder suggestions based on usage patterns.",
       icon: "🤖",
     },
     {
-      title: "Compliance Ready",
-      description: "Built-in compliance checks and detailed audit trails for regulatory requirements.",
+      title: "Barangay Records Integration",
+      description: "Built-in compliance checks and detailed reports for regulatory requirements.",
       icon: "✅",
     },
     {
@@ -21,8 +21,8 @@ export default function Features() {
       icon: "🏥",
     },
     {
-      title: "Integration",
-      description: "Seamlessly integrate with existing EHR and pharmacy management systems.",
+      title: "Vaccination Schedule Tracker",
+      description: "Seamlessly integrate schedule for vaccination per barangay.",
       icon: "🔗",
     },
     {
