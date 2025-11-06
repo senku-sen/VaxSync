@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -57,6 +58,11 @@ const Icon = ({ name, isActive }) => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
       </svg>
     ),
+    tracking: (
+      <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
     settings: (
       <svg className={iconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -75,20 +81,46 @@ const Icon = ({ name, isActive }) => {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
 
+  // Mount detection for hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Head_Nurse menu items only (REP-01)
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
-    { name: 'Inventory', path: '/inventory', icon: 'inventory' },
-    { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
-    { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
-    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
-    { name: 'Request Approval', path: '/request-approval', icon: 'download' },
-    { name: 'Reports', path: '/reports', icon: 'chart' },
-    { name: 'Notifications', path: '/notifications', icon: 'bell' },
-    { name: 'User Management', path: '/user-management', icon: 'user' },
-    { name: 'Settings', path: '/settings', icon: 'settings' },
+    { name: 'Dashboard', path: `/Pages/Head_Nurse/Dashboard`, icon: 'dashboard' },
+    { name: 'Inventory', path: `/Pages/Head_Nurse/Inventory`, icon: 'inventory' },
+    { name: 'Barangay Management', path: `/Pages/Head_Nurse/BarangayManagement`, icon: 'users' },
+    { name: 'Vaccination Schedule', path: `/Pages/Head_Nurse/VaccinationSchedule`, icon: 'calendar' },
+    { name: 'NIP Tracking', path: `/Pages/Head_Nurse/NIPTracking`, icon: 'tracking' },
+    { name: 'Vaccine Requests', path: `/Pages/Head_Nurse/VaccineRequests`, icon: 'document' },
+    { name: 'Request Approval', path: `/Pages/Head_Nurse/RequestApproval`, icon: 'check' },
+    { name: 'Reports', path: `/Pages/Head_Nurse/Reports`, icon: 'chart' },
+    { name: 'Notifications', path: `/Pages/Head_Nurse/Notifications`, icon: 'bell' },
+    { name: 'User Management', path: `/Pages/Head_Nurse/UserManagement`, icon: 'user' },
   ];
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="w-56 bg-white min-h-screen flex flex-col shadow-sm">
+        <div className="p-5 flex items-center gap-2 border-b border-gray-200">
+          <div className="w-7 h-7 bg-[#3E5F44] rounded flex items-center justify-center text-white font-bold text-xs">
+            V
+          </div>
+          <span className="font-semibold text-gray-800 text-base">VaxSync</span>
+        </div>
+        <nav className="flex-1 px-2 py-3">
+          <div className="animate-pulse">
+            <div className="h-10 bg-gray-200 rounded mb-1"></div>
+            <div className="h-10 bg-gray-200 rounded"></div>
+          </div>
+        </nav>
+      </div>
+    );
+  }
 
   return (
     <div className="w-56 bg-white min-h-screen flex flex-col shadow-sm">
