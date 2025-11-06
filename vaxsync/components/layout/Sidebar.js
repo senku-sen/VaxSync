@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const Icon = ({ name, isActive }) => {
-  const iconClass = `w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`;
+  const iconClass = `w-4 h-4 ${isActive ? 'text-white' : 'text-gray-900'}`;
   
   const icons = {
     dashboard: (
@@ -76,32 +76,28 @@ const Icon = ({ name, isActive }) => {
 export default function Sidebar() {
   const pathname = usePathname();
 
+  // Health_Worker menu items - 6 items as shown in image
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
-    { name: 'Inventory', path: '/inventory', icon: 'inventory' },
-    { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
-    { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
-    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
-    { name: 'Request Approval', path: '/request-approval', icon: 'download' },
-    { name: 'Reports', path: '/reports', icon: 'chart' },
-    { name: 'Notifications', path: '/notifications', icon: 'bell' },
-    { name: 'User Management', path: '/user-management', icon: 'user' },
-    { name: 'Settings', path: '/settings', icon: 'settings' },
+    { name: 'Dashboard', path: '/Pages/Health_Worker/Dashboard', icon: 'dashboard' },
+    { name: 'Inventory', path: '/Pages/Health_Worker/Inventory', icon: 'inventory' },
+    { name: 'Vaccination Schedule', path: '/Pages/Health_Worker/VaccinationSchedule', icon: 'calendar' },
+    { name: 'NIP Tracking', path: '/Pages/Health_Worker/NIPTracking', icon: 'users' },
+    { name: 'Vaccine Requests', path: '/Pages/Health_Worker/VaccineRequests', icon: 'document' },
+    { name: 'Reports', path: '/Pages/Health_Worker/Reports', icon: 'chart' },
   ];
 
   return (
-    <div className="w-56 bg-white min-h-screen flex flex-col shadow-sm">
+    <div className="w-40 bg-[#F5F5F5] min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="p-5 flex items-center gap-2 border-b border-gray-200">
-        <div className="w-7 h-7 bg-[#3E5F44] rounded flex items-center justify-center text-white font-bold text-xs">
+      <div className="p-4 flex items-center gap-2 mb-2">
+        <div className="w-6 h-6 bg-[#3E5F44] rounded-full flex items-center justify-center text-white font-bold text-xs">
           V
         </div>
-        <span className="font-semibold text-gray-800 text-base">VaxSync</span>
+        <span className="font-semibold text-gray-900 text-sm">VaxSync</span>
       </div>
 
       {/* Navigation Menu */}
-      <nav className="flex-1 px-2 py-3">
+      <nav className="flex-1 px-2">
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           return (
@@ -109,10 +105,10 @@ export default function Sidebar() {
               key={item.path}
               href={item.path}
               className={`
-                flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-md text-sm transition-colors
+                flex items-center gap-2 px-3 py-2.5 mb-1 rounded-lg text-xs transition-colors
                 ${isActive 
                   ? 'bg-[#3E5F44] text-white font-medium' 
-                  : 'text-gray-700 hover:bg-gray-100 font-normal'
+                  : 'text-gray-900 hover:bg-gray-200 font-normal'
                 }
               `}
             >
@@ -122,14 +118,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Logout */}
-      <div className="p-2 border-t border-gray-200">
-        <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-md text-sm font-normal text-gray-700 hover:bg-gray-100 transition-colors">
-          <Icon name="logout" isActive={false} />
-          <span>Logout</span>
-        </button>
-      </div>
     </div>
   );
 }
