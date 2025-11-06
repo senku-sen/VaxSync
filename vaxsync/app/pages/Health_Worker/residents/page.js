@@ -196,13 +196,23 @@ export default function ResidentsPage() {
   // Create new resident
   const handleCreateResident = async (e) => {
     e.preventDefault();
+    
+    // Validate user profile is loaded
+    if (!userProfile || !userProfile.id) {
+      toast.error("User profile not loaded. Please refresh the page.");
+      return;
+    }
+    
     try {
       const response = await fetch("/api/residents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          submitted_by: userProfile.id
+        }),
       });
 
       const data = await response.json();
