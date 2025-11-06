@@ -2,18 +2,25 @@
 
 export default function CTA({ onGetStarted }) {
   return (
-    <section id="pricing" className="py-20 md:py-32 bg-gradient-to-br from-primary/10 to-accent/10">
+    <section
+      id="pricing"
+      className="py-20 md:py-32 bg-gradient-to-br from-green-200 via-green-300 to-green-500"
+    >
       <div className="max-w-4xl mx-auto px-6 text-center">
         <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6 text-balance">
           Ready to Streamline Your Vaccine Inventory?
         </h2>
+
         <p className="text-xl text-foreground/60 mb-8 leading-relaxed max-w-2xl mx-auto">
-          Join hundreds of healthcare facilities managing their vaccine inventory with VaxSync. Start your free trial
-          today—no credit card required.
+          Join hundreds of healthcare facilities managing their vaccine inventory with VaxSync. 
+          Start your free trial today—no credit card required.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-          <button className="px-8 py-4 border-2 border-primary text-primary rounded-lg font-bold text-lg hover:bg-primary/5 transition">
+          <button
+            onClick={onGetStarted}
+            className="px-8 py-4 border-2 border-primary text-primary rounded-lg font-bold text-lg hover:bg-primary/5 transition"
+          >
             Start Now
           </button>
         </div>

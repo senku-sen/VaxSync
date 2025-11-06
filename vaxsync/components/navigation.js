@@ -12,11 +12,11 @@ export default function Navigation({ onGetStarted }) {
           <a href="#features" className="text-foreground/70 hover:text-foreground transition">
             Features
           </a>
+          <a href="#tutorial" className="text-foreground/70 hover:text-foreground transition">
+            Tutorial
+          </a>
           <a href="#about" className="text-foreground/70 hover:text-foreground transition">
             About
-          </a>
-          <a href="#more" className="text-foreground/70 hover:text-foreground transition">
-            More
           </a>
         </div>
         <div className="flex items-center gap-3">
