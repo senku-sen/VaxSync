@@ -3,7 +3,7 @@
 import { Bell } from "lucide-react";
 import ProfileMenu from "@/components/ProfileMenu";
 
-export default function InventoryHeader({ title, subtitle }) {
+export default function Header({ title, subtitle }) {
   return (
     <div className="flex items-center justify-between p-9 border-b border-gray-200 bg-white">
       <div>

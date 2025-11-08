@@ -97,6 +97,15 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-6">
       <div className="w-full max-w-md border rounded-lg p-6" style={{ borderColor: "#3E5F44" }}>
+        {/* Logo */}
+        <div className="flex items-center justify-center mb-6">
+          <img
+            src="/VSyncLogo.png"
+            alt="VaxSync Logo"
+            style={{ maxWidth: '240px', height: 'auto' }}
+            className="h-24 w-auto"
+          />
+        </div>
         <h1 className="text-2xl font-bold mb-2" style={{ color: "#3E5F44" }}>Forgot Password</h1>
         <p className="text-sm text-gray-600 mb-6">Reset your password with a 6-digit code sent to your email.</p>
 

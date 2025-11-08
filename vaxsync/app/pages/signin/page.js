@@ -39,7 +39,7 @@ export default function SignIn() {
       // Redirect based on user role
       if (data.userRole === 'Health Worker') {
         window.location.href = '/pages/Health_Worker/inventory';
-      } else if (data.userRole === 'Head Nurse') {
+      } else if (data.userRole === 'RHM/HRH') {
         window.location.href = '/pages/Head_Nurse/inventory';
       } else {
         // Fallback for unknown roles
