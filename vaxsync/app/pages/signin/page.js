@@ -25,18 +25,25 @@ export default function SignIn() {
       if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
 
       // Cache minimal profile for client-only pages
+      const userCache = {
+        id: data.id,
+        email: data.email,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        user_role: data.userRole,
+        address: data.address || "",
+      };
+      console.log('Caching user:', userCache);
       try {
-        localStorage.setItem('vaxsync_user', JSON.stringify({
-          id: data.id,
-          email: data.email,
-          first_name: data.firstName,
-          last_name: data.lastName,
-          user_role: data.userRole,
-          address: data.address || "",
-        }));
-      } catch {}
+        localStorage.setItem('vaxsync_user', JSON.stringify(userCache));
+        console.log('User cached successfully');
+      } catch (err) {
+        console.error('Failed to cache user:', err);
+        throw new Error('Failed to cache user data');
+      }
       
       // Redirect based on user role
+      console.log('Redirecting based on role:', data.userRole);
       if (data.userRole === 'Health Worker') {
         window.location.href = '/pages/Health_Worker/inventory';
       } else if (data.userRole === 'RHM/HRH') {

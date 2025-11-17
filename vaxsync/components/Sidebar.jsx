@@ -16,6 +16,7 @@ import {
   BarChart3,
   Bell,
   UserCog,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -56,11 +57,12 @@ export default function Sidebar() {
     { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/schedule` },
     { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
     { name: "Resident Approval", icon: CheckCircle, path: `${basePath}/resident-approval`, adminOnly: true },
-    { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccine-requests` },
+    { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
     { name: "Request Approval", icon: ArrowUpCircle, path: `${basePath}/request-approval`, adminOnly: true },
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
+    { name: "Settings", icon: Settings, path: `${basePath}/settings-privacy` },
   ];
 
   // Filter: Health Worker = no admin items | RHM/HRH = all
