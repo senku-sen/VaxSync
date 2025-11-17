@@ -80,22 +80,15 @@ export default function HeadNurseUserManagement() {
 
         <main className="flex-1 p-6 lg:p-10">
           <div className="mx-auto max-w-6xl space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name or email..."
-                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30"
-                />
-              </div>
-
-              <Button className="bg-[#3E5F44] hover:bg-[#2E4A35] text-white text-sm px-5 py-2 flex items-center gap-2 self-start md:self-auto">
-                <Plus className="h-4 w-4" />
-                Add User
-              </Button>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30"
+              />
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
