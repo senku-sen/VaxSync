@@ -16,8 +16,6 @@ import {
   BarChart3,
   Bell,
   UserCog,
-  Settings,
-  LogOut,
   Menu,
   X,
 } from "lucide-react";
@@ -62,13 +60,10 @@ export default function Sidebar() {
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
-    { name: "Settings", icon: Settings, path: `${basePath}/settings-privacy` },
   ];
 
   // Filter: Health Worker = no admin items | RHM/HRH = all
   const menuItems = allMenuItems.filter(item => !item.adminOnly || roleIsHN);
-
-  const logoutItem = { name: "Logout", icon: LogOut, path: "/logout" };
 
   return (
     <>
@@ -130,20 +125,6 @@ export default function Sidebar() {
           </div>
         </nav>
 
-        {/* Logout */}
-        <div className="px-4 py-4 border-t border-gray-300">
-          <Button
-            asChild
-            variant="ghost"
-            className="w-full justify-start text-base font-medium px-4 py-5 text-gray-900 hover:bg-gray-300"
-            onClick={() => setIsOpen(false)}
-          >
-            <Link href={logoutItem.path}>
-              <LogOut className="mr-3 h-5 w-5" />
-              {logoutItem.name}
-            </Link>
-          </Button>
-        </div>
       </div>
     </>
   );
