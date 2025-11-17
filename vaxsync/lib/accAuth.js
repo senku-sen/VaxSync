@@ -30,31 +30,35 @@ export const requireAuth = () => {
 };
 
 export const getUserProfile = async (userId) => {
-  const { data: profile, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
-
-  // If profile has assigned_barangay_id, fetch barangay separately
-  if (profile && profile.assigned_barangay_id) {
-    const { data: barangay, error: barangayError } = await supabase
-      .from('barangays')
-      .select('id, name, municipality, population')
-      .eq('id', profile.assigned_barangay_id)
+  try {
+    console.log('Fetching user profile with barangay...');
+    
+    // Fetch user profile with barangay in a single query
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select(`
+        *,
+        barangays:assigned_barangay_id (
+          id,
+          name,
+          municipality,
+          population
+        )
+      `)
+      .eq('id', userId)
       .single();
 
-    if (!barangayError && barangay) {
-      profile.barangays = barangay;
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
     }
-  }
 
-  return profile;
+    console.log('User profile fetched successfully');
+    return profile;
+  } catch (err) {
+    console.error('Error in getUserProfile:', err);
+    return null;
+  }
 };
 
 export const logout = async () => {
