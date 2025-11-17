@@ -106,6 +106,7 @@ export default function BarangayForm({
             Municipality <span className="text-red-500">*</span>
           </Label>
           <Input
+            disabled
             id="municipality"
             name="municipality"
             value={formData.municipality}

@@ -41,6 +41,7 @@ export default function BarangayManagement({
   const [userProfile, setUserProfile] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // ========== FORM SUBMISSION HANDLER ==========
   // Handles both insert and update operations
@@ -165,76 +166,77 @@ export default function BarangayManagement({
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
-        <Header title={title} subtitle={subtitle} />
-
-        <main className="p-4 sm:p-6 lg:p-8 flex-1 overflow-auto">
-          {/* User Info Display */}
-          {userProfile && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-900">
-                <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
-              </p>
-            </div>
-          )}
-
-          {/* Auth Error Display */}
-          {authError && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-900">
-                <span className="font-semibold">Error:</span> {authError}
-              </p>
-            </div>
-          )}
-
+        <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
+          <Header title={title} subtitle={subtitle} />
+          
           {/* Auth Loading State */}
           {isAuthLoading && (
-            <div className="flex justify-center items-center py-12">
+            <div className="flex justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#4A7C59] border-t-transparent"></div>
               <p className="ml-3 text-gray-600">Loading user profile...</p>
             </div>
           )}
 
+          {/* Search Bar Section - Sticks with Header */}
           {!isAuthLoading && (
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-
-            <div className="w-full ">
-              <Input
-                type="text"
-                placeholder="Search barangays..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="text-sm sm:text-base"
-              />
+            <div className="border-t border-gray-200 p-4 sm:p-6 lg:p-8 shadow-sm">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="w-full sm:flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Search barangays..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="text-sm sm:text-base"
+                  />
+                </div>
+                <Dialog open={isOpen} onOpenChange={(open) => {
+                setIsOpen(open);
+                if (!open) {
+                  // Reset form when dialog closes
+                  setFormData({ name: "", municipality: "Daet", population: 0 });
+                  setEditMode(false);
+                  setSelectedBarangay(null);
+                }
+              }}>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center space-x-2 text-sm sm:text-base py-2 px-4 whitespace-nowrap" onClick={() => {
+                      setFormData({ name: "", municipality: "Daet", population: 0 });
+                      setEditMode(false);
+                      setSelectedBarangay(null);
+                    }}>
+                      <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span>Register Barangay</span>
+                    </Button>
+                  </DialogTrigger>
+                  <BarangayForm
+                    formData={formData}
+                    editMode={editMode}
+                    isLoading={isLoading}
+                    onSubmit={handleSubmit}
+                    onChange={handleChange}
+                    onClose={() => setIsOpen(false)}
+                  />
+                </Dialog>
+              </div>
             </div>
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-              <DialogTrigger asChild>
-                <Button className="flex items-center space-x-2 text-sm sm:text-base py-2 px-4">
-                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span>Register Barangay</span>
-                </Button>
-              </DialogTrigger>
-              <BarangayForm
-                formData={formData}
-                editMode={editMode}
-                isLoading={isLoading}
-                onSubmit={handleSubmit}
-                onChange={handleChange}
-                onClose={() => setIsOpen(false)}
-              />
-            </Dialog>
-          </div>
           )}
+        </div>
 
-          {showSuccess &&  
-            <Alert className="mb-6">
-              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
-              <AlertDescription className="text-sm sm:text-base">{successMessage}</AlertDescription>
-            </Alert>
-          }
+        <main className="flex-1 overflow-auto">
 
-          {/* ========== BARANGAY CARDS GRID VIEW ========== */}
-          {/* Displays barangays in a responsive 2-column grid using BarangayCard component */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Content Section */}
+          <div className="p-4 sm:p-6 lg:p-8">
+            {showSuccess &&  
+              <Alert className="mb-6">
+                <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                <AlertDescription className="text-sm sm:text-base">{successMessage}</AlertDescription>
+              </Alert>
+            }
+
+            {/* ========== BARANGAY CARDS GRID VIEW ========== */}
+            {/* Displays barangays in a responsive 3-column grid using BarangayCard component */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBarangays.length > 0 ? (
               filteredBarangays.map((barangay, index) => (
                 <BarangayCard
@@ -242,6 +244,8 @@ export default function BarangayManagement({
                   barangay={barangay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  isMenuOpen={openMenuId === barangay.id}
+                  onMenuToggle={(isOpen) => setOpenMenuId(isOpen ? barangay.id : null)}
                 />
               ))
             ) : (
@@ -249,6 +253,7 @@ export default function BarangayManagement({
                 <p className="text-gray-500 text-sm">No barangays found. Register a new barangay to get started.</p>
               </div>
             )}
+            </div>
           </div>
 
           {/* Delete Confirmation Dialog */}

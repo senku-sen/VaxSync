@@ -281,7 +281,7 @@ export default function Inventory({
                         <td className="px-6 py-4 flex justify-center space-x-3">
                           <button
                             onClick={() => handleEdit(vaccine)}
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-black hover:text-gray-700"
                           >
                             <SquarePen className="w-4 h-4" />
                           </button>
@@ -355,7 +355,7 @@ export default function Inventory({
                       <div className="flex gap-2 pt-2 border-t border-gray-100">
                         <button
                           onClick={() => handleEdit(vaccine)}
-                          className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-800 py-2 text-sm"
+                          className="flex-1 flex items-center justify-center gap-2 text-black hover:text-gray-700 py-2 text-sm"
                         >
                           <SquarePen className="w-4 h-4" />
                           <span>Edit</span>

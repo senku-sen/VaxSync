@@ -7,12 +7,20 @@
 
 import { supabase } from "./supabase";
 
-// Fetch all barangays from database
+// Fetch all barangays from database with assigned health worker details
 export async function fetchBarangays() {
   const { data, error } = await supabase
     .from("barangays")
-    .select("*")
+    .select(`
+      *,
+      assigned_health_worker:assigned_health_worker_id(id, first_name, last_name)
+    `)
     .order("created_at", { ascending: false });
+  
+  if (error) {
+    console.error("Error fetching barangays:", error);
+  }
+  
   return { data, error };
 }
 
