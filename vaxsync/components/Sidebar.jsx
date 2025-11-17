@@ -59,7 +59,7 @@ export default function Sidebar() {
     { name: "Request Approval", icon: ArrowUpCircle, path: `${basePath}/request-approval`, adminOnly: true },
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
-    { name: "User Management", icon: UserCog, path: `${basePath}/users`, adminOnly: true },
+    { name: "User Management", icon: UserCog, path: `${basePath}/usermanagement`, adminOnly: true },
   ];
 
   // Filter: Health Worker = no admin items | RHM/HRH = all
