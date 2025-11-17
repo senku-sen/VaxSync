@@ -41,7 +41,7 @@ export default function Sidebar() {
     { name: "Inventory", icon: Package, path: `${basePath}/inventory` },
     { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
     
-    { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/schedule` },
+    { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/vaccination_schedule` },
     { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
     { name: "Resident Approval", icon: CheckCircle, path: `${basePath}/resident-approval`, adminOnly: true },
     { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },

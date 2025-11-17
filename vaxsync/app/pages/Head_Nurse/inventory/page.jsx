@@ -12,7 +12,7 @@ import Sidebar from "../../../../components/Sidebar";
 import Header from "../../../../components/Header";
 import AddVaccine from "@/components/AddVaccine";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, SquarePen, Trash } from "lucide-react";
+import { Search, Plus, SquarePen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -289,7 +289,7 @@ export default function Inventory({
                             onClick={() => handleDelete(vaccine)}
                             className="text-red-600 hover:text-red-800"
                           >
-                            <Trash className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
@@ -364,7 +364,7 @@ export default function Inventory({
                           onClick={() => handleDelete(vaccine)}
                           className="flex-1 flex items-center justify-center gap-2 text-red-600 hover:text-red-800 py-2 text-sm"
                         >
-                          <Trash className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                           <span>Delete</span>
                         </button>
                       </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from '@/components/ui/button';
-import { X, Trash } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 
 const DeleteConfirm = ({ open, title = 'Delete item', message = 'Are you sure you want to delete this item?', onConfirm, onCancel }) => {
   if (!open) return null;
@@ -24,7 +24,7 @@ const DeleteConfirm = ({ open, title = 'Delete item', message = 'Are you sure yo
             Cancel
           </Button>
           <Button className="bg-red-600 text-white" onClick={onConfirm}>
-            <Trash className="w-4 h-4 mr-2" />
+            <Trash2 className="w-4 h-4 mr-2" />
             Delete
           </Button>
         </div>
