@@ -21,19 +21,32 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [cachedRole, setCachedRole] = useState("");
 
-  const isHealthWorker = pathname.includes("Health_Worker");
-  const isHeadNurse = pathname.includes("Head_Nurse");
+  const isHealthWorker = pathname.startsWith("/pages/Health_Worker");
+  const isHeadNurse = pathname.startsWith("/pages/Head_Nurse");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
-  if (!isHealthWorker && !isHeadNurse && !isSettingsStandalone) return null;
+  useEffect(() => {
+    if (isSettingsStandalone) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("vaxsync_user") || "null");
+        if (cached?.user_role) setCachedRole(cached.user_role);
+      } catch {}
+    }
+  }, [isSettingsStandalone]);
 
-  const basePath = isHealthWorker ? "/pages/Health_Worker" : isHeadNurse ? "/pages/Head_Nurse" : "/pages/Head_Nurse";
+  const roleIsHW = isHealthWorker || (isSettingsStandalone && cachedRole === "Health Worker");
+  const roleIsHN = isHeadNurse || (isSettingsStandalone && cachedRole === "RHM/HRH");
+
+  if (!roleIsHW && !roleIsHN && !isSettingsStandalone) return null;
+
+  const basePath = roleIsHW ? "/pages/Health_Worker" : "/pages/Head_Nurse";
 
   // Full list of items
   const allMenuItems = [
@@ -52,8 +65,8 @@ export default function Sidebar() {
     { name: "Settings", icon: Settings, path: `${basePath}/settings-privacy` },
   ];
 
-  // Filter: Health Worker = no admin items | Head Nurse = all
-  const menuItems = allMenuItems.filter(item => !item.adminOnly || isHeadNurse);
+  // Filter: Health Worker = no admin items | RHM/HRH = all
+  const menuItems = allMenuItems.filter(item => !item.adminOnly || roleIsHN);
 
   const logoutItem = { name: "Logout", icon: LogOut, path: "/logout" };
 
@@ -75,8 +88,8 @@ export default function Sidebar() {
           lg:translate-x-0`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-20 px-4 border-b border-gray-300 overflow-hidden">
-          <div className="flex items-center h-full">
+        <div className="flex items-center justify-between px-4 py-6 border-b border-gray-300">
+          <div className="flex items-center">
             <img src="/VSyncLogo.png" alt="VaxSync" className="h-25 w-auto" />
           </div>
           <Button
