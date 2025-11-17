@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, AlertCircle, Loader2, Trash} from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Trash2} from 'lucide-react';
 import DeleteConfirm from './DeleteConfirm';
 
 // Initialize Supabase client
@@ -321,7 +321,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
               {initialVaccine && initialVaccine.id && (
                 <div className="mt-3">
                   <Button variant="destructive" className="w-full bg-red-600 text-white" onClick={handleDelete}>
-                    <Trash className="w-4 h-4 mr-2 inline" /> Delete Vaccine
+                    <Trash2 className="w-4 h-4 mr-2 inline" /> Delete Vaccine
                   </Button>
                 </div>
               )}
