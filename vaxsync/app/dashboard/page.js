@@ -6,6 +6,7 @@ import StatsCard from '@/components/dashboard/StatsCard';
 import AlertBanner from '@/components/dashboard/AlertBanner';
 import UsageTrendChart from '@/components/dashboard/UsageTrendChart';
 import DistributionChart from '@/components/dashboard/DistributionChart';
+import UserManagementPage from '../user_management/page';
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState({
@@ -17,7 +18,7 @@ export default function Dashboard() {
       {
         id: 1,
         message: '3 vaccine stocks are running low. Please reorder soon!',
-        type: 'warning'
+        type: 'warning',
       }
     ]
   });
@@ -67,33 +68,13 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <div className="p-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-          <StatsCard
-            title="Total Stock"
-            value={dashboardData.totalStock}
-            subtitle="Good standing"
-            valueColor="text-[#93DA97]"
-          />
-          <StatsCard
-            title="Used Today"
-            value={dashboardData.usedToday}
-            subtitle="Doses administered"
-            valueColor="text-[#93DA97]"
-          />
-          <StatsCard
-            title="Low Stock Items"
-            value={dashboardData.lowStockItems}
-            subtitle="Vaccines Below threshold"
-            valueColor="text-[#93DA97]"
-          />
-          <StatsCard
-            title="Actual Alerts"
-            value={dashboardData.actualAlerts}
-            subtitle="Urgent items critical"
-            valueColor="text-[#93DA97]"
-          />
-        </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            <StatsCard title="Total Stock" value={dashboardData.totalStock} subtitle="Good standing" />
+            <StatsCard title="Used Today" value={dashboardData.usedToday} subtitle="Doses administered" />
+            <StatsCard title="Low Stock Items" value={dashboardData.lowStockItems} subtitle="Vaccines Below threshold" />
+            <StatsCard title="Actual Alerts" value={dashboardData.actualAlerts} subtitle="Urgent items critical" />
+          </div>
 
         {/* Alert Banner */}
         {dashboardData.alerts.length > 0 && (

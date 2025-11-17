@@ -1,94 +1,121 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useState } from 'react';
 
-export default function AddUserModal({ open, onOpenChange, onAdd }) {
+export default function AddUserModal({ onClose, onAdd }) {
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    role: "Health Worker",
-    barangay: "Main Office",
-  })
+    name: '',
+    email: '',
+    role: 'Health Worker',
+    barangay: 'Main Office',
+    status: 'Active',
+  });
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    onAdd(formData)
-    setFormData({ name: "", email: "", role: "Health Worker", barangay: "Main Office" })
-  }
-
-  if (!open) return null
+    e.preventDefault();
+    if (formData.name && formData.email) {
+      onAdd({ ...formData, activity: [] });
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-lg shadow-lg max-w-md w-full mx-4">
-        <div className="p-6 border-b border-border">
-          <h2 className="text-xl font-semibold text-foreground">Add New User</h2>
-          <p className="text-sm text-muted-foreground mt-1">Create a new system user account</p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900">Add New User</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
-            <Input
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name
+            </label>
+            <input
+              type="text"
+              name="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="John Doe"
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-            <Input
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
               type="email"
+              name="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="john@example.com"
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Role</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Role
+            </label>
             <select
+              name="role"
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground"
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             >
-              <option>Head Nurse</option>
               <option>Health Worker</option>
+              <option>Head Nurse</option>
               <option>Administrator</option>
+              <option>Supervisor</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Barangay</label>
-            <Input
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Barangay
+            </label>
+            <input
+              type="text"
+              name="barangay"
               value={formData.barangay}
-              onChange={(e) => setFormData({ ...formData, barangay: e.target.value })}
-              placeholder="Main Office"
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button
+            <button
               type="button"
-              onClick={() => onOpenChange(false)}
-              className="flex-1 bg-muted text-foreground hover:bg-muted/80"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              className="flex-1 bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
             >
               Add User
-            </Button>
+            </button>
           </div>
         </form>
       </div>
     </div>
-  )
+  );
 }

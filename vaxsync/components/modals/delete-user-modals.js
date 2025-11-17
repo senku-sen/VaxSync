@@ -1,40 +1,55 @@
-"use client"
+'use client';
 
-import { Button } from "@/components/ui/button"
-import { AlertTriangle } from "lucide-react"
-
-export default function DeleteUserModal({ open, onOpenChange, user, onConfirm }) {
-  if (!open || !user) return null
+export default function DeleteUserModal({ user, onClose, onDelete }) {
+  const handleDelete = () => {
+    onDelete(user.id);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-background rounded-lg shadow-lg max-w-sm w-full mx-4">
-        <div className="p-6 border-b border-border flex items-start gap-4">
-          <div className="bg-red-100 p-3 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Delete User</h2>
-            <p className="text-sm text-muted-foreground mt-1">This action cannot be undone</p>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold text-gray-900">Delete User</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         <div className="p-6">
-          <p className="text-sm text-foreground mb-2">
-            Are you sure you want to delete <strong>{user.name}</strong>?
-          </p>
-          <p className="text-xs text-muted-foreground">Email: {user.email}</p>
-        </div>
+          <div className="mb-4 text-center">
+            <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-gray-900 font-medium mb-1">Delete {user.name}?</p>
+            <p className="text-gray-600 text-sm">This action cannot be undone.</p>
+            <p className="text-gray-500 text-xs mt-2">{user.email}</p>
+          </div>
 
-        <div className="p-6 border-t border-border flex gap-3">
-          <Button onClick={() => onOpenChange(false)} className="flex-1 bg-muted text-foreground hover:bg-muted/80">
-            Cancel
-          </Button>
-          <Button onClick={onConfirm} className="flex-1 bg-red-600 text-white hover:bg-red-700">
-            Delete User
-          </Button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+            >
+              Delete
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
