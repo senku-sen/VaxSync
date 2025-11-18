@@ -59,10 +59,29 @@ export default function UserManagement() {
     setSelectedUser(null);
   };
 
-  const handleDeleteUser = (userId) => {
-    setUsers(users.filter((u) => u.id !== userId));
-    setActiveModal(null);
-    setSelectedUser(null);
+  const handleDeleteUser = async (userId) => {
+    try {
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: userId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete user');
+      }
+
+      // Remove user from local state only after successful deletion
+      setUsers(users.filter((u) => u.id !== userId));
+      setActiveModal(null);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Failed to delete user. Please try again.');
+    }
   };
 
   const handleUpdateRole = (userId, newRole) => {
@@ -125,7 +144,11 @@ export default function UserManagement() {
             <UserTable
               users={filteredUsers}
               onEdit={(user) => openModal('edit', user)}
-              onDelete={(user) => openModal('delete', user)}
+              onDelete={(user) => {
+                if (user) {
+                  openModal('delete', user);
+                }
+              }}
               onManageRole={(user) => openModal('manageRole', user)}
               onViewActivity={(user) => openModal('viewActivity', user)}
             />
