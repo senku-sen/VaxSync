@@ -5,31 +5,24 @@ import Sidebar from "../../../../components/Sidebar";
 import Header from "../../../../components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Upload, 
   Plus, 
   Download, 
   Search, 
-  Edit, 
-  Trash2, 
   CheckCircle, 
-  Clock,
-  User,
-  Phone,
-  MapPin,
-  Calendar,
-  AlertCircle
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import PendingResidentsTable from "../../../../components/PendingResidentsTable";
+import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
@@ -62,6 +55,10 @@ export default function ResidentsPage() {
       if (profile) {
         setUserProfile(profile);
         console.log('User profile loaded:', profile);
+        // Auto-select user's barangay if available
+        if (profile.barangays?.name) {
+          setSelectedBarangay(profile.barangays.name);
+        }
       }
     } catch (err) {
       console.error('Auth error:', err);
@@ -192,13 +189,23 @@ export default function ResidentsPage() {
   // Create new resident
   const handleCreateResident = async (e) => {
     e.preventDefault();
+    
+    // Validate user profile is loaded
+    if (!userProfile || !userProfile.id) {
+      toast.error("User profile not loaded. Please refresh the page.");
+      return;
+    }
+    
     try {
       const response = await fetch("/api/residents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          submitted_by: userProfile.id
+        }),
       });
 
       const data = await response.json();
@@ -395,7 +402,20 @@ export default function ResidentsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Master List
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+                setIsAddDialogOpen(open);
+                if (open) {
+                  // Reset form data when opening add dialog
+                  setFormData({
+                    name: "",
+                    age: "",
+                    address: "",
+                    vaccine_status: "not_vaccinated",
+                    contact: "",
+                    barangay: ""
+                  });
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
@@ -539,200 +559,122 @@ export default function ResidentsPage() {
           </div>
 
           {/* Residents Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {activeTab === "pending" ? "Pending Residents" : "Approved Residents"} - {selectedBarangay === "all" ? "All Barangays" : selectedBarangay}
-              </CardTitle>
-              <p className="text-sm text-gray-600">
-                Total pending residents: {residents.length}
-              </p>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3E5F44]"></div>
-                </div>
-              ) : residents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <User className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No {activeTab} residents found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 font-medium">Name</th>
-                        <th className="text-left py-3 px-4 font-medium">Age</th>
-                        <th className="text-left py-3 px-4 font-medium">Address</th>
-                        <th className="text-left py-3 px-4 font-medium">Barangay</th>
-                        <th className="text-left py-3 px-4 font-medium">Vaccine Status</th>
-                        <th className="text-left py-3 px-4 font-medium">Contact</th>
-                        <th className="text-left py-3 px-4 font-medium">Submitted</th>
-                        <th className="text-left py-3 px-4 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {residents.map((resident) => (
-                        <tr key={resident.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">
-                            <div className="font-medium">{resident.name}</div>
-                          </td>
-                          <td className="py-3 px-4">{resident.age}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm text-gray-600">
-                              {resident.address}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="text-sm">
-                              {resident.barangay || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            {getVaccineStatusBadge(resident.vaccine_status)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm">
-                              {resident.contact}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm text-gray-600">
-                              {formatDate(resident.submitted_at)}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openEditDialog(resident)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              {activeTab === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleStatusChange(resident.id, "approve")}
-                                  className="text-green-600 hover:text-green-700"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteResident(resident.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {activeTab === "pending" ? (
+            <PendingResidentsTable
+              residents={residents}
+              loading={loading}
+              selectedBarangay={selectedBarangay}
+              openEditDialog={openEditDialog}
+              handleStatusChange={handleStatusChange}
+              handleDeleteResident={handleDeleteResident}
+              getVaccineStatusBadge={getVaccineStatusBadge}
+              formatDate={formatDate}
+            />
+          ) : (
+            <ApprovedResidentsTable
+              residents={residents}
+              loading={loading}
+              selectedBarangay={selectedBarangay}
+              openEditDialog={openEditDialog}
+              handleDeleteResident={handleDeleteResident}
+              getVaccineStatusBadge={getVaccineStatusBadge}
+              formatDate={formatDate}
+            />
+          )}
 
-            {/* Edit Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Resident</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleUpdateResident} className="space-y-4">
+          {/* Edit Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Resident</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleUpdateResident} className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-name">Full Name *</Label>
+                  <Input
+                    id="edit-name"
+                    placeholder="Enter full name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-address">Address *</Label>
+                  <Input
+                    id="edit-address"
+                    placeholder="Enter address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="edit-name">Full Name *</Label>
+                    <Label htmlFor="edit-age">Age *</Label>
                     <Input
-                      id="edit-name"
-                      placeholder="Enter full name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      id="edit-age"
+                      type="number"
+                      placeholder="Age"
+                      value={formData.age}
+                      onChange={(e) => setFormData({...formData, age: e.target.value})}
                       required
                     />
                   </div>
-                  
                   <div>
-                    <Label htmlFor="edit-address">Address *</Label>
+                    <Label htmlFor="edit-contact">Contact Number *</Label>
                     <Input
-                      id="edit-address"
-                      placeholder="Enter address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      id="edit-contact"
+                      placeholder="09XXXXXXXXX"
+                      value={formData.contact}
+                      onChange={(e) => setFormData({...formData, contact: e.target.value})}
                       required
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-age">Age *</Label>
-                      <Input
-                        id="edit-age"
-                        type="number"
-                        placeholder="Age"
-                        value={formData.age}
-                        onChange={(e) => setFormData({...formData, age: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-contact">Contact Number *</Label>
-                      <Input
-                        id="edit-contact"
-                        placeholder="09XXXXXXXXX"
-                        value={formData.contact}
-                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
-                    <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select vaccine status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                        <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                        <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-barangay">Barangay</Label>
-                    <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select barangay" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BARANGAYS.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
-                      Update Resident
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
+                  <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select vaccine status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
+                      <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
+                      <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-barangay">Barangay</Label>
+                  <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select barangay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BARANGAYS.map((b) => (
+                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                    Update Resident
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+          
         </main>
       </div>
     </div>

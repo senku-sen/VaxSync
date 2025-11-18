@@ -5,38 +5,34 @@ import Sidebar from "../../../../components/Sidebar";
 import Header from "../../../../components/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Upload, 
   Plus, 
   Download, 
   Search, 
-  Edit, 
-  Trash2, 
   CheckCircle, 
   Clock,
-  User,
-  Phone,
-  MapPin,
-  Calendar,
-  AlertCircle
+  MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { supabase } from "@/lib/supabase";
+import PendingResidentsTable from "../../../../components/PendingResidentsTable";
+import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
-  const [selectedBarangay, setSelectedBarangay] = useState("all");
+  const [selectedBarangay, setSelectedBarangay] = useState("");
+  const [selectedBarangayId, setSelectedBarangayId] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
@@ -62,9 +58,46 @@ export default function ResidentsPage() {
       if (profile) {
         setUserProfile(profile);
         console.log('User profile loaded:', profile);
-        // Auto-select user's barangay if available
-        if (profile.barangays?.name) {
-          setSelectedBarangay(profile.barangays.name);
+        
+        // Determine assigned barangay using assigned_barangay_id
+        let assignedBarangay = null;
+        let assignedBarangayId = null;
+        
+        // Use assigned_barangay_id from profile
+        if (profile.assigned_barangay_id) {
+          assignedBarangayId = profile.assigned_barangay_id;
+          
+          // If barangays info is already loaded, use it
+          if (profile.barangays?.name) {
+            assignedBarangay = profile.barangays.name;
+          } else {
+            // Fetch barangay info by ID
+            const { data: barangay, error: barangayError } = await supabase
+              .from('barangays')
+              .select('id, name')
+              .eq('id', assignedBarangayId)
+              .maybeSingle();
+            
+            if (!barangayError && barangay) {
+              assignedBarangay = barangay.name;
+              profile.barangays = barangay;
+            }
+          }
+        } else if (profile.barangays?.name) {
+          // Fallback: use barangays name if assigned_barangay_id is not set
+          assignedBarangay = profile.barangays.name;
+          assignedBarangayId = profile.barangays.id;
+        }
+        
+        // Lock the barangay filter to assigned barangay
+        if (assignedBarangay) {
+          setSelectedBarangay(assignedBarangay);
+          if (assignedBarangayId) {
+            setSelectedBarangayId(assignedBarangayId);
+          }
+        } else {
+          // If no barangay assigned, show error or empty state
+          setAuthError('No barangay assigned. Please contact your head nurse.');
         }
       }
     } catch (err) {
@@ -138,10 +171,11 @@ export default function ResidentsPage() {
   const fetchResidents = async (status = "pending") => {
     try {
       setLoading(true);
+      // Always filter by assigned barangay for health workers
       const params = new URLSearchParams({
         status,
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
+        barangay: selectedBarangay || ""
       });
       
       const response = await fetch(`/api/residents?${params}`);
@@ -163,20 +197,20 @@ export default function ResidentsPage() {
   // Fetch counts for both pending and approved residents
   const fetchCounts = async () => {
     try {
-      // Fetch pending count
+      // Fetch pending count - always filter by assigned barangay
       const pendingParams = new URLSearchParams({
         status: "pending",
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
+        barangay: selectedBarangay || ""
       });
       const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
       const pendingData = await pendingResponse.json();
       
-      // Fetch approved count
+      // Fetch approved count - always filter by assigned barangay
       const approvedParams = new URLSearchParams({
         status: "approved",
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
+        barangay: selectedBarangay || ""
       });
       const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
       const approvedData = await approvedResponse.json();
@@ -211,6 +245,7 @@ export default function ResidentsPage() {
         },
         body: JSON.stringify({
           ...formData,
+          barangay_id: selectedBarangayId || null,
           submitted_by: userProfile.id
         }),
       });
@@ -248,7 +283,11 @@ export default function ResidentsPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id: selectedResident.id, ...formData }),
+        body: JSON.stringify({ 
+          id: selectedResident.id, 
+          ...formData,
+          barangay_id: selectedBarangayId || null
+        }),
       });
 
       const data = await response.json();
@@ -359,7 +398,7 @@ export default function ResidentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthLoading && userProfile) {
+    if (!isAuthLoading && userProfile && selectedBarangay) {
       fetchResidents(activeTab);
       fetchCounts();
     }
@@ -372,7 +411,7 @@ export default function ResidentsPage() {
       <div className="flex-1 flex flex-col w-full lg:ml-64">
         <Header 
           title="Resident Information Management" 
-          subtitle={`Assigned Barangay: ${selectedBarangay === "all" ? "All Barangays" : selectedBarangay}`} 
+          subtitle={`Assigned Barangay: ${selectedBarangay || "Not Assigned"}`} 
         />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto max-w-5xl mx-auto w-full">
@@ -409,7 +448,20 @@ export default function ResidentsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Master List
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+                setIsAddDialogOpen(open);
+                if (open) {
+                  // Reset form data when opening add dialog, auto-set barangay to assigned
+                  setFormData({
+                    name: "",
+                    age: "",
+                    address: "",
+                    vaccine_status: "not_vaccinated",
+                    contact: "",
+                    barangay: selectedBarangay || ""
+                  });
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
@@ -483,16 +535,27 @@ export default function ResidentsPage() {
                     
                     <div>
                       <Label htmlFor="barangay">Barangay</Label>
-                      <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                        <SelectTrigger>
+                      <Select 
+                        value={formData.barangay || selectedBarangay} 
+                        onValueChange={(value) => setFormData({...formData, barangay: value})}
+                        disabled={!!selectedBarangay}
+                      >
+                        <SelectTrigger className={selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}>
                           <SelectValue placeholder="Select barangay" />
                         </SelectTrigger>
                         <SelectContent>
-                          {BARANGAYS.map((b) => (
-                            <SelectItem key={b} value={b}>{b}</SelectItem>
-                          ))}
+                          {selectedBarangay ? (
+                            <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
+                          ) : (
+                            BARANGAYS.map((b) => (
+                              <SelectItem key={b} value={b}>{b}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
+                      {selectedBarangay && (
+                        <p className="text-xs text-gray-500 mt-1">Barangay is locked to your assignment: {selectedBarangay}</p>
+                      )}
                     </div>
                     
                     <div className="flex justify-end space-x-2">
@@ -528,7 +591,7 @@ export default function ResidentsPage() {
             </TabsList>
           </Tabs>
 
-          {/* Search and Filter */}
+          {/* Search */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -539,214 +602,145 @@ export default function ResidentsPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={selectedBarangay} onValueChange={setSelectedBarangay}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by Barangay" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Barangays</SelectItem>
-                {BARANGAYS.map((b) => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Display assigned barangay (read-only) */}
+            {selectedBarangay && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  Assigned Barangay: <span className="font-semibold">{selectedBarangay}</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Residents Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {activeTab === "pending" ? "Pending Residents" : "Approved Residents"} - {selectedBarangay === "all" ? "All Barangays" : selectedBarangay}
-              </CardTitle>
-              <p className="text-sm text-gray-600">
-                Total pending residents: {residents.length}
-              </p>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3E5F44]"></div>
-                </div>
-              ) : residents.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <User className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>No {activeTab} residents found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-3 px-4 font-medium">Name</th>
-                        <th className="text-left py-3 px-4 font-medium">Age</th>
-                        <th className="text-left py-3 px-4 font-medium">Address</th>
-                        <th className="text-left py-3 px-4 font-medium">Barangay</th>
-                        <th className="text-left py-3 px-4 font-medium">Vaccine Status</th>
-                        <th className="text-left py-3 px-4 font-medium">Contact</th>
-                        <th className="text-left py-3 px-4 font-medium">Submitted</th>
-                        <th className="text-left py-3 px-4 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {residents.map((resident) => (
-                        <tr key={resident.id} className="border-b hover:bg-gray-50">
-                          <td className="py-3 px-4">
-                            <div className="font-medium">{resident.name}</div>
-                          </td>
-                          <td className="py-3 px-4">{resident.age}</td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm text-gray-600">
-                              {resident.address}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="text-sm">
-                              {resident.barangay || 'N/A'}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            {getVaccineStatusBadge(resident.vaccine_status)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm">
-                              {resident.contact}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center text-sm text-gray-600">
-                              {formatDate(resident.submitted_at)}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => openEditDialog(resident)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              {activeTab === "pending" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleStatusChange(resident.id, "approve")}
-                                  className="text-green-600 hover:text-green-700"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteResident(resident.id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {activeTab === "pending" ? (
+            <PendingResidentsTable
+              residents={residents}
+              loading={loading}
+              selectedBarangay={selectedBarangay}
+              openEditDialog={openEditDialog}
+              handleStatusChange={handleStatusChange}
+              handleDeleteResident={handleDeleteResident}
+              getVaccineStatusBadge={getVaccineStatusBadge}
+              formatDate={formatDate}
+              showApproveButton={false}
+            />
+          ) : (
+            <ApprovedResidentsTable
+              residents={residents}
+              loading={loading}
+              selectedBarangay={selectedBarangay}
+              openEditDialog={openEditDialog}
+              handleDeleteResident={handleDeleteResident}
+              getVaccineStatusBadge={getVaccineStatusBadge}
+              formatDate={formatDate}
+            />
+          )}
 
-            {/* Edit Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Edit Resident</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleUpdateResident} className="space-y-4">
+          {/* Edit Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Resident</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleUpdateResident} className="space-y-4">
+                <div>
+                  <Label htmlFor="edit-name">Full Name *</Label>
+                  <Input
+                    id="edit-name"
+                    placeholder="Enter full name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-address">Address *</Label>
+                  <Input
+                    id="edit-address"
+                    placeholder="Enter address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="edit-name">Full Name *</Label>
+                    <Label htmlFor="edit-age">Age *</Label>
                     <Input
-                      id="edit-name"
-                      placeholder="Enter full name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      id="edit-age"
+                      type="number"
+                      placeholder="Age"
+                      value={formData.age}
+                      onChange={(e) => setFormData({...formData, age: e.target.value})}
                       required
                     />
                   </div>
-                  
                   <div>
-                    <Label htmlFor="edit-address">Address *</Label>
+                    <Label htmlFor="edit-contact">Contact Number *</Label>
                     <Input
-                      id="edit-address"
-                      placeholder="Enter address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      id="edit-contact"
+                      placeholder="09XXXXXXXXX"
+                      value={formData.contact}
+                      onChange={(e) => setFormData({...formData, contact: e.target.value})}
                       required
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-age">Age *</Label>
-                      <Input
-                        id="edit-age"
-                        type="number"
-                        placeholder="Age"
-                        value={formData.age}
-                        onChange={(e) => setFormData({...formData, age: e.target.value})}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-contact">Contact Number *</Label>
-                      <Input
-                        id="edit-contact"
-                        placeholder="09XXXXXXXXX"
-                        value={formData.contact}
-                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                        required
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
-                    <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select vaccine status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                        <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                        <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-barangay">Barangay</Label>
-                    <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select barangay" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BARANGAYS.map((b) => (
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
+                  <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select vaccine status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
+                      <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
+                      <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-barangay">Barangay</Label>
+                  <Select 
+                    value={formData.barangay || selectedBarangay} 
+                    onValueChange={(value) => setFormData({...formData, barangay: value})}
+                    disabled={!!selectedBarangay}
+                  >
+                    <SelectTrigger className={selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}>
+                      <SelectValue placeholder="Select barangay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedBarangay ? (
+                        <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
+                      ) : (
+                        BARANGAYS.map((b) => (
                           <SelectItem key={b} value={b}>{b}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
-                      Update Resident
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedBarangay && (
+                    <p className="text-xs text-gray-500 mt-1">Barangay is locked to your assignment: {selectedBarangay}</p>
+                  )}
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                    Update Resident
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
           
         </main>
       </div>

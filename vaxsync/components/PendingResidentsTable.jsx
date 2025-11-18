@@ -1,0 +1,123 @@
+"use client";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { User, Edit, Trash2, CheckCircle } from "lucide-react";
+
+export default function PendingResidentsTable({
+  residents,
+  loading,
+  selectedBarangay,
+  openEditDialog,
+  handleStatusChange,
+  handleDeleteResident,
+  getVaccineStatusBadge,
+  formatDate,
+  showApproveButton = true,
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          Pending Residents - {selectedBarangay === "all" ? "All Barangays" : (selectedBarangay || "Not Assigned")}
+        </CardTitle>
+        <p className="text-sm text-gray-600">
+          Total pending residents: {residents.length}
+        </p>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#3E5F44]"></div>
+          </div>
+        ) : residents.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <User className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+            <p>No pending residents found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4 font-medium">Name</th>
+                  <th className="text-left py-3 px-4 font-medium">Age</th>
+                  <th className="text-left py-3 px-4 font-medium">Address</th>
+                  <th className="text-left py-3 px-4 font-medium">Barangay</th>
+                  <th className="text-left py-3 px-4 font-medium">Vaccine Status</th>
+                  <th className="text-left py-3 px-4 font-medium">Contact</th>
+                  <th className="text-left py-3 px-4 font-medium">Submitted</th>
+                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {residents.map((resident) => (
+                  <tr key={resident.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div className="font-medium">{resident.name}</div>
+                    </td>
+                    <td className="py-3 px-4">{resident.age}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        {resident.address}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="text-sm">
+                        {resident.barangay || 'N/A'}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      {getVaccineStatusBadge(resident.vaccine_status)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center text-sm">
+                        {resident.contact}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center text-sm text-gray-600">
+                        {formatDate(resident.submitted_at)}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditDialog(resident)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {showApproveButton && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStatusChange(resident.id, "approve")}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteResident(resident.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

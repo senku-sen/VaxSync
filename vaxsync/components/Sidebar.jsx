@@ -42,7 +42,7 @@ export default function Sidebar() {
     { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
     { name: "Vaccine Usage", icon: Syringe, path: `${basePath}/vaccine-usage` },
     { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/schedule` },
-    { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
+    { name: "NIP Tracking", icon: Users, path: `${basePath}/residents` },
     { name: "Resident Approval", icon: CheckCircle, path: `${basePath}/resident-approval`, adminOnly: true },
     { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
     { name: "Request Approval", icon: ArrowUpCircle, path: `${basePath}/request-approval`, adminOnly: true },
