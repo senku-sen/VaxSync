@@ -67,11 +67,7 @@ export const fetchVaccinationSessions = async (userId) => {
 
     const { data, error } = await supabase
       .from("vaccination_sessions")
-      .select(`
-        *,
-        vaccines:vaccine_id (id, name),
-        barangays:barangay_id (id, name, municipality)
-      `)
+      .select("*")
       .eq("created_by", userId)
       .order("session_date", { ascending: false });
 
@@ -84,7 +80,48 @@ export const fetchVaccinationSessions = async (userId) => {
       };
     }
 
-    console.log('Sessions fetched:', data?.length || 0);
+    console.log('Sessions fetched:', data?.length || 0, data);
+
+    // Fetch vaccine and barangay details separately
+    if (data && data.length > 0) {
+      const vaccineIds = [...new Set(data.map(s => s.vaccine_id))];
+      const barangayIds = [...new Set(data.map(s => s.barangay_id))];
+
+      const [vaccinesData, barangaysData] = await Promise.all([
+        vaccineIds.length > 0 ? supabase.from("vaccines").select("id, name").in("id", vaccineIds) : { data: [] },
+        barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
+      ]);
+
+      const vaccinesMap = {};
+      const barangaysMap = {};
+
+      if (vaccinesData.data) {
+        vaccinesData.data.forEach(v => {
+          vaccinesMap[v.id] = v;
+        });
+      }
+
+      if (barangaysData.data) {
+        barangaysData.data.forEach(b => {
+          barangaysMap[b.id] = b;
+        });
+      }
+
+      // Attach vaccine and barangay data to sessions
+      const enrichedData = data.map(session => ({
+        ...session,
+        vaccines: vaccinesMap[session.vaccine_id] || null,
+        barangays: barangaysMap[session.barangay_id] || null
+      }));
+
+      console.log('Enriched sessions:', enrichedData);
+      return {
+        success: true,
+        data: enrichedData,
+        error: null
+      };
+    }
+
     return {
       success: true,
       data: data || [],
@@ -228,4 +265,49 @@ export const getVaccineName = (vaccineId, vaccines) => {
   if (!vaccineId || !vaccines) return "Unknown";
   const vaccine = vaccines.find(v => v.id === vaccineId);
   return vaccine?.name || "Unknown";
+};
+
+/**
+ * Get status badge color class
+ * @param {string} status - Session status
+ * @returns {string} - Tailwind class for badge color
+ */
+export const getStatusBadgeClass = (status) => {
+  switch (status) {
+    case 'Completed':
+      return 'bg-green-100 text-green-800';
+    case 'In progress':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'Scheduled':
+    default:
+      return 'bg-blue-100 text-blue-800';
+  }
+};
+
+/**
+ * Calculate progress percentage
+ * @param {number} administered - Number administered
+ * @param {number} target - Target number
+ * @returns {number} - Progress percentage (0-100)
+ */
+export const calculateProgress = (administered, target) => {
+  if (!target || target === 0) return 0;
+  return Math.round((administered / target) * 100);
+};
+
+/**
+ * Format session date and time
+ * @param {string} date - Session date (YYYY-MM-DD)
+ * @param {string} time - Session time (HH:MM)
+ * @returns {string} - Formatted date and time
+ */
+export const formatSessionDateTime = (date, time) => {
+  if (!date || !time) return "N/A";
+  const dateObj = new Date(date);
+  const formattedDate = dateObj.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+  return `${formattedDate} ${time}`;
 };

@@ -11,13 +11,17 @@ import Sidebar from "../../../../components/Sidebar";
 import Header from "../../../../components/Header";
 import ScheduleSessionModal from "../../../../components/ScheduleSessionModal";
 import ScheduleConfirmationModal from "../../../../components/ScheduleConfirmationModal";
+import SearchBar from "../../../../components/SearchBar";
+import SessionsContainer from "../../../../components/SessionsContainer";
 import { Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
   createVaccinationSession,
+  fetchVaccinationSessions,
   fetchVaccinesForSession,
-  getVaccineName
+  getVaccineName,
+  deleteVaccinationSession
 } from "@/lib/vaccinationSession";
 
 export default function VaccinationSchedule({
@@ -45,6 +49,12 @@ export default function VaccinationSchedule({
   // List of available vaccines
   const [vaccines, setVaccines] = useState([]);
   
+  // List of vaccination sessions
+  const [sessions, setSessions] = useState([]);
+  
+  // Search term for filtering sessions
+  const [searchTerm, setSearchTerm] = useState("");
+  
   // Form data state
   const [formData, setFormData] = useState({
     date: "",
@@ -65,21 +75,40 @@ export default function VaccinationSchedule({
 
   const initializeData = async () => {
     try {
-      // Load user profile and vaccines in parallel
-      const [profile, vaccinesResult] = await Promise.all([
-        loadUserProfile(),
-        fetchVaccinesForSession()
-      ]);
+      // Load user profile first
+      const profile = await loadUserProfile();
+      console.log('Profile loaded:', profile);
       
       if (profile) {
         setUserProfile(profile);
-        console.log('User profile loaded:', profile);
-      }
+        
+        // Load vaccines and sessions in parallel
+        const [vaccinesResult, sessionsResult] = await Promise.all([
+          fetchVaccinesForSession(),
+          fetchVaccinationSessions(profile.id)
+        ]);
 
-      if (vaccinesResult.success) {
-        setVaccines(vaccinesResult.data);
+        console.log('Vaccines result:', vaccinesResult);
+        console.log('Sessions result:', sessionsResult);
+
+        if (vaccinesResult.success) {
+          setVaccines(vaccinesResult.data);
+          console.log('Vaccines set:', vaccinesResult.data);
+        } else {
+          console.error('Vaccines error:', vaccinesResult.error);
+          setError(vaccinesResult.error);
+        }
+
+        if (sessionsResult.success) {
+          setSessions(sessionsResult.data);
+          console.log('Sessions set:', sessionsResult.data);
+        } else {
+          console.error('Sessions error:', sessionsResult.error);
+          setError(sessionsResult.error);
+        }
       } else {
-        setError(vaccinesResult.error);
+        console.warn('No profile found');
+        setError('Failed to load user profile');
       }
     } catch (err) {
       console.error('Error initializing data:', err);
@@ -88,6 +117,48 @@ export default function VaccinationSchedule({
       setIsLoading(false);
     }
   };
+
+  // Reload sessions from database
+  const reloadSessions = async () => {
+    if (userProfile?.id) {
+      const result = await fetchVaccinationSessions(userProfile.id);
+      if (result.success) {
+        setSessions(result.data);
+      } else {
+        setError(result.error);
+      }
+    }
+  };
+
+  // Handle edit session
+  const handleEditSession = (session) => {
+    console.log('Edit session:', session);
+    // TODO: Implement edit functionality
+    // Could open a modal with form pre-filled with session data
+  };
+
+  // Handle delete session
+  const handleDeleteSession = async (sessionId) => {
+    if (confirm('Are you sure you want to delete this session?')) {
+      const result = await deleteVaccinationSession(sessionId);
+      if (result.success) {
+        console.log('Session deleted successfully');
+        await reloadSessions();
+      } else {
+        alert('Error deleting session: ' + result.error);
+      }
+    }
+  };
+
+  // Filter sessions based on search term
+  const filteredSessions = sessions.filter((session) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (session.barangays?.name || "").toLowerCase().includes(term) ||
+      (session.vaccines?.name || "").toLowerCase().includes(term) ||
+      (session.session_date || "").includes(searchTerm)
+    );
+  });
 
   // Validate form before submission
   const validateForm = () => {
@@ -165,6 +236,9 @@ export default function VaccinationSchedule({
         // Reset form
         setFormData({ date: "", time: "", vaccine_id: "", target: "" });
         setIsModalOpen(false);
+        
+        // Reload sessions
+        await reloadSessions();
       } else {
         console.error('Error creating session:', result.error);
         alert('Error: ' + result.error);
@@ -191,6 +265,15 @@ export default function VaccinationSchedule({
         <Header title={title} subtitle={subtitle} />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-900">
+                <span className="font-semibold">Error:</span> {error}
+              </p>
+            </div>
+          )}
+
           {/* Loading State */}
           {isLoading && (
             <div className="flex justify-center items-center py-12">
@@ -210,6 +293,24 @@ export default function VaccinationSchedule({
                 Schedule Session
               </button>
             </div>
+          )}
+
+          {/* Search Bar */}
+          {!isLoading && (
+            <SearchBar
+              placeholder="Search by barangay, vaccine, or date..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+            />
+          )}
+
+          {/* Sessions Container */}
+          {!isLoading && (
+            <SessionsContainer
+              sessions={filteredSessions}
+              onEdit={handleEditSession}
+              onDelete={handleDeleteSession}
+            />
           )}
 
           {/* Schedule Session Modal */}
