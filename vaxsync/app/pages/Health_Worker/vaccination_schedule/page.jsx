@@ -14,9 +14,10 @@ import ScheduleConfirmationModal from "../../../../components/ScheduleConfirmati
 import EditSessionModal from "../../../../components/EditSessionModal";
 import UpdateAdministeredModal from "../../../../components/UpdateAdministeredModal";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
+import SessionCalendar from "../../../../components/SessionCalendar";
 import SearchBar from "../../../../components/SearchBar";
 import SessionsContainer from "../../../../components/SessionsContainer";
-import { Plus } from "lucide-react";
+import { Plus, Calendar } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
@@ -36,6 +37,9 @@ export default function VaccinationSchedule({
 }) {
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Calendar view state - true = calendar, false = table
+  const [isCalendarView, setIsCalendarView] = useState(false);
   
   // Edit modal visibility state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -406,9 +410,9 @@ export default function VaccinationSchedule({
             </div>
           )}
 
-          {/* Schedule Button */}
+          {/* Action Buttons */}
           {!isLoading && (
-            <div className="mb-6">
+            <div className="mb-6 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="inline-flex items-center justify-center sm:justify-start gap-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium px-4 py-2.5 rounded-lg shadow-md transition-colors whitespace-nowrap w-full sm:w-fit text-sm sm:text-base"
@@ -416,26 +420,47 @@ export default function VaccinationSchedule({
                 <Plus size={18} className="sm:w-5 sm:h-5" />
                 Schedule Session
               </button>
+              <button
+                onClick={() => setIsCalendarView(!isCalendarView)}
+                className="inline-flex items-center justify-center sm:justify-start gap-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium px-4 py-2.5 rounded-lg shadow-md transition-colors whitespace-nowrap w-full sm:w-fit text-sm sm:text-base"
+              >
+                <Calendar size={18} className="sm:w-5 sm:h-5" />
+                {isCalendarView ? 'View Table' : 'View Calendar'}
+              </button>
             </div>
           )}
 
-          {/* Search Bar */}
-          {!isLoading && (
-            <SearchBar
-              placeholder="Search by barangay, vaccine, or date..."
-              value={searchTerm}
-              onChange={setSearchTerm}
-            />
+          {/* Table View */}
+          {!isLoading && !isCalendarView && (
+            <>
+              {/* Search Bar */}
+              <SearchBar
+                placeholder="Search by barangay, vaccine, or date..."
+                value={searchTerm}
+                onChange={setSearchTerm}
+              />
+
+              {/* Sessions Container */}
+              <SessionsContainer
+                sessions={filteredSessions}
+                onEdit={handleEditSession}
+                onDelete={handleDeleteSession}
+                onUpdateProgress={handleUpdateProgress}
+              />
+            </>
           )}
 
-          {/* Sessions Container */}
-          {!isLoading && (
-            <SessionsContainer
-              sessions={filteredSessions}
-              onEdit={handleEditSession}
-              onDelete={handleDeleteSession}
-              onUpdateProgress={handleUpdateProgress}
-            />
+          {/* Calendar View */}
+          {!isLoading && isCalendarView && (
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+              <div className="p-6">
+                <SessionCalendar
+                  isOpen={true}
+                  onClose={() => setIsCalendarView(false)}
+                  sessions={sessions}
+                />
+              </div>
+            </div>
           )}
 
           {/* Schedule Session Modal */}
