@@ -5,12 +5,13 @@
 // Displays session details in card format
 // ============================================
 
-import { SquarePen, Trash2 } from "lucide-react";
+import { SquarePen, Trash2, Activity } from "lucide-react";
 
 export default function SessionsCardList({
   sessions = [],
   onEdit = () => {},
-  onDelete = () => {}
+  onDelete = () => {},
+  onUpdateProgress = () => {}
 }) {
   return (
     <div className="md:hidden p-4 space-y-4">
@@ -49,6 +50,13 @@ export default function SessionsCardList({
               </div>
             </div>
             <div className="flex gap-2 pt-3 border-t border-gray-200">
+              <button 
+                onClick={() => onUpdateProgress(session)}
+                className="flex-1 flex items-center justify-center gap-2 text-green-600 hover:text-green-800 transition-colors py-2 text-sm"
+              >
+                <Activity size={16} />
+                Progress
+              </button>
               <button 
                 onClick={() => onEdit(session)}
                 className="flex-1 flex items-center justify-center gap-2 text-gray-600 hover:text-blue-600 transition-colors py-2 text-sm"

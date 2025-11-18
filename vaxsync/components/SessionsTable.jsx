@@ -5,12 +5,13 @@
 // Displays session details with action buttons
 // ============================================
 
-import { SquarePen, Trash2 } from "lucide-react";
+import { SquarePen, Trash2, Activity } from "lucide-react";
 
 export default function SessionsTable({
   sessions = [],
   onEdit = () => {},
-  onDelete = () => {}
+  onDelete = () => {},
+  onUpdateProgress = () => {}
 }) {
   return (
     <div className="hidden md:block overflow-x-auto">
@@ -57,14 +58,23 @@ export default function SessionsTable({
                 <td className="px-6 py-4">
                   <div className="flex gap-2">
                     <button 
+                      onClick={() => onUpdateProgress(session)}
+                      className="text-green-600 hover:text-green-800 transition-colors p-1"
+                      title="Update progress"
+                    >
+                      <Activity size={18} />
+                    </button>
+                    <button 
                       onClick={() => onEdit(session)}
                       className="text-gray-600 hover:text-blue-600 transition-colors p-1"
+                      title="Edit session"
                     >
                       <SquarePen size={18} />
                     </button>
                     <button 
                       onClick={() => onDelete(session.id)}
                       className="text-red-600 hover:text-red-800 transition-colors p-1"
+                      title="Delete session"
                     >
                       <Trash2 size={18} />
                     </button>

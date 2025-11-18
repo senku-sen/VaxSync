@@ -185,21 +185,29 @@ export const updateVaccinationSession = async (sessionId, updateData) => {
 };
 
 /**
- * Update vaccination session administered count
+ * Update vaccination session administered count and status
  * @param {string} sessionId - Session ID to update
  * @param {number} administered - Number of people administered
+ * @param {string} status - Session status (Scheduled, In progress, Completed)
  * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
  */
-export const updateSessionAdministered = async (sessionId, administered) => {
+export const updateSessionAdministered = async (sessionId, administered, status = null) => {
   try {
-    console.log('Updating session administered count:', { sessionId, administered });
+    console.log('Updating session administered count:', { sessionId, administered, status });
+
+    const updateData = {
+      administered: parseInt(administered, 10),
+      updated_at: new Date().toISOString()
+    };
+
+    // Add status if provided
+    if (status) {
+      updateData.status = status;
+    }
 
     const { data, error } = await supabase
       .from("vaccination_sessions")
-      .update({
-        administered: parseInt(administered, 10),
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq("id", sessionId)
       .select();
 
@@ -220,6 +228,50 @@ export const updateSessionAdministered = async (sessionId, administered) => {
     };
   } catch (err) {
     console.error('Unexpected error in updateSessionAdministered:', err);
+    return {
+      success: false,
+      data: null,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
+ * Update session status only
+ * @param {string} sessionId - Session ID to update
+ * @param {string} status - New status (Scheduled, In progress, Completed)
+ * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
+ */
+export const updateSessionStatus = async (sessionId, status) => {
+  try {
+    console.log('Updating session status:', { sessionId, status });
+
+    const { data, error } = await supabase
+      .from("vaccination_sessions")
+      .update({
+        status: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", sessionId)
+      .select();
+
+    if (error) {
+      console.error('Error updating session status:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Failed to update session status'
+      };
+    }
+
+    console.log('Session status updated successfully');
+    return {
+      success: true,
+      data: data?.[0] || null,
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in updateSessionStatus:', err);
     return {
       success: false,
       data: null,

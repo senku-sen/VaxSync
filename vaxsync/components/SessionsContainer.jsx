@@ -11,7 +11,8 @@ import SessionsCardList from "./SessionsCardList";
 export default function SessionsContainer({
   sessions = [],
   onEdit = () => {},
-  onDelete = () => {}
+  onDelete = () => {},
+  onUpdateProgress = () => {}
 }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -26,6 +27,7 @@ export default function SessionsContainer({
         sessions={sessions}
         onEdit={onEdit}
         onDelete={onDelete}
+        onUpdateProgress={onUpdateProgress}
       />
 
       {/* Mobile Card View */}
@@ -33,6 +35,7 @@ export default function SessionsContainer({
         sessions={sessions}
         onEdit={onEdit}
         onDelete={onDelete}
+        onUpdateProgress={onUpdateProgress}
       />
     </div>
   );

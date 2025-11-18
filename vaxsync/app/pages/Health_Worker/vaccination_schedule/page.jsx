@@ -12,6 +12,7 @@ import Header from "../../../../components/Header";
 import ScheduleSessionModal from "../../../../components/ScheduleSessionModal";
 import ScheduleConfirmationModal from "../../../../components/ScheduleConfirmationModal";
 import EditSessionModal from "../../../../components/EditSessionModal";
+import UpdateAdministeredModal from "../../../../components/UpdateAdministeredModal";
 import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SearchBar from "../../../../components/SearchBar";
 import SessionsContainer from "../../../../components/SessionsContainer";
@@ -24,7 +25,9 @@ import {
   fetchVaccinesForSession,
   getVaccineName,
   deleteVaccinationSession,
-  updateVaccinationSession
+  updateVaccinationSession,
+  updateSessionAdministered,
+  updateSessionStatus
 } from "@/lib/vaccinationSession";
 
 export default function VaccinationSchedule({
@@ -39,6 +42,10 @@ export default function VaccinationSchedule({
   
   // Edit modal data
   const [editingSession, setEditingSession] = useState(null);
+  
+  // Update progress modal state
+  const [isUpdateProgressOpen, setIsUpdateProgressOpen] = useState(false);
+  const [updatingSession, setUpdatingSession] = useState(null);
   
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState({
@@ -191,6 +198,51 @@ export default function VaccinationSchedule({
     } else if (action === 'update') {
       // Update local state while editing
       setEditingSession(updatedSession);
+    }
+  };
+
+  // Handle update progress - open modal
+  const handleUpdateProgress = (session) => {
+    console.log('Update progress for session:', session);
+    setUpdatingSession(session);
+    setIsUpdateProgressOpen(true);
+  };
+
+  // Handle update progress submission
+  const handleUpdateProgressSubmit = async (updatedSession, action) => {
+    if (action === 'submit') {
+      // Validate
+      if (updatedSession.administered < 0 || updatedSession.administered > updatedSession.target) {
+        alert('Administered count must be between 0 and target');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const result = await updateSessionAdministered(
+          updatedSession.id,
+          updatedSession.administered,
+          updatedSession.status
+        );
+
+        if (result.success) {
+          console.log('Session progress updated successfully');
+          setIsUpdateProgressOpen(false);
+          setUpdatingSession(null);
+          await reloadSessions();
+          alert('Session progress updated successfully');
+        } else {
+          alert('Error updating session: ' + result.error);
+        }
+      } catch (err) {
+        console.error('Error updating session:', err);
+        alert('Unexpected error: ' + err.message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else if (action === 'update') {
+      // Update local state while editing
+      setUpdatingSession(updatedSession);
     }
   };
 
@@ -382,6 +434,7 @@ export default function VaccinationSchedule({
               sessions={filteredSessions}
               onEdit={handleEditSession}
               onDelete={handleDeleteSession}
+              onUpdateProgress={handleUpdateProgress}
             />
           )}
 
@@ -424,6 +477,19 @@ export default function VaccinationSchedule({
             onSubmit={handleEditSessionSubmit}
             session={editingSession}
             vaccines={vaccines}
+            isSubmitting={isSubmitting}
+            errors={{}}
+          />
+
+          {/* Update Progress Modal */}
+          <UpdateAdministeredModal
+            isOpen={isUpdateProgressOpen}
+            onClose={() => {
+              setIsUpdateProgressOpen(false);
+              setUpdatingSession(null);
+            }}
+            onSubmit={handleUpdateProgressSubmit}
+            session={updatingSession}
             isSubmitting={isSubmitting}
             errors={{}}
           />
