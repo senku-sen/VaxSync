@@ -138,6 +138,53 @@ export const fetchVaccinationSessions = async (userId) => {
 };
 
 /**
+ * Update vaccination session details
+ * @param {string} sessionId - Session ID to update
+ * @param {Object} updateData - Data to update (session_date, session_time, vaccine_id, target)
+ * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
+ */
+export const updateVaccinationSession = async (sessionId, updateData) => {
+  try {
+    console.log('Updating vaccination session:', { sessionId, updateData });
+
+    const { data, error } = await supabase
+      .from("vaccination_sessions")
+      .update({
+        session_date: updateData.session_date,
+        session_time: updateData.session_time,
+        vaccine_id: updateData.vaccine_id,
+        target: parseInt(updateData.target, 10),
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", sessionId)
+      .select();
+
+    if (error) {
+      console.error('Error updating session:', error);
+      return {
+        success: false,
+        data: null,
+        error: error.message || 'Failed to update session'
+      };
+    }
+
+    console.log('Session updated successfully');
+    return {
+      success: true,
+      data: data?.[0] || null,
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in updateVaccinationSession:', err);
+    return {
+      success: false,
+      data: null,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
  * Update vaccination session administered count
  * @param {string} sessionId - Session ID to update
  * @param {number} administered - Number of people administered

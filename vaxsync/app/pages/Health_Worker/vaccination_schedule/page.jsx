@@ -11,6 +11,8 @@ import Sidebar from "../../../../components/Sidebar";
 import Header from "../../../../components/Header";
 import ScheduleSessionModal from "../../../../components/ScheduleSessionModal";
 import ScheduleConfirmationModal from "../../../../components/ScheduleConfirmationModal";
+import EditSessionModal from "../../../../components/EditSessionModal";
+import ConfirmDialog from "../../../../components/ConfirmDialog";
 import SearchBar from "../../../../components/SearchBar";
 import SessionsContainer from "../../../../components/SessionsContainer";
 import { Plus } from "lucide-react";
@@ -21,7 +23,8 @@ import {
   fetchVaccinationSessions,
   fetchVaccinesForSession,
   getVaccineName,
-  deleteVaccinationSession
+  deleteVaccinationSession,
+  updateVaccinationSession
 } from "@/lib/vaccinationSession";
 
 export default function VaccinationSchedule({
@@ -30,6 +33,21 @@ export default function VaccinationSchedule({
 }) {
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Edit modal visibility state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  // Edit modal data
+  const [editingSession, setEditingSession] = useState(null);
+  
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    isDangerous: false
+  });
   
   // Confirmation modal visibility state
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
@@ -130,24 +148,78 @@ export default function VaccinationSchedule({
     }
   };
 
-  // Handle edit session
+  // Handle edit session - open modal
   const handleEditSession = (session) => {
     console.log('Edit session:', session);
-    // TODO: Implement edit functionality
-    // Could open a modal with form pre-filled with session data
+    setEditingSession(session);
+    setIsEditModalOpen(true);
+  };
+
+  // Handle edit session submission
+  const handleEditSessionSubmit = async (updatedSession, action) => {
+    if (action === 'submit') {
+      // Validate form
+      if (!updatedSession.session_date || !updatedSession.session_time || !updatedSession.vaccine_id || !updatedSession.target) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const result = await updateVaccinationSession(updatedSession.id, {
+          session_date: updatedSession.session_date,
+          session_time: updatedSession.session_time,
+          vaccine_id: updatedSession.vaccine_id,
+          target: updatedSession.target
+        });
+
+        if (result.success) {
+          console.log('Session updated successfully');
+          setIsEditModalOpen(false);
+          setEditingSession(null);
+          await reloadSessions();
+          alert('Session updated successfully');
+        } else {
+          alert('Error updating session: ' + result.error);
+        }
+      } catch (err) {
+        console.error('Error updating session:', err);
+        alert('Unexpected error: ' + err.message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else if (action === 'update') {
+      // Update local state while editing
+      setEditingSession(updatedSession);
+    }
   };
 
   // Handle delete session
-  const handleDeleteSession = async (sessionId) => {
-    if (confirm('Are you sure you want to delete this session?')) {
-      const result = await deleteVaccinationSession(sessionId);
-      if (result.success) {
-        console.log('Session deleted successfully');
-        await reloadSessions();
-      } else {
-        alert('Error deleting session: ' + result.error);
+  const handleDeleteSession = (sessionId) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Session",
+      message: "Are you sure you want to delete this vaccination session? This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      isDangerous: true,
+      onConfirm: async () => {
+        try {
+          const result = await deleteVaccinationSession(sessionId);
+          if (result.success) {
+            console.log('Session deleted successfully');
+            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+            await reloadSessions();
+            alert('Session deleted successfully');
+          } else {
+            alert('Error deleting session: ' + result.error);
+          }
+        } catch (err) {
+          console.error('Error deleting session:', err);
+          alert('Unexpected error: ' + err.message);
+        }
       }
-    }
+    });
   };
 
   // Filter sessions based on search term
@@ -340,6 +412,36 @@ export default function VaccinationSchedule({
             onClose={() => setIsConfirmationOpen(false)}
             sessionData={confirmationData}
             vaccineInfo={confirmationData ? vaccines.find(v => v.id === formData.vaccine_id) : null}
+          />
+
+          {/* Edit Session Modal */}
+          <EditSessionModal
+            isOpen={isEditModalOpen}
+            onClose={() => {
+              setIsEditModalOpen(false);
+              setEditingSession(null);
+            }}
+            onSubmit={handleEditSessionSubmit}
+            session={editingSession}
+            vaccines={vaccines}
+            isSubmitting={isSubmitting}
+            errors={{}}
+          />
+
+          {/* Confirm Dialog */}
+          <ConfirmDialog
+            isOpen={confirmDialog.isOpen}
+            title={confirmDialog.title}
+            message={confirmDialog.message}
+            confirmText={confirmDialog.confirmText || "Confirm"}
+            cancelText={confirmDialog.cancelText || "Cancel"}
+            isDangerous={confirmDialog.isDangerous}
+            onConfirm={() => {
+              confirmDialog.onConfirm();
+            }}
+            onCancel={() => {
+              setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+            }}
           />
         </main>
       </div>
