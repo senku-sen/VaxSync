@@ -39,59 +39,34 @@ ALTER TABLE public.vaccination_sessions ENABLE ROW LEVEL SECURITY;
 -- RLS POLICIES FOR VACCINATION_SESSIONS
 -- ============================================
 
--- Allow authenticated users to read their own sessions or all if Head Nurse
+-- Allow all authenticated users to read vaccination sessions
 CREATE POLICY "SELECT vaccination_sessions"
 ON public.vaccination_sessions
 FOR SELECT
 USING (
   auth.role() = 'authenticated'
-  AND (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.user_profiles
-      WHERE user_profiles.id = auth.uid()
-      AND user_profiles.user_role = 'Head Nurse'
-    )
-  )
 );
 
--- Allow authenticated users to insert vaccination sessions
+-- Allow all authenticated users to insert vaccination sessions
 CREATE POLICY "INSERT vaccination_sessions"
 ON public.vaccination_sessions
 FOR INSERT
 WITH CHECK (
   auth.role() = 'authenticated'
-  AND created_by = auth.uid()
 );
 
--- Allow users to update their own sessions or all if Head Nurse
+-- Allow all authenticated users to update vaccination sessions
 CREATE POLICY "UPDATE vaccination_sessions"
 ON public.vaccination_sessions
 FOR UPDATE
 USING (
   auth.role() = 'authenticated'
-  AND (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.user_profiles
-      WHERE user_profiles.id = auth.uid()
-      AND user_profiles.user_role = 'Head Nurse'
-    )
-  )
 );
 
--- Allow users to delete their own sessions or all if Head Nurse
+-- Allow all authenticated users to delete vaccination sessions
 CREATE POLICY "DELETE vaccination_sessions"
 ON public.vaccination_sessions
 FOR DELETE
 USING (
   auth.role() = 'authenticated'
-  AND (
-    created_by = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.user_profiles
-      WHERE user_profiles.id = auth.uid()
-      AND user_profiles.user_role = 'Head Nurse'
-    )
-  )
 );
