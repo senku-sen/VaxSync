@@ -29,10 +29,22 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background">
       <Navigation onGetStarted={() => setShowAuth(true)} />
-      <Hero onGetStarted={() => setShowAuth(true)} />
-      <Features />
-      <Tutorial />
-      <CTA onGetStarted={() => setShowAuth(true)} />
+
+      <section id="hero">
+        <Hero onGetStarted={() => setShowAuth(true)} />
+      </section>
+
+      <section id="features" className="pt-5">
+        <Features />
+      </section>
+
+      <section id="tutorial" className="pt-5">
+        <Tutorial />
+      </section>
+
+      <section id="about" className="pt-5">
+        <CTA onGetStarted={() => setShowAuth(true)} />
+      </section>
     </main>
   )
 }

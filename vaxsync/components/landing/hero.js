@@ -30,7 +30,7 @@ export default function Hero({ onGetStarted }) {
           {/* Right visual — large VaxSync logo */}
           <div className="flex justify-center md:justify-end">
             <Image
-              src="/image1.png"  // file in public folder
+              src="/image1.png"  
               alt="VaxSync logo"
               width={500}
               height={500}
