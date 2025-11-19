@@ -7,8 +7,8 @@
 
 "use client";
 
-import Sidebar from "../../../../components/Sidebar";
-import Header from "../../../../components/Header";
+import Sidebar from "../../../../components/shared/Sidebar";
+import Header from "../../../../components/shared/Header";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -82,6 +82,31 @@ export default function Inventory({
     );
   });
 
+  // Determine vaccine status based on expiry date and quantity
+  const getVaccineStatus = (vaccine) => {
+    const today = new Date();
+    const expiryDate = vaccine.expiry_date ? new Date(vaccine.expiry_date) : null;
+    const quantity = vaccine.quantity_available || 0;
+
+    // Check if expired
+    if (expiryDate && expiryDate < today) {
+      return { status: 'Expired', color: 'bg-gray-100 text-gray-800', icon: '⚫' };
+    }
+
+    // Check if damaged (assuming status field exists, otherwise skip)
+    if (vaccine.status === 'damaged') {
+      return { status: 'Damaged', color: 'bg-red-100 text-red-800', icon: '🔴' };
+    }
+
+    // Check if low stock (less than 10 doses)
+    if (quantity < 10 && quantity > 0) {
+      return { status: 'Low Stock', color: 'bg-orange-100 text-orange-800', icon: '🟠' };
+    }
+
+    // Good condition
+    return { status: 'Good', color: 'bg-green-100 text-green-800', icon: '🟢' };
+  };
+
   return (
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
@@ -143,13 +168,13 @@ export default function Inventory({
               {/* Desktop Table */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm text-left p-2">
-                  <thead className="text-xs font-medium text-gray-600 tracking-wider border-b border-gray-200">
+                  <thead className="text-xs font-medium text-gray-600 tracking-wider border-b border-gray-200 bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left">Vaccine Name</th>
                       <th className="px-6 py-3 text-left">Batch</th>
                       <th className="px-6 py-3 text-left">Quantity</th>
                       <th className="px-6 py-3 text-left">Expiry</th>
-   
+                      <th className="px-6 py-3 text-left">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -170,14 +195,21 @@ export default function Inventory({
                         <td className="px-6 py-4 text-gray-600">
                           {v.expiry_date}
                         </td>
-                        <td className="px-6 py-4 text-gray-600">
-                          {v.location}
+                        <td className="px-6 py-4">
+                          {(() => {
+                            const statusInfo = getVaccineStatus(v);
+                            return (
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                                {statusInfo.icon} {statusInfo.status}
+                              </span>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))}
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                           No vaccines found.
                         </td>
                       </tr>
@@ -189,38 +221,32 @@ export default function Inventory({
               {/* Mobile Cards */}
               <div className="md:hidden p-4 space-y-4">
                 {filtered.length > 0 ? (
-                  filtered.map((v, i) => (
-                    <div key={v.id || i} className="bg-white border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{v.name}</h3>
-                          <p className="text-sm text-gray-500">Batch: {v.batch_number}</p>
+                  filtered.map((v, i) => {
+                    const statusInfo = getVaccineStatus(v);
+                    return (
+                      <div key={v.id || i} className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{v.name}</h3>
+                            <p className="text-sm text-gray-500">Batch: {v.batch_number}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                            {statusInfo.icon} {statusInfo.status}
+                          </span>
                         </div>
-                        <div className="flex space-x-2">
-                          <button className="text-gray-600">
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button className="text-red-600">
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-gray-500">Quantity</p>
-                          <p className="font-medium">{v.quantity_available ?? "N/A"} doses</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Expiry</p>
-                          <p className="font-medium">{v.expiry_date}</p>
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-gray-500">Quantity</p>
+                            <p className="font-medium">{v.quantity_available ?? "N/A"} doses</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Expiry</p>
+                            <p className="font-medium">{v.expiry_date}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-8 text-gray-500">
                     No vaccines found.

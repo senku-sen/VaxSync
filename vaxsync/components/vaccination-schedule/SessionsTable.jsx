@@ -11,7 +11,8 @@ export default function SessionsTable({
   sessions = [],
   onEdit = () => {},
   onDelete = () => {},
-  onUpdateProgress = () => {}
+  onUpdateProgress = () => {},
+  isHeadNurse = false
 }) {
   return (
     <div className="hidden md:block overflow-x-auto">
@@ -50,6 +51,7 @@ export default function SessionsTable({
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                     session.status === 'Completed' ? 'bg-green-100 text-green-800' :
                     session.status === 'In progress' ? 'bg-yellow-100 text-yellow-800' :
+                    session.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
                     'bg-blue-100 text-blue-800'
                   }`}>
                     {session.status}
@@ -60,24 +62,28 @@ export default function SessionsTable({
                     <button 
                       onClick={() => onUpdateProgress(session)}
                       className="text-green-600 hover:text-green-800 transition-colors p-1"
-                      title="Update progress"
+                      title={isHeadNurse ? "View progress" : "Update progress"}
                     >
                       <Activity size={18} />
                     </button>
-                    <button 
-                      onClick={() => onEdit(session)}
-                      className="text-gray-600 hover:text-blue-600 transition-colors p-1"
-                      title="Edit session"
-                    >
-                      <SquarePen size={18} />
-                    </button>
-                    <button 
-                      onClick={() => onDelete(session.id)}
-                      className="text-red-600 hover:text-red-800 transition-colors p-1"
-                      title="Delete session"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                    {!isHeadNurse && (
+                      <>
+                        <button 
+                          onClick={() => onEdit(session)}
+                          className="text-gray-600 hover:text-blue-600 transition-colors p-1"
+                          title="Edit session"
+                        >
+                          <SquarePen size={18} />
+                        </button>
+                        <button 
+                          onClick={() => onDelete(session.id)}
+                          className="text-red-600 hover:text-red-800 transition-colors p-1"
+                          title="Delete session"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

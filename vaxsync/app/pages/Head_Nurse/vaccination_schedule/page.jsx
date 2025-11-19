@@ -1,8 +1,8 @@
 // ============================================
-// HEALTH WORKER VACCINATION SCHEDULE PAGE
+// HEAD NURSE VACCINATION SCHEDULE PAGE
 // ============================================
-// Schedule vaccination sessions for barangay
-// Health workers can create new vaccination sessions
+// View all vaccination sessions across all barangays
+// Head nurses can filter by barangay and manage sessions
 // ============================================
 
 "use client";
@@ -11,30 +11,26 @@ import Sidebar from "../../../../components/shared/Sidebar";
 import Header from "../../../../components/shared/Header";
 import ScheduleSessionModal from "../../../../components/vaccination-schedule/ScheduleSessionModal";
 import ScheduleConfirmationModal from "../../../../components/vaccination-schedule/ScheduleConfirmationModal";
-import EditSessionModal from "../../../../components/vaccination-schedule/EditSessionModal";
 import UpdateAdministeredModal from "../../../../components/vaccination-schedule/UpdateAdministeredModal";
-import ConfirmDialog from "../../../../components/dialogs/ConfirmDialog";
 import SessionCalendar from "../../../../components/vaccination-schedule/SessionCalendar";
 import SearchBar from "../../../../components/shared/SearchBar";
 import SessionsContainer from "../../../../components/vaccination-schedule/SessionsContainer";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Calendar, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
   createVaccinationSession,
-  fetchVaccinationSessions,
+  fetchAllVaccinationSessions,
   fetchVaccinesForSession,
   getVaccineName,
-  deleteVaccinationSession,
-  updateVaccinationSession,
-  updateSessionAdministered,
-  updateSessionStatus
+  updateSessionAdministered
 } from "@/lib/vaccinationSession";
-import { deductBarangayVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/barangayVaccineInventory";
+import { deductBarangayVaccineInventory } from "@/lib/barangayVaccineInventory";
+import { supabase } from "@/lib/supabase";
 
-export default function VaccinationSchedule({
+export default function HeadNurseVaccinationSchedule({
   title = "Vaccination Schedule",
-  subtitle = "Schedule vaccination sessions and track progress",
+  subtitle = "View and manage all vaccination sessions across barangays",
 }) {
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,24 +38,9 @@ export default function VaccinationSchedule({
   // Calendar view state - true = calendar, false = table
   const [isCalendarView, setIsCalendarView] = useState(false);
   
-  // Edit modal visibility state
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  
-  // Edit modal data
-  const [editingSession, setEditingSession] = useState(null);
-  
   // Update progress modal state
   const [isUpdateProgressOpen, setIsUpdateProgressOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(null);
-  
-  // Confirm dialog state
-  const [confirmDialog, setConfirmDialog] = useState({
-    isOpen: false,
-    title: "",
-    message: "",
-    onConfirm: () => {},
-    isDangerous: false
-  });
   
   // Confirmation modal visibility state
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
@@ -79,14 +60,21 @@ export default function VaccinationSchedule({
   // List of available vaccines
   const [vaccines, setVaccines] = useState([]);
   
-  // List of vaccination sessions
+  // List of all vaccination sessions
   const [sessions, setSessions] = useState([]);
+  
+  // List of all barangays for filtering
+  const [barangays, setBarangays] = useState([]);
+  
+  // Selected barangay filter (null = all barangays)
+  const [selectedBarangay, setSelectedBarangay] = useState(null);
   
   // Search term for filtering sessions
   const [searchTerm, setSearchTerm] = useState("");
   
   // Form data state
   const [formData, setFormData] = useState({
+    barangay_id: "",
     date: "",
     time: "",
     vaccine_id: "",
@@ -112,14 +100,16 @@ export default function VaccinationSchedule({
       if (profile) {
         setUserProfile(profile);
         
-        // Load vaccines and sessions in parallel
-        const [vaccinesResult, sessionsResult] = await Promise.all([
+        // Load vaccines, sessions, and barangays in parallel
+        const [vaccinesResult, sessionsResult, barangaysResult] = await Promise.all([
           fetchVaccinesForSession(),
-          fetchVaccinationSessions(profile.id)
+          fetchAllVaccinationSessions(),
+          fetchBarangays()
         ]);
 
         console.log('Vaccines result:', vaccinesResult);
         console.log('Sessions result:', sessionsResult);
+        console.log('Barangays result:', barangaysResult);
 
         if (vaccinesResult.success) {
           setVaccines(vaccinesResult.data);
@@ -136,6 +126,13 @@ export default function VaccinationSchedule({
           console.error('Sessions error:', sessionsResult.error);
           setError(sessionsResult.error);
         }
+
+        if (barangaysResult.success) {
+          setBarangays(barangaysResult.data);
+          console.log('Barangays set:', barangaysResult.data);
+        } else {
+          console.error('Barangays error:', barangaysResult.error);
+        }
       } else {
         console.warn('No profile found');
         setError('Failed to load user profile');
@@ -148,63 +145,48 @@ export default function VaccinationSchedule({
     }
   };
 
+  // Fetch all barangays
+  const fetchBarangays = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("barangays")
+        .select("id, name, municipality")
+        .order("name");
+
+      if (error) {
+        console.error('Error fetching barangays:', error);
+        return {
+          success: false,
+          data: [],
+          error: error.message || 'Failed to fetch barangays'
+        };
+      }
+
+      return {
+        success: true,
+        data: data || [],
+        error: null
+      };
+    } catch (err) {
+      console.error('Unexpected error in fetchBarangays:', err);
+      return {
+        success: false,
+        data: [],
+        error: err.message || 'Unexpected error'
+      };
+    }
+  };
+
   // Reload sessions from database
   const reloadSessions = async () => {
-    if (userProfile?.id) {
-      const result = await fetchVaccinationSessions(userProfile.id);
-      if (result.success) {
-        setSessions(result.data);
-      } else {
-        setError(result.error);
-      }
+    const result = await fetchAllVaccinationSessions();
+    if (result.success) {
+      setSessions(result.data);
+    } else {
+      setError(result.error);
     }
   };
 
-  // Handle edit session - open modal
-  const handleEditSession = (session) => {
-    console.log('Edit session:', session);
-    setEditingSession(session);
-    setIsEditModalOpen(true);
-  };
-
-  // Handle edit session submission
-  const handleEditSessionSubmit = async (updatedSession, action) => {
-    if (action === 'submit') {
-      // Validate form
-      if (!updatedSession.session_date || !updatedSession.session_time || !updatedSession.vaccine_id || !updatedSession.target) {
-        alert('Please fill in all required fields');
-        return;
-      }
-
-      setIsSubmitting(true);
-      try {
-        const result = await updateVaccinationSession(updatedSession.id, {
-          session_date: updatedSession.session_date,
-          session_time: updatedSession.session_time,
-          vaccine_id: updatedSession.vaccine_id,
-          target: updatedSession.target
-        });
-
-        if (result.success) {
-          console.log('Session updated successfully');
-          setIsEditModalOpen(false);
-          setEditingSession(null);
-          await reloadSessions();
-          alert('Session updated successfully');
-        } else {
-          alert('Error updating session: ' + result.error);
-        }
-      } catch (err) {
-        console.error('Error updating session:', err);
-        alert('Unexpected error: ' + err.message);
-      } finally {
-        setIsSubmitting(false);
-      }
-    } else if (action === 'update') {
-      // Update local state while editing
-      setEditingSession(updatedSession);
-    }
-  };
 
   // Handle update progress - open modal
   const handleUpdateProgress = (session) => {
@@ -239,9 +221,9 @@ export default function VaccinationSchedule({
         if (result.success) {
           console.log('Session progress updated successfully');
 
-          // Deduct from reserved vials if administered count increased
+          // Deduct from barangay vaccine inventory if administered count increased
           if (administeredDifference > 0) {
-            console.log('Deducting from reserved vaccine inventory:', {
+            console.log('Deducting vaccine from inventory:', {
               barangayId: updatedSession.barangay_id,
               vaccineId: updatedSession.vaccine_id,
               quantityToDeduct: administeredDifference
@@ -280,47 +262,27 @@ export default function VaccinationSchedule({
     }
   };
 
-  // Handle delete session
-  const handleDeleteSession = (sessionId) => {
-    setConfirmDialog({
-      isOpen: true,
-      title: "Delete Session",
-      message: "Are you sure you want to delete this vaccination session? This action cannot be undone.",
-      confirmText: "Delete",
-      cancelText: "Cancel",
-      isDangerous: true,
-      onConfirm: async () => {
-        try {
-          const result = await deleteVaccinationSession(sessionId);
-          if (result.success) {
-            console.log('Session deleted successfully');
-            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-            await reloadSessions();
-            alert('Session deleted successfully');
-          } else {
-            alert('Error deleting session: ' + result.error);
-          }
-        } catch (err) {
-          console.error('Error deleting session:', err);
-          alert('Unexpected error: ' + err.message);
-        }
-      }
-    });
-  };
 
-  // Filter sessions based on search term
+  // Filter sessions based on search term and selected barangay
   const filteredSessions = sessions.filter((session) => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = 
       (session.barangays?.name || "").toLowerCase().includes(term) ||
       (session.vaccines?.name || "").toLowerCase().includes(term) ||
-      (session.session_date || "").includes(searchTerm)
-    );
+      (session.session_date || "").includes(searchTerm);
+    
+    const matchesBarangay = !selectedBarangay || session.barangay_id === selectedBarangay;
+    
+    return matchesSearch && matchesBarangay;
   });
 
   // Validate form before submission
   const validateForm = () => {
     const newErrors = {};
+
+    if (!formData.barangay_id) {
+      newErrors.barangay_id = "Please select a barangay";
+    }
 
     if (!formData.date) {
       newErrors.date = "Date is required";
@@ -363,15 +325,10 @@ export default function VaccinationSchedule({
       return;
     }
 
-    if (!userProfile?.barangays?.id) {
-      alert("Barangay ID is missing. Please refresh the page.");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       const result = await createVaccinationSession({
-        barangay_id: userProfile.barangays.id,
+        barangay_id: formData.barangay_id,
         vaccine_id: formData.vaccine_id,
         session_date: formData.date,
         session_time: formData.time,
@@ -380,24 +337,11 @@ export default function VaccinationSchedule({
       });
 
       if (result.success) {
-        // Reserve vaccine vials for this session
-        const reserveResult = await reserveBarangayVaccineInventory(
-          userProfile.barangays.id,
-          formData.vaccine_id,
-          parseInt(formData.target)
-        );
-
-        if (reserveResult.success) {
-          console.log('Vaccine vials reserved successfully');
-        } else {
-          console.warn('Warning: Failed to reserve vaccine vials:', reserveResult.error);
-          // Don't fail the session creation if reservation fails - just warn
-        }
-
         // Show confirmation modal
+        const barangayName = barangays.find(b => b.id === formData.barangay_id)?.name || "Unknown";
         const vaccineName = getVaccineName(formData.vaccine_id, vaccines);
         setConfirmationData({
-          barangayName: userProfile.barangays.name,
+          barangayName: barangayName,
           date: formData.date,
           time: formData.time,
           vaccineName: vaccineName,
@@ -406,7 +350,7 @@ export default function VaccinationSchedule({
         setIsConfirmationOpen(true);
         
         // Reset form
-        setFormData({ date: "", time: "", vaccine_id: "", target: "" });
+        setFormData({ barangay_id: "", date: "", time: "", vaccine_id: "", target: "" });
         setIsModalOpen(false);
         
         // Reload sessions
@@ -424,7 +368,7 @@ export default function VaccinationSchedule({
   };
 
   const handleCancel = () => {
-    setFormData({ date: "", time: "", vaccine_id: "", target: "" });
+    setFormData({ barangay_id: "", date: "", time: "", vaccine_id: "", target: "" });
     setErrors({});
     setIsModalOpen(false);
   };
@@ -474,22 +418,46 @@ export default function VaccinationSchedule({
             </div>
           )}
 
-          {/* Table View */}
+          {/* Barangay Filter and Search */}
           {!isLoading && !isCalendarView && (
-            <>
+            <div className="mb-6 space-y-4">
+              {/* Barangay Filter Dropdown */}
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <label className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Filter size={18} />
+                  <span>Filter by Barangay:</span>
+                </label>
+                <select
+                  value={selectedBarangay || ""}
+                  onChange={(e) => setSelectedBarangay(e.target.value || null)}
+                  className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+                >
+                  <option value="">All Barangays</option>
+                  {barangays.map(barangay => (
+                    <option key={barangay.id} value={barangay.id}>
+                      {barangay.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Search Bar */}
               <SearchBar
                 placeholder="Search by barangay, vaccine, or date..."
                 value={searchTerm}
                 onChange={setSearchTerm}
               />
+            </div>
+          )}
 
+          {/* Table View */}
+          {!isLoading && !isCalendarView && (
+            <>
               {/* Sessions Container */}
               <SessionsContainer
                 sessions={filteredSessions}
-                onEdit={handleEditSession}
-                onDelete={handleDeleteSession}
                 onUpdateProgress={handleUpdateProgress}
+                isHeadNurse={true}
               />
             </>
           )}
@@ -512,12 +480,14 @@ export default function VaccinationSchedule({
             isOpen={isModalOpen}
             onClose={handleCancel}
             onSubmit={handleSubmit}
-            barangayName={userProfile?.barangays?.name || "Not assigned"}
-            barangayId={userProfile?.barangays?.id}
+            barangayName={null}
+            barangayId={null}
             vaccines={vaccines}
             isSubmitting={isSubmitting}
             formData={formData}
             errors={errors}
+            barangays={barangays}
+            isHeadNurse={true}
             onFormChange={(newFormData) => {
               setFormData(newFormData);
               // Clear errors when user starts typing
@@ -537,19 +507,6 @@ export default function VaccinationSchedule({
             vaccineInfo={confirmationData ? vaccines.find(v => v.id === formData.vaccine_id) : null}
           />
 
-          {/* Edit Session Modal */}
-          <EditSessionModal
-            isOpen={isEditModalOpen}
-            onClose={() => {
-              setIsEditModalOpen(false);
-              setEditingSession(null);
-            }}
-            onSubmit={handleEditSessionSubmit}
-            session={editingSession}
-            vaccines={vaccines}
-            isSubmitting={isSubmitting}
-            errors={{}}
-          />
 
           {/* Update Progress Modal */}
           <UpdateAdministeredModal
@@ -562,23 +519,9 @@ export default function VaccinationSchedule({
             session={updatingSession}
             isSubmitting={isSubmitting}
             errors={{}}
+            isViewOnly={true}
           />
 
-          {/* Confirm Dialog */}
-          <ConfirmDialog
-            isOpen={confirmDialog.isOpen}
-            title={confirmDialog.title}
-            message={confirmDialog.message}
-            confirmText={confirmDialog.confirmText || "Confirm"}
-            cancelText={confirmDialog.cancelText || "Cancel"}
-            isDangerous={confirmDialog.isDangerous}
-            onConfirm={() => {
-              confirmDialog.onConfirm();
-            }}
-            onCancel={() => {
-              setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-            }}
-          />
         </main>
       </div>
     </div>

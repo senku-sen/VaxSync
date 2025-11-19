@@ -12,7 +12,8 @@ export default function SessionsContainer({
   sessions = [],
   onEdit = () => {},
   onDelete = () => {},
-  onUpdateProgress = () => {}
+  onUpdateProgress = () => {},
+  isHeadNurse = false
 }) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -25,17 +26,19 @@ export default function SessionsContainer({
       {/* Desktop Table View */}
       <SessionsTable
         sessions={sessions}
-        onEdit={onEdit}
-        onDelete={onDelete}
+        onEdit={isHeadNurse ? undefined : onEdit}
+        onDelete={isHeadNurse ? undefined : onDelete}
         onUpdateProgress={onUpdateProgress}
+        isHeadNurse={isHeadNurse}
       />
 
       {/* Mobile Card View */}
       <SessionsCardList
         sessions={sessions}
-        onEdit={onEdit}
-        onDelete={onDelete}
+        onEdit={isHeadNurse ? undefined : onEdit}
+        onDelete={isHeadNurse ? undefined : onDelete}
         onUpdateProgress={onUpdateProgress}
+        isHeadNurse={isHeadNurse}
       />
     </div>
   );

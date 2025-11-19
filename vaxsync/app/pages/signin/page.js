@@ -16,13 +16,32 @@ export default function SignIn() {
     setIsSubmitting(true);
 
     try {
+      // Validate inputs
+      if (!email || !password) {
+        throw new Error("Please enter both email and password.");
+      }
+
+      console.log('Attempting sign in for:', email);
+      
       const res = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
+
+      console.log('Sign in response status:', res.status);
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid credentials.');
+      
+      if (!res.ok) {
+        const errorMsg = data.error || 'Invalid credentials.';
+        console.error('Sign in failed:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Authentication failed.');
+      }
 
       // Cache minimal profile for client-only pages
       const userCache = {
@@ -50,10 +69,12 @@ export default function SignIn() {
         window.location.href = '/pages/Head_Nurse/vaccination_request';
       } else {
         // Fallback for unknown roles
+        console.warn('Unknown user role:', data.userRole);
         window.location.href = '/inventory';
       }
     } catch (err) {
-      setError(err.message || "Invalid credentials.");
+      console.error('Sign in error:', err);
+      setError(err.message || "Invalid credentials. Please check your email and password.");
     } finally {
       setIsSubmitting(false);
     }

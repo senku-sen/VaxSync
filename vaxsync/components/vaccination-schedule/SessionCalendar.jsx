@@ -18,7 +18,11 @@ export default function SessionCalendar({
 
   // Get sessions for a specific date
   const getSessionsForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    // Format date as YYYY-MM-DD without timezone conversion
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
     return sessions.filter(session => session.session_date === dateStr);
   };
 
@@ -212,6 +216,7 @@ export default function SessionCalendar({
                           <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                             session.status === 'Completed' ? 'bg-green-100 text-green-800' :
                             session.status === 'In progress' ? 'bg-yellow-100 text-yellow-800' :
+                            session.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
                             {session.status}

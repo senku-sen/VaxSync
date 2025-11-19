@@ -47,6 +47,28 @@ export default function EditSessionModal({
 
         {/* Modal Body */}
         <div className="p-6">
+          {/* Completed Session Warning */}
+          {session.status === "Completed" && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-700">This session is completed</p>
+                <p className="text-xs text-amber-600 mt-1">Editing is disabled for completed sessions</p>
+              </div>
+            </div>
+          )}
+
+          {/* Cancelled Session Warning */}
+          {session.status === "Cancelled" && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-700">This session is cancelled</p>
+                <p className="text-xs text-red-600 mt-1">Editing is disabled for cancelled sessions</p>
+              </div>
+            </div>
+          )}
+
           {/* Validation Errors */}
           {Object.keys(errors).length > 0 && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
@@ -88,9 +110,10 @@ export default function EditSessionModal({
                 name="session_date"
                 value={session.session_date || ""}
                 onChange={handleChange}
+                disabled={session.status === "Completed" || session.status === "Cancelled"}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                   errors.session_date ? 'border-red-500' : 'border-gray-300'
-                }`}
+                } ${(session.status === "Completed" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
               />
             </div>
 
@@ -105,9 +128,10 @@ export default function EditSessionModal({
                 name="session_time"
                 value={session.session_time || ""}
                 onChange={handleChange}
+                disabled={session.status === "Completed" || session.status === "Cancelled"}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                   errors.session_time ? 'border-red-500' : 'border-gray-300'
-                }`}
+                } ${(session.status === "Completed" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
               />
             </div>
 
@@ -121,9 +145,10 @@ export default function EditSessionModal({
                 name="vaccine_id"
                 value={session.vaccine_id || ""}
                 onChange={handleChange}
+                disabled={session.status === "Completed" || session.status === "Cancelled"}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                   errors.vaccine_id ? 'border-red-500' : 'border-gray-300'
-                }`}
+                } ${(session.status === "Completed" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
               >
                 <option value="">Select vaccine</option>
                 {vaccines.map((vaccine) => (
@@ -147,9 +172,10 @@ export default function EditSessionModal({
                 onChange={handleChange}
                 placeholder="Enter target number"
                 min="1"
+                disabled={session.status === "Completed" || session.status === "Cancelled"}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                   errors.target ? 'border-red-500' : 'border-gray-300'
-                }`}
+                } ${(session.status === "Completed" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
               />
             </div>
 
@@ -178,10 +204,10 @@ export default function EditSessionModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || session.status === "Completed" || session.status === "Cancelled"}
                 className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
               >
-                {isSubmitting ? "Updating..." : "Update Session"}
+                {isSubmitting ? "Updating..." : session.status === "Completed" ? "Session Completed" : session.status === "Cancelled" ? "Session Cancelled" : "Update Session"}
               </button>
             </div>
           </form>
