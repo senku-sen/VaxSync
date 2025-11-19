@@ -4,9 +4,26 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import DeleteUserModal from "@/components/modals/delete-user-modals";
+
+const FEATURE_CHECKLIST = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "inventory", label: "Inventory" },
+  { key: "vaccine_usage", label: "Vaccine Usage" },
+  { key: "vaccination_schedule", label: "Vaccination Schedule" },
+  { key: "resident_data", label: "Resident Data" },
+  { key: "vaccine_requests", label: "Vaccine Requests" },
+  { key: "notifications", label: "Notifications" },
+];
+
+const defaultPermissionsForRole = (role) => {
+  return FEATURE_CHECKLIST.reduce((acc, feature) => {
+    acc[feature.key] = true;
+    return acc;
+  }, {});
+};
 
 export default function HeadNurseUserManagement() {
   const [users, setUsers] = useState([]);
@@ -35,7 +52,12 @@ export default function HeadNurseUserManagement() {
         setError("Unable to load users. Please try again later.");
         setUsers([]);
       } else {
-        setUsers(data || []);
+        setUsers(
+          (data || []).map((user) => ({
+            ...user,
+            permissions: defaultPermissionsForRole(user.user_role),
+          }))
+        );
       }
       setLoading(false);
     };
@@ -155,6 +177,7 @@ export default function HeadNurseUserManagement() {
   };
 
   return (
+    <>
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
 
@@ -252,6 +275,10 @@ export default function HeadNurseUserManagement() {
                                 type="button"
                                 className="hover:text-[#3E5F44]"
                                 aria-label={`Edit ${user.name}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openModalForUser(user);
+                                }}
                               >
                                 <Pencil className="h-4 w-4" />
                               </button>
@@ -286,6 +313,141 @@ export default function HeadNurseUserManagement() {
         />
       )}
     </div>
+
+    {isModalOpen && activeUser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {activeUser.user_role === "RHM/HRH" ? "User Information" : "Edit User"}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {activeUser.user_role === "RHM/HRH"
+                  ? "RHM/HRH accounts are view-only."
+                  : "Update user details and access permissions."}
+              </p>
+            </div>
+            <button
+              className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
+              onClick={closeModal}
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 px-6 py-6 md:grid-cols-2">
+            {modalError ? (
+              <div className="md:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {modalError}
+              </div>
+            ) : null}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                First Name
+              </label>
+              <input
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.first_name}
+                onChange={(e) => handleFormChange("first_name", e.target.value)}
+                disabled={activeUser.user_role === "RHM/HRH"}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                Last Name
+              </label>
+              <input
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.last_name}
+                onChange={(e) => handleFormChange("last_name", e.target.value)}
+                disabled={activeUser.user_role === "RHM/HRH"}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                Email
+              </label>
+              <input
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.email}
+                onChange={(e) => handleFormChange("email", e.target.value)}
+                disabled
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                Role
+              </label>
+              <select
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.user_role}
+                onChange={(e) => {
+                  const newRole = e.target.value;
+                  handleFormChange("user_role", newRole);
+                  setPermissionDraft(defaultPermissionsForRole(newRole));
+                }}
+                disabled={activeUser.user_role === "RHM/HRH"}
+              >
+                <option value="Health Worker">Health Worker</option>
+                <option value="RHM/HRH">RHM/HRH</option>
+              </select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                Address / Barangay
+              </label>
+              <input
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.address}
+                onChange={(e) => handleFormChange("address", e.target.value)}
+                disabled={activeUser.user_role === "RHM/HRH"}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 px-6 py-5">
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              Page Access
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {FEATURE_CHECKLIST.map((feature) => (
+                <label
+                  key={feature.key}
+                  className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={permissionDraft?.[feature.key] ?? false}
+                    onChange={() => togglePermission(feature.key)}
+                    disabled={activeUser.user_role === "RHM/HRH"}
+                  />
+                  {feature.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+            <Button variant="ghost" onClick={closeModal}>
+              Close
+            </Button>
+            {activeUser.user_role !== "RHM/HRH" && (
+              <Button
+                onClick={handleSave}
+                className="bg-[#3E5F44] text-white hover:bg-[#2F4B35]"
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Save Changes"}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
