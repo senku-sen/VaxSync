@@ -328,7 +328,7 @@ export default function ScheduleSessionModal({
                 </option>
                 {vaccinesWithInventory.map((vaccine) => (
                   <option key={vaccine.id} value={vaccine.id}>
-                    {vaccine.name} ({vaccine.availableQuantity} vials available)
+                    {vaccine.name}
                   </option>
                 ))}
               </select>

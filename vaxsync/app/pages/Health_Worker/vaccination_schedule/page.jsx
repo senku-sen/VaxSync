@@ -30,7 +30,7 @@ import {
   updateSessionAdministered,
   updateSessionStatus
 } from "@/lib/vaccinationSession";
-import { deductBarangayVaccineInventory } from "@/lib/barangayVaccineInventory";
+import { deductBarangayVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/barangayVaccineInventory";
 
 export default function VaccinationSchedule({
   title = "Vaccination Schedule",
@@ -239,9 +239,9 @@ export default function VaccinationSchedule({
         if (result.success) {
           console.log('Session progress updated successfully');
 
-          // Deduct from barangay vaccine inventory if administered count increased
+          // Deduct from reserved vials if administered count increased
           if (administeredDifference > 0) {
-            console.log('Deducting vaccine from inventory:', {
+            console.log('Deducting from reserved vaccine inventory:', {
               barangayId: updatedSession.barangay_id,
               vaccineId: updatedSession.vaccine_id,
               quantityToDeduct: administeredDifference
@@ -380,6 +380,20 @@ export default function VaccinationSchedule({
       });
 
       if (result.success) {
+        // Reserve vaccine vials for this session
+        const reserveResult = await reserveBarangayVaccineInventory(
+          userProfile.barangays.id,
+          formData.vaccine_id,
+          parseInt(formData.target)
+        );
+
+        if (reserveResult.success) {
+          console.log('Vaccine vials reserved successfully');
+        } else {
+          console.warn('Warning: Failed to reserve vaccine vials:', reserveResult.error);
+          // Don't fail the session creation if reservation fails - just warn
+        }
+
         // Show confirmation modal
         const vaccineName = getVaccineName(formData.vaccine_id, vaccines);
         setConfirmationData({

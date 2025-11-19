@@ -3,6 +3,49 @@ import { getVaccineById } from "./vaccine";
 import { getBarangayVaccineTotal } from "./barangayVaccineInventory";
 
 /**
+ * Calculate total vials reserved by scheduled sessions
+ * @param {string} vaccineId - The vaccine ID
+ * @param {string} barangayId - The barangay ID
+ * @returns {Promise<{totalReserved: number, error: Object|null}>}
+ */
+export async function getReservedVialsByScheduledSessions(vaccineId, barangayId) {
+  try {
+    console.log('Calculating reserved vials for scheduled sessions:', { vaccineId, barangayId });
+
+    // Get all scheduled sessions (not completed/cancelled) for this vaccine and barangay
+    const { data: sessions, error } = await supabase
+      .from('vaccination_sessions')
+      .select('target, administered, status')
+      .eq('vaccine_id', vaccineId)
+      .eq('barangay_id', barangayId)
+      .in('status', ['Scheduled', 'In progress']);
+
+    if (error) {
+      console.error('Error fetching scheduled sessions:', error);
+      return { totalReserved: 0, error };
+    }
+
+    if (!sessions || sessions.length === 0) {
+      console.log('No scheduled sessions found');
+      return { totalReserved: 0, error: null };
+    }
+
+    // Calculate total reserved: sum of (target - administered) for each session
+    // This represents vials still needed for pending/in-progress sessions
+    const totalReserved = sessions.reduce((sum, session) => {
+      const remaining = (session.target || 0) - (session.administered || 0);
+      return sum + Math.max(0, remaining);
+    }, 0);
+
+    console.log('Total reserved vials:', totalReserved, 'from', sessions.length, 'sessions');
+    return { totalReserved, error: null };
+  } catch (err) {
+    console.error('Error in getReservedVialsByScheduledSessions:', err);
+    return { totalReserved: 0, error: err };
+  }
+}
+
+/**
  * Check if a vaccine has approved requests in the system
  * @param {string} vaccineId - The vaccine ID to check
  * @param {string} barangayId - Optional: filter by barangay
@@ -182,7 +225,17 @@ export async function validateVaccineForSchedule(vaccineId, barangayId) {
     if (!inventoryTotal || inventoryTotal === 0) {
       errors.push('No vaccine inventory available in this barangay');
     } else {
-      availableQuantity = inventoryTotal;
+      // Calculate reserved vials from existing scheduled sessions
+      const { totalReserved, error: reservedError } = await getReservedVialsByScheduledSessions(vaccineId, barangayId);
+
+      if (reservedError) {
+        console.warn('Could not calculate reserved vials, proceeding with total inventory:', reservedError);
+        availableQuantity = inventoryTotal;
+      } else {
+        // Available = Total - Reserved
+        availableQuantity = Math.max(0, inventoryTotal - totalReserved);
+        console.log('Inventory calculation:', { inventoryTotal, totalReserved, availableQuantity });
+      }
     }
 
     const isValid = errors.length === 0;
@@ -240,5 +293,6 @@ export default {
   getMaxApprovedVaccineQuantity,
   validateVaccineForRequest,
   validateVaccineForSchedule,
-  getApprovedVaccineRequestDetails
+  getApprovedVaccineRequestDetails,
+  getReservedVialsByScheduledSessions
 };

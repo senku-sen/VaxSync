@@ -184,6 +184,116 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
 }
 
 /**
+ * Reserve vaccine vials for a scheduled session
+ * @param {string} barangayId - The barangay ID
+ * @param {string} vaccineId - The vaccine ID
+ * @param {number} quantityToReserve - Number of vials to reserve
+ * @returns {Promise<{success: boolean, error: Object|null}>}
+ */
+export async function reserveBarangayVaccineInventory(barangayId, vaccineId, quantityToReserve) {
+  try {
+    console.log('Reserving vaccine from inventory:', { barangayId, vaccineId, quantityToReserve });
+
+    // Get current inventory
+    const { data: inventory, error: fetchError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .select('id, quantity_vial, quantity_dose, reserved_vial')
+      .eq('barangay_id', barangayId)
+      .eq('vaccine_id', vaccineId)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (fetchError || !inventory || inventory.length === 0) {
+      console.error('Inventory not found:', fetchError);
+      return { success: false, error: 'Inventory not found' };
+    }
+
+    const currentInventory = inventory[0];
+    const currentReserved = currentInventory.reserved_vial || 0;
+    const availableVials = currentInventory.quantity_vial - currentReserved;
+
+    // Check if enough vials are available
+    if (availableVials < quantityToReserve) {
+      console.error('Not enough vials available to reserve');
+      return { success: false, error: `Not enough vials. Available: ${availableVials}, Requested: ${quantityToReserve}` };
+    }
+
+    const newReservedQuantity = currentReserved + quantityToReserve;
+
+    // Update inventory with reserved quantity
+    const { error: updateError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .update({
+        reserved_vial: newReservedQuantity,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', currentInventory.id);
+
+    if (updateError) {
+      console.error('Error reserving inventory:', updateError);
+      return { success: false, error: updateError };
+    }
+
+    console.log('Vaccine reserved successfully. New reserved quantity:', newReservedQuantity);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error in reserveBarangayVaccineInventory:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Release reserved vaccine vials (when session is cancelled)
+ * @param {string} barangayId - The barangay ID
+ * @param {string} vaccineId - The vaccine ID
+ * @param {number} quantityToRelease - Number of vials to release
+ * @returns {Promise<{success: boolean, error: Object|null}>}
+ */
+export async function releaseBarangayVaccineReservation(barangayId, vaccineId, quantityToRelease) {
+  try {
+    console.log('Releasing vaccine reservation:', { barangayId, vaccineId, quantityToRelease });
+
+    // Get current inventory
+    const { data: inventory, error: fetchError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .select('id, reserved_vial')
+      .eq('barangay_id', barangayId)
+      .eq('vaccine_id', vaccineId)
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (fetchError || !inventory || inventory.length === 0) {
+      console.error('Inventory not found:', fetchError);
+      return { success: false, error: 'Inventory not found' };
+    }
+
+    const currentInventory = inventory[0];
+    const currentReserved = currentInventory.reserved_vial || 0;
+    const newReservedQuantity = Math.max(0, currentReserved - quantityToRelease);
+
+    // Update inventory
+    const { error: updateError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .update({
+        reserved_vial: newReservedQuantity,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', currentInventory.id);
+
+    if (updateError) {
+      console.error('Error releasing reservation:', updateError);
+      return { success: false, error: updateError };
+    }
+
+    console.log('Vaccine reservation released successfully. New reserved quantity:', newReservedQuantity);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error in releaseBarangayVaccineReservation:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
  * Get low stock vaccines for a barangay
  * @param {string} barangayId - The barangay ID
  * @param {number} threshold - Minimum quantity threshold (default: 5 vials)
@@ -221,5 +331,7 @@ export default {
   addBarangayVaccineInventory,
   updateBarangayVaccineInventory,
   deductBarangayVaccineInventory,
+  reserveBarangayVaccineInventory,
+  releaseBarangayVaccineReservation,
   getLowStockVaccines
 };
