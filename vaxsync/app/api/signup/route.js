@@ -79,6 +79,7 @@ export async function POST(request) {
           address,
           user_role: userRole,
           auth_code: authCode,
+          assigned_barangay_id: null, // Explicitly set to null for new users
           created_at: new Date().toISOString()
         });
       if (profileError) {

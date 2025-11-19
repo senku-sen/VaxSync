@@ -192,3 +192,70 @@ export async function DELETE(request) {
     }, { status: 500 })
   }
 }
+
+export async function PATCH(request) {
+  try {
+    const body = await request.json()
+    const { id, data } = body
+
+    if (!id) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 })
+    }
+
+    if (!data || typeof data !== "object") {
+      return NextResponse.json({ error: "Update payload is required" }, { status: 400 })
+    }
+
+    const allowedFields = new Set([
+      "first_name",
+      "last_name",
+      "user_role",
+      "address",
+      "assigned_barangay_id"
+    ])
+
+    const updatePayload = Object.entries(data).reduce((acc, [key, value]) => {
+      // Include field if it's allowed and not undefined (null is allowed, especially for assigned_barangay_id)
+      if (allowedFields.has(key) && value !== undefined) {
+        acc[key] = value
+      }
+      return acc
+    }, {})
+
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json(
+        { error: "No valid fields provided for update" },
+        { status: 400 }
+      )
+    }
+
+    updatePayload.updated_at = new Date().toISOString()
+
+    const supabase = createSupabaseAdminClient()
+    const { data: updatedUser, error } = await supabase
+      .from("user_profiles")
+      .update(updatePayload)
+      .eq("id", id)
+      .select("id, first_name, last_name, email, user_role, address, assigned_barangay_id")
+      .single()
+
+    if (error) {
+      console.error("Error updating user:", error)
+      return NextResponse.json(
+        { error: "Failed to update user", message: error.message },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      message: "User updated successfully",
+      user: updatedUser
+    })
+  } catch (error) {
+    console.error("Unexpected error updating user:", error)
+    return NextResponse.json(
+      { error: "Failed to update user", message: error.message },
+      { status: 500 }
+    )
+  }
+}

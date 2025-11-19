@@ -10,6 +10,23 @@ import ManageRoleModal from '@/components/modals/manage-role-modals';
 import ViewActivityModal from '@/components/modals/view-activity-modals';
 import { Search, Plus } from 'lucide-react';
 
+const withDisplayFields = (user) => {
+  if (!user) return null;
+  const fullName =
+    user.name ||
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    'Unnamed user';
+
+  return {
+    ...user,
+    name: fullName,
+    email: user.email || '—',
+    role: user.role || user.user_role || '—',
+    barangay: user.barangay || user.address || 'Not specified',
+    status: user.status || 'Active',
+  };
+};
+
 export default function UserManagement() {
   const [users, setUsers] = useState([
     {
@@ -36,18 +53,7 @@ export default function UserManagement() {
   const [activeModal, setActiveModal] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  const formattedUsers = useMemo(
-    () =>
-      users.map((user) => ({
-        ...user,
-        name: [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Unnamed user',
-        email: user.email || '—',
-        role: user.user_role || '—',
-        barangay: user.address || 'Not specified',
-        status: user.status || 'Active',
-      })),
-    [users]
-  );
+  const formattedUsers = useMemo(() => users.map(withDisplayFields), [users]);
 
   const filteredUsers = useMemo(() => {
     if (!searchTerm.trim()) return formattedUsers;
@@ -61,14 +67,20 @@ export default function UserManagement() {
     );
   }, [formattedUsers, searchTerm]);
 
+  const prepareModalUser = (user) => {
+    if (!user) return null;
+    return withDisplayFields(user);
+  };
+
   const handleAddUser = (newUser) => {
     setUsers((prev) => [
       ...prev,
       {
         ...newUser,
         id: Math.max(0, ...prev.map((u) => u.id)) + 1,
-        first_name: newUser.name?.split(' ')[0] || '',
-        last_name: newUser.name?.split(' ').slice(1).join(' ') || '',
+        first_name: newUser.first_name || newUser.name?.split(' ')[0] || '',
+        last_name:
+          newUser.last_name || newUser.name?.split(' ').slice(1).join(' ') || '',
         user_role: newUser.role,
         address: newUser.barangay,
         status: newUser.status || 'Active',
@@ -84,10 +96,16 @@ export default function UserManagement() {
           ? {
               ...user,
               ...updatedUser,
-              first_name: updatedUser.name?.split(' ')[0] || '',
-              last_name: updatedUser.name?.split(' ').slice(1).join(' ') || '',
-              user_role: updatedUser.role,
-              address: updatedUser.barangay,
+              first_name:
+                updatedUser.first_name ||
+                updatedUser.name?.split(' ')[0] ||
+                user.first_name,
+              last_name:
+                updatedUser.last_name ||
+                updatedUser.name?.split(' ').slice(1).join(' ') ||
+                user.last_name,
+              user_role: updatedUser.user_role || updatedUser.role || user.user_role,
+              address: updatedUser.address || updatedUser.barangay || user.address,
               status: updatedUser.status || user.status,
             }
           : user
@@ -132,7 +150,7 @@ export default function UserManagement() {
   };
 
   const openModal = (modal, user = null) => {
-    setSelectedUser(user);
+    setSelectedUser(user ? prepareModalUser(user) : null);
     setActiveModal(modal);
   };
 
@@ -191,10 +209,22 @@ export default function UserManagement() {
 
             <UserTable
               users={filteredUsers}
-              onEdit={(user) => openModal('edit', user)}
-              onDelete={(user) => user && openModal('delete', user)}
-              onManageRole={(user) => openModal('manageRole', user)}
-              onViewActivity={(user) => openModal('viewActivity', user)}
+              onEdit={(user) => {
+                const original = users.find((u) => u.id === user.id) || user;
+                openModal('edit', original);
+              }}
+              onDelete={(user) => {
+                const original = users.find((u) => u.id === user.id) || user;
+                openModal('delete', original);
+              }}
+              onManageRole={(user) => {
+                const original = users.find((u) => u.id === user.id) || user;
+                openModal('manageRole', original);
+              }}
+              onViewActivity={(user) => {
+                const original = users.find((u) => u.id === user.id) || user;
+                openModal('viewActivity', original);
+              }}
             />
           </div>
         </div>

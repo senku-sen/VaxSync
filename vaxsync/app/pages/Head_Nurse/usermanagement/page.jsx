@@ -18,6 +18,29 @@ const FEATURE_CHECKLIST = [
   { key: "notifications", label: "Notifications" },
 ];
 
+const ROLE_OPTIONS = ["Health Worker", "RHM/HRH"];
+const BARANGAY_NAMES = [
+  "BARANGAY II",
+  "CALASGASAN",
+  "CAMAMBUGAN",
+  "ALAWIHAO",
+  "DOGONGAN",
+  "BIBIRAO",
+  "PAMORANGON",
+  "MAGANG",
+  "MANCRUZ",
+];
+const normalizeRole = (role) => {
+  if (!role) return "Health Worker";
+  if (role === "Head Nurse") return "RHM/HRH";
+  return role;
+};
+
+const toDatabaseRole = (role) => {
+  if (role === "RHM/HRH") return "RHM/HRH";
+  return "Health Worker";
+};
+
 const defaultPermissionsForRole = (role) => {
   return FEATURE_CHECKLIST.reduce((acc, feature) => {
     acc[feature.key] = true;
@@ -33,6 +56,20 @@ export default function HeadNurseUserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeUser, setActiveUser] = useState(null);
+  const [formState, setFormState] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    user_role: "Health Worker",
+    address: "",
+    assigned_barangay_id: "",
+  });
+  const [barangayOptions, setBarangayOptions] = useState([]);
+  // Legacy permission state removed; permissions remain read-only in this view.
+  const [modalError, setModalError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   useEffect(() => {
     let isMounted = true;
     const fetchUsers = async () => {
@@ -41,7 +78,7 @@ export default function HeadNurseUserManagement() {
       const { data, error } = await supabase
         .from("user_profiles")
         .select(
-          "id, first_name, last_name, email, user_role, address, date_of_birth, sex, created_at"
+          "id, first_name, last_name, email, user_role, address, assigned_barangay_id, date_of_birth, sex, created_at"
         )
         .order("created_at", { ascending: true });
 
@@ -68,19 +105,67 @@ export default function HeadNurseUserManagement() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBarangays = async () => {
+      try {
+        const response = await fetch("/api/barangays");
+
+        if (!response.ok) {
+          throw new Error("Failed to load barangays");
+        }
+
+        const result = await response.json();
+        if (!isMounted) return;
+
+        setBarangayOptions(result?.barangays || []);
+      } catch (err) {
+        console.warn("Failed to fetch barangays:", err);
+        if (!isMounted) return;
+        setBarangayOptions([]);
+      }
+    };
+
+    fetchBarangays();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const barangayLabelMap = useMemo(
+    () =>
+      barangayOptions.reduce((acc, option) => {
+        acc[option.value] = option.label;
+        return acc;
+      }, {}),
+    [barangayOptions]
+  );
+
   const displayUsers = useMemo(() => {
-    return users.map((user) => ({
-      ...user,
-      name:
-        [user.first_name, user.last_name].filter(Boolean).join(" ") ||
-        user.email ||
-        "Unknown user",
-      email: user.email || "—",
-      role: user.user_role || "—",
-      barangay: user.address || "Not specified",
-      status: user.status || "Active",
-    }));
-  }, [users]);
+    return users.map((user) => {
+      const roleLabel = normalizeRole(user.user_role);
+      // Only show barangay if it's in our predefined list and matches
+      const hasValidBarangayId =
+        !!user.assigned_barangay_id &&
+        !!barangayLabelMap[user.assigned_barangay_id];
+      const assignedBarangayLabel = hasValidBarangayId
+        ? barangayLabelMap[user.assigned_barangay_id] // This will be in exact BARANGAY_NAMES format
+        : "Not assigned";
+
+      return {
+        ...user,
+        assigned_barangay_id: hasValidBarangayId ? user.assigned_barangay_id : null,
+        name:
+          [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+          user.email ||
+          "Unknown user",
+        email: user.email || "—",
+        role: roleLabel,
+        assignedBarangayLabel,
+        status: user.status || "Active",
+      };
+    });
+  }, [users, barangayLabelMap]);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return displayUsers;
@@ -90,7 +175,7 @@ export default function HeadNurseUserManagement() {
         user.name.toLowerCase().includes(term) ||
         user.email.toLowerCase().includes(term) ||
         user.role.toLowerCase().includes(term) ||
-        (user.barangay || "").toLowerCase().includes(term)
+        (user.assignedBarangayLabel || "").toLowerCase().includes(term)
     );
   }, [search, displayUsers]);
 
@@ -176,6 +261,106 @@ export default function HeadNurseUserManagement() {
     setSelectedUser(null);
   };
 
+  const openModalForUser = (user) => {
+    if (!user) return;
+    setActiveUser(user);
+    setFormState({
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      email: user.email || "",
+      user_role: normalizeRole(user.user_role),
+      address: user.address || "",
+      assigned_barangay_id: user.assigned_barangay_id || "",
+    });
+    setModalError("");
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setActiveUser(null);
+    setModalError("");
+    setIsSaving(false);
+  };
+
+  const handleFormChange = (field, value) => {
+    setFormState((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!activeUser) return;
+    setIsSaving(true);
+    setModalError("");
+    try {
+      const isRHM = normalizeRole(activeUser.user_role) === "RHM/HRH";
+      // Preserve original role for RHM users
+      const roleToSave = isRHM 
+        ? toDatabaseRole(normalizeRole(activeUser.user_role))
+        : toDatabaseRole(normalizeRole(formState.user_role));
+      
+      // Only set assigned_barangay_id if a valid selection was made
+      // Convert empty string to null to ensure no unwanted assignments
+      const selectedBarangayId = formState.assigned_barangay_id?.trim() || "";
+      const allowedBarangayId = 
+        selectedBarangayId !== "" && 
+        barangayOptions.some(opt => opt.value === selectedBarangayId)
+          ? selectedBarangayId
+          : null;
+      const payload = {
+        first_name: formState.first_name,
+        last_name: formState.last_name,
+        user_role: roleToSave,
+        address: formState.address,
+        assigned_barangay_id: allowedBarangayId,
+      };
+
+      const response = await fetch("/api/users", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: activeUser.id,
+          data: payload,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result?.message || "Failed to update user");
+      }
+
+      const updatedUser = result?.user || { ...activeUser, ...payload };
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === activeUser.id
+            ? {
+                ...user,
+                ...updatedUser,
+                name:
+                  `${updatedUser.first_name || ""} ${
+                    updatedUser.last_name || ""
+                  }`.trim() || updatedUser.email,
+              }
+            : user
+        )
+      );
+      closeModal();
+    } catch (err) {
+      console.error("Failed to save user:", err);
+      setModalError(
+        err?.message || "Unable to save changes right now. Please try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
     <div className="flex min-h-screen bg-gray-50">
@@ -217,7 +402,7 @@ export default function HeadNurseUserManagement() {
                       <th className="px-6 py-3 text-left">Name</th>
                       <th className="px-6 py-3 text-left">Email</th>
                       <th className="px-6 py-3 text-left">Role</th>
-                      <th className="px-6 py-3 text-left">Barangay</th>
+                  <th className="px-6 py-3 text-left">Assigned Barangay</th>
                       <th className="px-6 py-3 text-left">Actions</th>
                     </tr>
                   </thead>
@@ -267,7 +452,7 @@ export default function HeadNurseUserManagement() {
                             {user.role}
                           </td>
                           <td className="px-6 py-4 text-gray-600">
-                            {user.barangay}
+                            {user.assignedBarangayLabel}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-4 text-gray-500">
@@ -320,11 +505,11 @@ export default function HeadNurseUserManagement() {
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                {activeUser.user_role === "RHM/HRH" ? "User Information" : "Edit User"}
+                Edit User
               </h2>
               <p className="text-sm text-gray-500">
-                {activeUser.user_role === "RHM/HRH"
-                  ? "RHM/HRH accounts are view-only."
+                {normalizeRole(activeUser.user_role) === "RHM/HRH"
+                  ? "Update user details. Role cannot be changed for RHM/HRH accounts."
                   : "Update user details and access permissions."}
               </p>
             </div>
@@ -351,7 +536,6 @@ export default function HeadNurseUserManagement() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
                 value={formState.first_name}
                 onChange={(e) => handleFormChange("first_name", e.target.value)}
-                disabled={activeUser.user_role === "RHM/HRH"}
               />
             </div>
             <div className="space-y-2">
@@ -362,7 +546,6 @@ export default function HeadNurseUserManagement() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
                 value={formState.last_name}
                 onChange={(e) => handleFormChange("last_name", e.target.value)}
-                disabled={activeUser.user_role === "RHM/HRH"}
               />
             </div>
             <div className="space-y-2">
@@ -386,47 +569,45 @@ export default function HeadNurseUserManagement() {
                 onChange={(e) => {
                   const newRole = e.target.value;
                   handleFormChange("user_role", newRole);
-                  setPermissionDraft(defaultPermissionsForRole(newRole));
                 }}
-                disabled={activeUser.user_role === "RHM/HRH"}
+                disabled={normalizeRole(activeUser.user_role) === "RHM/HRH"}
               >
-                <option value="Health Worker">Health Worker</option>
-                <option value="RHM/HRH">RHM/HRH</option>
+                {ROLE_OPTIONS.map((roleOption) => (
+                  <option key={roleOption} value={roleOption}>
+                    {roleOption}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-2 md:col-span-2">
               <label className="text-xs font-semibold uppercase text-gray-500">
-                Address / Barangay
+                Address
               </label>
               <input
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
                 value={formState.address}
                 onChange={(e) => handleFormChange("address", e.target.value)}
-                disabled={activeUser.user_role === "RHM/HRH"}
               />
             </div>
-          </div>
-
-          <div className="border-t border-gray-200 px-6 py-5">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              Page Access
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {FEATURE_CHECKLIST.map((feature) => (
-                <label
-                  key={feature.key}
-                  className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={permissionDraft?.[feature.key] ?? false}
-                    onChange={() => togglePermission(feature.key)}
-                    disabled={activeUser.user_role === "RHM/HRH"}
-                  />
-                  {feature.label}
-                </label>
-              ))}
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-xs font-semibold uppercase text-gray-500">
+                Assigned Barangay
+              </label>
+              <select
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                value={formState.assigned_barangay_id || ""}
+                onChange={(e) =>
+                  handleFormChange("assigned_barangay_id", e.target.value)
+                }
+                disabled={barangayOptions.length === 0}
+              >
+                <option value="">Select barangay</option>
+                {barangayOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -434,15 +615,13 @@ export default function HeadNurseUserManagement() {
             <Button variant="ghost" onClick={closeModal}>
               Close
             </Button>
-            {activeUser.user_role !== "RHM/HRH" && (
-              <Button
-                onClick={handleSave}
-                className="bg-[#3E5F44] text-white hover:bg-[#2F4B35]"
-                disabled={isSaving}
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
-            )}
+            <Button
+              onClick={handleSave}
+              className="bg-[#3E5F44] text-white hover:bg-[#2F4B35]"
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
           </div>
         </div>
       </div>
