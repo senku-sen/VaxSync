@@ -98,7 +98,7 @@ export default function SignUp() {
     // Validate authentication code
     const validAuthCodes = {
       'Health Worker': 'HW-6A9F',
-      'Head Nurse': 'HN-4Z7Q'
+      'RHM/HRH': 'HN-4Z7Q'
     };
 
     if (formData.authCode && validAuthCodes[formData.userRole] !== formData.authCode) {
@@ -120,7 +120,11 @@ export default function SignUp() {
       const data = await res.json();
       
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create account');
+        const message = (data && data.error) || 'Failed to create account';
+        if (/already\s+(registered|been registered|exists)/i.test(message)) {
+          setFieldErrors(prev => ({ ...prev, email: message }));
+        }
+        throw new Error(message);
       }
       
       // Store email for success page
@@ -379,13 +383,13 @@ export default function SignUp() {
                   type="radio"
                   id="headNurse"
                   name="userRole"
-                  value="Head Nurse"
-                  checked={formData.userRole === "Head Nurse"}
+                  value="RHM/HRH"
+                  checked={formData.userRole === "RHM/HRH"}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
                 />
                 <label htmlFor="headNurse" className="ml-2 block text-sm text-gray-700">
-                  Head Nurse
+                  RHM/HRH
                 </label>
               </div>
             </div>

@@ -64,9 +64,9 @@ export default function SignIn() {
       // Redirect based on user role
       console.log('Redirecting based on role:', data.userRole);
       if (data.userRole === 'Health Worker') {
-        window.location.href = '/pages/Health_Worker/vaccination_request';
-      } else if (data.userRole === 'Head Nurse') {
-        window.location.href = '/pages/Head_Nurse/vaccination_request';
+        window.location.href = '/pages/Health_Worker/inventory';
+      } else if (data.userRole === 'RHM/HRH') {
+        window.location.href = '/pages/Head_Nurse/inventory';
       } else {
         // Fallback for unknown roles
         console.warn('Unknown user role:', data.userRole);
@@ -133,7 +133,7 @@ export default function SignIn() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <Link href="/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
+              <Link href="/pages/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
                 Forgot password?
               </Link>
             </div>
