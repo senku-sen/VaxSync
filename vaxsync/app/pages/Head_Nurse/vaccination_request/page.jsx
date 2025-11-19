@@ -9,9 +9,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Sidebar from "../../../../components/Sidebar";
-import Header from "../../../../components/Header";
-import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
+import Sidebar from "../../../../components/shared/Sidebar";
+import Header from "../../../../components/shared/Header";
+import VaccineRequestsTable from "../../../../components/vaccination-request/VaccineRequestsTable";
 import { Search } from "lucide-react";
 import {
   loadUserProfile,
@@ -20,7 +20,7 @@ import {
   deleteVaccineRequestData,
   updateVaccineRequestStatus,
 } from "@/lib/vaccineRequest";
-import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
+import VaccineSummaryCards from "../../../../components/vaccination-request/VaccineSummaryCards";
 
 export default function VaccinationRequest({
   title = "Vaccine Request Approval",

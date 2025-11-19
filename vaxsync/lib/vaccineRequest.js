@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { getUserProfile } from "./accAuth";
 import { fetchVaccines } from "./vaccine";
+import { addApprovedRequestToInventory } from "./vaccineRequestToInventory";
 
 /**
  * Fetch and validate user profile from localStorage and Supabase
@@ -203,23 +204,64 @@ export async function updateVaccineRequest(id, updates) {
 
 /**
  * Update vaccine request status with error handling (for admin)
+ * When status is "approved", automatically adds vaccine to barangay inventory
  * @param {string} requestId - The request ID
  * @param {string} status - The new status (pending, approved, rejected, released)
- * @returns {Promise<{success: boolean, error: string|null}>}
+ * @returns {Promise<{success: boolean, error: string|null, inventoryAdded: boolean}>}
  */
 export const updateVaccineRequestStatus = async (requestId, status) => {
   try {
     console.log('Updating request status:', requestId, 'to', status);
+    
+    // If approving, get request details first
+    let requestDetails = null;
+    if (status === 'approved') {
+      const { data, error: fetchError } = await supabase
+        .from('vaccine_requests')
+        .select('*')
+        .eq('id', requestId)
+        .single();
+      
+      if (fetchError || !data) {
+        console.error('Error fetching request details:', fetchError);
+        throw new Error('Could not fetch request details');
+      }
+      requestDetails = data;
+    }
+    
+    // Update status
     const { data, error } = await updateVaccineRequest(requestId, { status });
     console.log('Update result:', { data, error });
     if (error) {
       console.error('Supabase update error details:', error);
       throw error;
     }
-    return { success: true, error: null };
+    
+    // If approved, automatically add to inventory
+    let inventoryAdded = false;
+    if (status === 'approved' && requestDetails) {
+      console.log('Status is approved, adding to inventory...');
+      const { success: inventorySuccess, error: inventoryError } = await addApprovedRequestToInventory(
+        requestId,
+        requestDetails.vaccine_id,
+        requestDetails.barangay_id,
+        requestDetails.quantity_vial || 0,
+        requestDetails.quantity_dose || 0
+      );
+      
+      if (inventorySuccess) {
+        inventoryAdded = true;
+        console.log('Successfully added to inventory');
+      } else {
+        console.warn('Failed to add to inventory:', inventoryError);
+        // Don't fail the entire operation, just warn
+      }
+    }
+    
+    return { success: true, error: null, inventoryAdded };
   } catch (err) {
     console.error('Error updating request status:', err);
-    return { success: false, error: err.message || 'Failed to update request status' };
+    return { success: false, error: err.message || 'Failed to update request status', inventoryAdded: false };
   }
 };
 

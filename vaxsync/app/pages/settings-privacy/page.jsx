@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LogOut } from "lucide-react";
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
+import Sidebar from "@/components/shared/Sidebar";
+import Header from "@/components/shared/Header";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 

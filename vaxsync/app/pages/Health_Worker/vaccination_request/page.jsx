@@ -9,11 +9,11 @@
 
 import { useState, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
-import Sidebar from "../../../../components/Sidebar";
-import Header from "../../../../components/Header";
-import VaccineRequestModal from "../../../../components/VaccineRequestModal";
-import VaccineSummaryCards from "../../../../components/VaccineSummaryCards";
-import VaccineRequestsTable from "../../../../components/VaccineRequestsTable";
+import Sidebar from "../../../../components/shared/Sidebar";
+import Header from "../../../../components/shared/Header";
+import VaccineRequestModal from "../../../../components/vaccination-request/VaccineRequestModal";
+import VaccineSummaryCards from "../../../../components/vaccination-request/VaccineSummaryCards";
+import VaccineRequestsTable from "../../../../components/vaccination-request/VaccineRequestsTable";
 import {
   loadUserProfile,
   loadVaccineRequestsData,
@@ -56,32 +56,39 @@ export default function VaccinationRequest({
   // User profile ID for request creation
   const [profileID, setProfileID] = useState(null);
 
+  // Loading state for user profile
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
   useEffect(() => {
     initializeData();
   }, []);
 
   const initializeData = async () => {
-    // Load user profile
-    const profile = await loadUserProfile();
-    if (profile) {
-      setUserProfile(profile);
-      // Always capture profile ID for requested_by linkage
-      setProfileID(profile.id);
-      if (profile.barangays) {
-        setBarangayName(profile.barangays.name);
-        // Log barangay info for debugging
-        console.log('Barangay loaded:', {
-          barangayId: profile.barangays.id,
-          barangayName: profile.barangays.name,
-          municipality: profile.barangays.municipality
-        });
-      } else {
-        console.warn('No barangay assigned to user profile:', profile);
+    try {
+      // Load user profile
+      const profile = await loadUserProfile();
+      if (profile) {
+        setUserProfile(profile);
+        // Always capture profile ID for requested_by linkage
+        setProfileID(profile.id);
+        if (profile.barangays) {
+          setBarangayName(profile.barangays.name);
+          // Log barangay info for debugging
+          console.log('Barangay loaded:', {
+            barangayId: profile.barangays.id,
+            barangayName: profile.barangays.name,
+            municipality: profile.barangays.municipality
+          });
+        } else {
+          console.warn('No barangay assigned to user profile:', profile);
+        }
       }
-    }
 
-    // Load requests and vaccines in parallel
-    await Promise.all([loadRequests(), loadVaccines()]);
+      // Load requests and vaccines in parallel
+      await Promise.all([loadRequests(), loadVaccines()]);
+    } finally {
+      setIsLoadingProfile(false);
+    }
   };
 
   const loadRequests = async () => {
@@ -172,14 +179,19 @@ export default function VaccinationRequest({
             <div className="bg-white rounded-lg sm:rounded-xl shadow-md overflow-hidden">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900">My Vaccine Requests</h3>
-                {userProfile && userProfile.barangays && (
+                {!isLoadingProfile && userProfile && userProfile.barangays && (
                   <p className="mt-1 text-xs sm:text-sm text-gray-500">
                     Total requests for {userProfile.barangays.name}: {requests.length}
                   </p>
                 )}
-                {userProfile && !userProfile.barangays && (
+                {!isLoadingProfile && userProfile && !userProfile.barangays && (
                   <p className="mt-1 text-xs sm:text-sm text-amber-600">
                     No barangay assigned to your account
+                  </p>
+                )}
+                {isLoadingProfile && (
+                  <p className="mt-1 text-xs sm:text-sm text-gray-400">
+                    Loading barangay information...
                   </p>
                 )}
               </div>

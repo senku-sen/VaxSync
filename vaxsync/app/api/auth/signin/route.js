@@ -6,8 +6,17 @@ export async function POST(req) {
     const body = await req.json();
     const { email, password } = body;
     
+    console.log('Sign in attempt for email:', email);
+    
     if (!email || !password) {
+      console.error('Missing email or password');
       return NextResponse.json({ error: "Missing email or password" }, { status: 400 });
+    }
+
+    // Check if Supabase is initialized
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('Supabase environment variables not configured');
+      return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
     }
 
     // Sign in with Supabase Auth
@@ -17,8 +26,8 @@ export async function POST(req) {
     });
 
     if (authError) {
-      console.error('Auth signin error:', authError);
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      console.error('Auth signin error:', authError.message, authError.status);
+      return NextResponse.json({ error: authError.message || "Invalid credentials" }, { status: 401 });
     }
 
     if (!authData.user) {

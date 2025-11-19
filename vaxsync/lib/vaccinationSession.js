@@ -138,6 +138,85 @@ export const fetchVaccinationSessions = async (userId) => {
 };
 
 /**
+ * Fetch all vaccination sessions (for Head Nurse/Admin)
+ * @returns {Promise<Object>} - { success: boolean, data: Array, error: string }
+ */
+export const fetchAllVaccinationSessions = async () => {
+  try {
+    console.log('Fetching all vaccination sessions');
+
+    const { data, error } = await supabase
+      .from("vaccination_sessions")
+      .select("*")
+      .order("session_date", { ascending: false });
+
+    if (error) {
+      console.error('Error fetching sessions:', error);
+      return {
+        success: false,
+        data: [],
+        error: error.message || 'Failed to fetch sessions'
+      };
+    }
+
+    console.log('All sessions fetched:', data?.length || 0, data);
+
+    // Fetch vaccine and barangay details separately
+    if (data && data.length > 0) {
+      const vaccineIds = [...new Set(data.map(s => s.vaccine_id))];
+      const barangayIds = [...new Set(data.map(s => s.barangay_id))];
+
+      const [vaccinesData, barangaysData] = await Promise.all([
+        vaccineIds.length > 0 ? supabase.from("vaccines").select("id, name").in("id", vaccineIds) : { data: [] },
+        barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
+      ]);
+
+      const vaccinesMap = {};
+      const barangaysMap = {};
+
+      if (vaccinesData.data) {
+        vaccinesData.data.forEach(v => {
+          vaccinesMap[v.id] = v;
+        });
+      }
+
+      if (barangaysData.data) {
+        barangaysData.data.forEach(b => {
+          barangaysMap[b.id] = b;
+        });
+      }
+
+      // Attach vaccine and barangay data to sessions
+      const enrichedData = data.map(session => ({
+        ...session,
+        vaccines: vaccinesMap[session.vaccine_id] || null,
+        barangays: barangaysMap[session.barangay_id] || null
+      }));
+
+      console.log('Enriched sessions:', enrichedData);
+      return {
+        success: true,
+        data: enrichedData,
+        error: null
+      };
+    }
+
+    return {
+      success: true,
+      data: data || [],
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in fetchAllVaccinationSessions:', err);
+    return {
+      success: false,
+      data: [],
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
  * Update vaccination session details
  * @param {string} sessionId - Session ID to update
  * @param {Object} updateData - Data to update (session_date, session_time, vaccine_id, target)

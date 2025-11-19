@@ -8,15 +8,15 @@
 
 "use client";
 
-import Sidebar from "../../../../components/Sidebar";
-import Header from "../../../../components/Header";
-import AddVaccine from "@/components/AddVaccine";
+import Sidebar from "../../../../components/shared/Sidebar";
+import Header from "../../../../components/shared/Header";
+import AddVaccine from "@/components/inventory/AddVaccine";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, SquarePen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-import DeleteConfirm from "@/components/DeleteConfirm";
+import DeleteConfirm from "@/components/inventory/DeleteConfirm";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 
 // Initialize Supabase environment variables
@@ -152,27 +152,38 @@ export default function Inventory({
     setSelectedVaccine(null);
   };
 
-  const statusBadge = (status) => {
-    switch (status) {
-      case "Expired":
-        return (
-          <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-700">
-            {status}
-          </span>
-        );
-      case "Low Stock":
-        return (
-          <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
-            {status}
-          </span>
-        );
-      default:
-        return (
-          <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-            {status || "Good"}
-          </span>
-        );
+  // Determine vaccine status based on expiry date and quantity
+  const getVaccineStatus = (vaccine) => {
+    const today = new Date();
+    const expiryDate = vaccine.expiry_date ? new Date(vaccine.expiry_date) : null;
+    const quantity = vaccine.quantity_available || 0;
+
+    // Check if expired
+    if (expiryDate && expiryDate < today) {
+      return { status: 'Expired', color: 'bg-gray-100 text-gray-800', icon: '⚫' };
     }
+
+    // Check if damaged (assuming status field exists, otherwise skip)
+    if (vaccine.status === 'damaged') {
+      return { status: 'Damaged', color: 'bg-red-100 text-red-800', icon: '🔴' };
+    }
+
+    // Check if low stock (less than 10 doses)
+    if (quantity < 10 && quantity > 0) {
+      return { status: 'Low Stock', color: 'bg-orange-100 text-orange-800', icon: '🟠' };
+    }
+
+    // Good condition
+    return { status: 'Good', color: 'bg-green-100 text-green-800', icon: '🟢' };
+  };
+
+  const statusBadge = (vaccine) => {
+    const statusInfo = getVaccineStatus(vaccine);
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+        {statusInfo.icon} {statusInfo.status}
+      </span>
+    );
   };
 
   return (
@@ -276,7 +287,7 @@ export default function Inventory({
                         <td className="px-6 py-4">{vaccine.expiry_date}</td>
                   
                         <td className="px-6 py-4">
-                          {statusBadge(vaccine.status)}
+                          {statusBadge(vaccine)}
                         </td>
                         <td className="px-6 py-4 flex justify-center space-x-3">
                           <button
@@ -325,7 +336,7 @@ export default function Inventory({
                             Batch: {vaccine.batch_number}
                           </p>
                         </div>
-                        <div>{statusBadge(vaccine.status)}</div>
+                        <div>{statusBadge(vaccine)}</div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-3 text-xs">

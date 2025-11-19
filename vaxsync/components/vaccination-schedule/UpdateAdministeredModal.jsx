@@ -13,7 +13,8 @@ export default function UpdateAdministeredModal({
   onSubmit,
   session = null,
   isSubmitting = false,
-  errors = {}
+  errors = {},
+  isViewOnly = false
 }) {
   if (!isOpen || !session) return null;
 
@@ -22,6 +23,7 @@ export default function UpdateAdministeredModal({
   const progress = target > 0 ? Math.round((administered / target) * 100) : 0;
 
   const handleChange = (e) => {
+    if (isViewOnly) return;
     const { name, value } = e.target;
     onSubmit({
       ...session,
@@ -101,8 +103,21 @@ export default function UpdateAdministeredModal({
 
           <form onSubmit={(e) => {
             e.preventDefault();
-            onSubmit(session, 'submit');
+            if (!isViewOnly) {
+              onSubmit(session, 'submit');
+            }
           }} className="space-y-4">
+            {/* View Only Notice */}
+            {isViewOnly && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex gap-2">
+                <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-700">View Only</p>
+                  <p className="text-xs text-blue-600">You can view the progress but cannot edit it</p>
+                </div>
+              </div>
+            )}
+
             {/* Administered Count */}
             <div>
               <label htmlFor="administered" className="block text-sm font-medium text-gray-700 mb-2">
@@ -117,14 +132,30 @@ export default function UpdateAdministeredModal({
                   onChange={handleChange}
                   min="0"
                   max={target}
+                  disabled={isViewOnly || session.status === "Scheduled" || session.status === "Cancelled"}
                   className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                     errors.administered ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  } ${(isViewOnly || session.status === "Scheduled" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
                 />
                 <span className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-600 font-medium">
                   / {target}
                 </span>
               </div>
+              {isViewOnly && (
+                <p className="text-xs text-blue-500 mt-1">
+                  This is a read-only view
+                </p>
+              )}
+              {!isViewOnly && session.status === "Scheduled" && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Change status to "In progress" to edit administered count
+                </p>
+              )}
+              {!isViewOnly && session.status === "Cancelled" && (
+                <p className="text-xs text-red-500 mt-1">
+                  This session is cancelled - editing is disabled
+                </p>
+              )}
             </div>
 
             {/* Status */}
@@ -137,13 +168,15 @@ export default function UpdateAdministeredModal({
                 name="status"
                 value={session.status || "Scheduled"}
                 onChange={handleChange}
+                disabled={isViewOnly}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                   errors.status ? 'border-red-500' : 'border-gray-300'
-                }`}
+                } ${isViewOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
               >
                 <option value="Scheduled">Scheduled</option>
                 <option value="In progress">In progress</option>
                 <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 {progress === 100 && administered > 0 ? (
@@ -174,15 +207,17 @@ export default function UpdateAdministeredModal({
                 disabled={isSubmitting}
                 className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                Cancel
+                Close
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-              >
-                {isSubmitting ? "Updating..." : "Update Progress"}
-              </button>
+              {!isViewOnly && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? "Updating..." : "Update Progress"}
+                </button>
+              )}
             </div>
           </form>
         </div>

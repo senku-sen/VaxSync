@@ -5,8 +5,9 @@
 // Validates required fields before submission
 // ============================================
 
-import { useState } from "react";
-import { X, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, AlertCircle, CheckCircle } from "lucide-react";
+import { validateVaccineForRequest } from "@/lib/vaccineRequestValidation";
 
 export default function VaccineRequestModal({ 
   isOpen, 
@@ -32,6 +33,53 @@ export default function VaccineRequestModal({
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Vaccine validation state
+  const [vaccineValidation, setVaccineValidation] = useState({
+    isValid: false,
+    isChecking: false,
+    validationErrors: []
+  });
+
+  // Validate vaccine when selected
+  useEffect(() => {
+    const validateSelectedVaccine = async () => {
+      if (!formData.vaccine_id) {
+        setVaccineValidation({
+          isValid: false,
+          isChecking: false,
+          validationErrors: []
+        });
+        return;
+      }
+
+      setVaccineValidation(prev => ({ ...prev, isChecking: true }));
+
+      try {
+        // Validate vaccine (checks: exists, not expired)
+        const { isValid, errors: validationErrors } = await validateVaccineForRequest(
+          formData.vaccine_id
+        );
+
+        setVaccineValidation({
+          isValid,
+          isChecking: false,
+          validationErrors: validationErrors || []
+        });
+
+        console.log('Vaccine validation result:', { isValid, validationErrors });
+      } catch (err) {
+        console.error('Error validating vaccine:', err);
+        setVaccineValidation({
+          isValid: false,
+          isChecking: false,
+          validationErrors: ['Error validating vaccine']
+        });
+      }
+    };
+
+    validateSelectedVaccine();
+  }, [formData.vaccine_id]);
+
   // Validate form before submission
   const validateForm = () => {
     const newErrors = {};
@@ -41,9 +89,19 @@ export default function VaccineRequestModal({
       newErrors.vaccine_id = "Please select a vaccine";
     }
 
+    // Check vaccine is valid (exists and not expired)
+    if (formData.vaccine_id && !vaccineValidation.isValid) {
+      newErrors.vaccine_id = "Selected vaccine is not valid or is expired";
+    }
+
     // Check quantity dose is filled
     if (!formData.quantity_dose) {
       newErrors.quantity_dose = "Quantity (doses) is required";
+    }
+
+    // Check quantity dose is positive
+    if (formData.quantity_dose && parseInt(formData.quantity_dose) <= 0) {
+      newErrors.quantity_dose = "Quantity must be greater than 0";
     }
 
     setErrors(newErrors);
@@ -137,10 +195,33 @@ export default function VaccineRequestModal({
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
               <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-red-700">Please fill in all required fields</p>
+                <p className="text-sm font-medium text-red-700">Please fix the following errors</p>
                 {Object.values(errors).map((error, idx) => (
                   error && <p key={idx} className="text-sm text-red-600">{error}</p>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Show vaccine validation errors */}
+          {formData.vaccine_id && vaccineValidation.validationErrors.length > 0 && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-700">Vaccine validation issues</p>
+                {vaccineValidation.validationErrors.map((error, idx) => (
+                  <p key={idx} className="text-sm text-amber-600">{error}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Show vaccine validation success */}
+          {formData.vaccine_id && vaccineValidation.isValid && !vaccineValidation.isChecking && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-green-700">Vaccine is valid and available</p>
               </div>
             </div>
           )}
@@ -150,28 +231,35 @@ export default function VaccineRequestModal({
             <label htmlFor="vaccine_id" className="block text-sm font-medium text-gray-700 mb-2">
               Vaccine Type <span className="text-red-500">*</span>
             </label>
-            <select
-              id="vaccine_id"
-              name="vaccine_id"
-              value={formData.vaccine_id}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
-                errors.vaccine_id ? 'border-red-500' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Select vaccine type</option>
-              {isLoading ? (
-                <option value="" disabled>Loading vaccines...</option>
-              ) : vaccines.length === 0 ? (
-                <option value="" disabled>No vaccines available</option>
-              ) : (
-                vaccines.map((vaccine) => (
-                  <option key={vaccine.id} value={vaccine.id}>
-                    {vaccine.name}
-                  </option>
-                ))
+            <div className="relative">
+              <select
+                id="vaccine_id"
+                name="vaccine_id"
+                value={formData.vaccine_id}
+                onChange={handleChange}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
+                  errors.vaccine_id ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select vaccine type</option>
+                {isLoading ? (
+                  <option value="" disabled>Loading vaccines...</option>
+                ) : vaccines.length === 0 ? (
+                  <option value="" disabled>No vaccines available</option>
+                ) : (
+                  vaccines.map((vaccine) => (
+                    <option key={vaccine.id} value={vaccine.id}>
+                      {vaccine.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              {formData.vaccine_id && vaccineValidation.isChecking && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin h-4 w-4 border-2 border-[#4A7C59] border-t-transparent rounded-full"></div>
+                </div>
               )}
-            </select>
+            </div>
           </div>
 
           {/* Quantity Inputs - Side by Side */}
