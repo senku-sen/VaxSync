@@ -95,13 +95,13 @@ export default function Sidebar() {
     router.push('/');
   };
 
-  // Health Worker sidebar menu items (7 items - limited access)
+  // Health Worker sidebar menu items (6 items - limited access)
   const healthWorkerMenuItems = [
     { name: 'Dashboard', path: '/Pages/Health_Worker/Dashboard', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
     { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
     { name: 'NIP Tracking', path: '/nip-tracking', icon: 'chart' },
-    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document', highlight: true },
+    { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
     { name: 'Notifications', path: '/notifications', icon: 'bell' },
   ];
 
@@ -137,7 +137,6 @@ export default function Sidebar() {
       <nav className="flex-1 px-2 py-3">
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
-          const isHighlight = item.highlight;
           return (
             <Link
               key={item.path}
@@ -146,13 +145,11 @@ export default function Sidebar() {
                 flex items-center gap-3 px-3 py-2.5 mb-0.5 rounded-md text-sm transition-colors
                 ${isActive 
                   ? 'bg-[#3E5F44] text-white font-medium' 
-                  : isHighlight
-                  ? 'bg-[#3E5F44] text-white font-medium'
                   : 'text-gray-700 hover:bg-gray-100 font-normal'
                 }
               `}
             >
-              <Icon name={item.icon} isActive={isActive || isHighlight} />
+              <Icon name={item.icon} isActive={isActive} />
               <span>{item.name}</span>
             </Link>
           );

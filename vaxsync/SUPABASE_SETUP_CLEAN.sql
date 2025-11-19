@@ -1,13 +1,15 @@
 -- ============================================================================
--- VaxSync Supabase Database Setup
+-- VaxSync Supabase Database Setup (Clean - Handles Existing Tables)
 -- ============================================================================
--- Copy and paste this entire SQL into Supabase SQL Editor to set up all tables
+-- This version safely handles existing tables and policies
 -- ============================================================================
 
 -- ============================================================================
 -- 1. INVENTORY TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS inventory (
+DROP TABLE IF EXISTS inventory CASCADE;
+
+CREATE TABLE inventory (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vaccine_name VARCHAR(255) NOT NULL,
   batch VARCHAR(100) NOT NULL,
@@ -20,10 +22,8 @@ CREATE TABLE IF NOT EXISTS inventory (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on inventory
 ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for inventory
 CREATE POLICY "Enable read access for all users" ON inventory FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON inventory FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON inventory FOR UPDATE USING (true);
@@ -32,7 +32,9 @@ CREATE POLICY "Enable delete for authenticated users" ON inventory FOR DELETE US
 -- ============================================================================
 -- 2. VACCINE_USAGE TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS vaccine_usage (
+DROP TABLE IF EXISTS vaccine_usage CASCADE;
+
+CREATE TABLE vaccine_usage (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vaccine_name VARCHAR(255) NOT NULL,
   quantity INTEGER NOT NULL,
@@ -42,10 +44,8 @@ CREATE TABLE IF NOT EXISTS vaccine_usage (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on vaccine_usage
 ALTER TABLE vaccine_usage ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for vaccine_usage
 CREATE POLICY "Enable read access for all users" ON vaccine_usage FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON vaccine_usage FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON vaccine_usage FOR UPDATE USING (true);
@@ -53,7 +53,9 @@ CREATE POLICY "Enable update for authenticated users" ON vaccine_usage FOR UPDAT
 -- ============================================================================
 -- 3. ALERTS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS alerts (
+DROP TABLE IF EXISTS alerts CASCADE;
+
+CREATE TABLE alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vaccine_name VARCHAR(255) NOT NULL,
   batch VARCHAR(100),
@@ -70,19 +72,39 @@ CREATE TABLE IF NOT EXISTS alerts (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on alerts
 ALTER TABLE alerts ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for alerts
 CREATE POLICY "Enable read access for all users" ON alerts FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON alerts FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON alerts FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON alerts FOR DELETE USING (true);
 
 -- ============================================================================
--- 4. USERS TABLE
+-- 4. BARANGAYS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS users (
+DROP TABLE IF EXISTS barangays CASCADE;
+
+CREATE TABLE barangays (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code VARCHAR(50) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE barangays ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable read access for all users" ON barangays FOR SELECT USING (true);
+CREATE POLICY "Enable insert for authenticated users" ON barangays FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update for authenticated users" ON barangays FOR UPDATE USING (true);
+
+-- ============================================================================
+-- 5. USERS TABLE
+-- ============================================================================
+DROP TABLE IF EXISTS users CASCADE;
+
+CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) NOT NULL UNIQUE,
   full_name VARCHAR(255),
@@ -93,18 +115,18 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on users
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for users
 CREATE POLICY "Enable read access for all users" ON users FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON users FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON users FOR UPDATE USING (true);
 
 -- ============================================================================
--- 5. VACCINE_REQUESTS TABLE
+-- 6. VACCINE_REQUESTS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS vaccine_requests (
+DROP TABLE IF EXISTS vaccine_requests CASCADE;
+
+CREATE TABLE vaccine_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   request_id VARCHAR(50) NOT NULL UNIQUE,
   health_worker_id UUID,
@@ -118,19 +140,19 @@ CREATE TABLE IF NOT EXISTS vaccine_requests (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on vaccine_requests
 ALTER TABLE vaccine_requests ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for vaccine_requests
 CREATE POLICY "Enable read access for all users" ON vaccine_requests FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON vaccine_requests FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON vaccine_requests FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON vaccine_requests FOR DELETE USING (true);
 
 -- ============================================================================
--- 6. RESIDENTS TABLE
+-- 7. RESIDENTS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS residents (
+DROP TABLE IF EXISTS residents CASCADE;
+
+CREATE TABLE residents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name VARCHAR(255) NOT NULL,
   age INTEGER,
@@ -143,19 +165,19 @@ CREATE TABLE IF NOT EXISTS residents (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on residents
 ALTER TABLE residents ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for residents
 CREATE POLICY "Enable read access for all users" ON residents FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON residents FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON residents FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON residents FOR DELETE USING (true);
 
 -- ============================================================================
--- 7. VACCINATION_SESSIONS TABLE
+-- 8. VACCINATION_SESSIONS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS vaccination_sessions (
+DROP TABLE IF EXISTS vaccination_sessions CASCADE;
+
+CREATE TABLE vaccination_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   barangay VARCHAR(100) NOT NULL,
   session_date TIMESTAMP NOT NULL,
@@ -167,19 +189,19 @@ CREATE TABLE IF NOT EXISTS vaccination_sessions (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on vaccination_sessions
 ALTER TABLE vaccination_sessions ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for vaccination_sessions
 CREATE POLICY "Enable read access for all users" ON vaccination_sessions FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON vaccination_sessions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON vaccination_sessions FOR UPDATE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON vaccination_sessions FOR DELETE USING (true);
 
 -- ============================================================================
--- 8. NOTIFICATIONS TABLE
+-- 9. NOTIFICATIONS TABLE
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS notifications (
+DROP TABLE IF EXISTS notifications CASCADE;
+
+CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID,
   title VARCHAR(255) NOT NULL,
@@ -189,10 +211,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Enable RLS on notifications
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for notifications
 CREATE POLICY "Enable read access for all users" ON notifications FOR SELECT USING (true);
 CREATE POLICY "Enable insert for authenticated users" ON notifications FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON notifications FOR UPDATE USING (true);
@@ -200,6 +220,6 @@ CREATE POLICY "Enable update for authenticated users" ON notifications FOR UPDAT
 -- ============================================================================
 -- END OF SETUP
 -- ============================================================================
--- All tables are now created with RLS policies enabled.
--- No sample data included. Add your own data through the application or Supabase dashboard.
+-- All tables recreated fresh with RLS policies enabled
+-- Ready for DASH-01 to DASH-04 features
 -- ============================================================================
