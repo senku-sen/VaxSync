@@ -55,7 +55,7 @@ export default function Sidebar() {
   // Filter: Health Worker = no admin items | Head Nurse = all
   const menuItems = allMenuItems.filter(item => !item.adminOnly || isHeadNurse);
 
-  const logoutItem = { name: "Logout", icon: LogOut, path: "/logout" };
+  
 
   return (
     <>
@@ -118,19 +118,7 @@ export default function Sidebar() {
         </nav>
 
         {/* Logout */}
-        <div className="px-4 py-4 border-t border-gray-300">
-          <Button
-            asChild
-            variant="ghost"
-            className="w-full justify-start text-base font-medium px-4 py-5 text-gray-900 hover:bg-gray-300"
-            onClick={() => setIsOpen(false)}
-          >
-            <Link href={logoutItem.path}>
-              <LogOut className="mr-3 h-5 w-5" />
-              {logoutItem.name}
-            </Link>
-          </Button>
-        </div>
+        
       </div>
     </>
   );

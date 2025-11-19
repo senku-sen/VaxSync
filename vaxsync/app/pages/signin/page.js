@@ -65,7 +65,7 @@ export default function SignIn() {
       console.log('Redirecting based on role:', data.userRole);
       if (data.userRole === 'Health Worker') {
         window.location.href = '/pages/Health_Worker/inventory';
-      } else if (data.userRole === 'RHM/HRH') {
+      } else if (data.userRole === 'Head Nurse') {
         window.location.href = '/pages/Head_Nurse/inventory';
       } else {
         // Fallback for unknown roles
