@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Search, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import DeleteUserModal from "@/components/modals/delete-user-modals";
 
 const FEATURE_CHECKLIST = [
   { key: "dashboard", label: "Dashboard" },
@@ -29,20 +30,9 @@ export default function HeadNurseUserManagement() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeUser, setActiveUser] = useState(null);
-  const [formState, setFormState] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    user_role: "",
-    address: "",
-  });
-  const [permissionDraft, setPermissionDraft] = useState(
-    defaultPermissionsForRole("Health Worker")
-  );
-  const [modalError, setModalError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState(null);
   useEffect(() => {
     let isMounted = true;
     const fetchUsers = async () => {
@@ -104,78 +94,86 @@ export default function HeadNurseUserManagement() {
     );
   }, [search, displayUsers]);
 
-  const openModalForUser = (user) => {
-    if (!user) return;
-    setActiveUser(user);
-    setFormState({
-      first_name: user.first_name || "",
-      last_name: user.last_name || "",
-      email: user.email || "",
-      user_role: user.user_role || "",
-      address: user.address || "",
-    });
-    setPermissionDraft(
-      user.permissions || defaultPermissionsForRole(user.user_role)
-    );
-    setModalError("");
-    setIsModalOpen(true);
+  const handleDeleteClick = (user) => {
+    console.log('Delete button clicked for user:', user);
+    console.log('User ID to delete:', user.id);
+    console.log('User ID type:', typeof user.id);
+    setSelectedUser(user);
+    setShowDeleteModal(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setActiveUser(null);
-    setModalError("");
-    setIsSaving(false);
-  };
+  const handleDeleteUser = async (userId) => {
+    try {
+      setDeletingUserId(userId);
+      
+      console.log('Attempting to delete user with ID:', userId);
+      
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: userId }),
+      });
 
-  const handleFormChange = (field, value) => {
-    setFormState((prev) => ({ ...prev, [field]: value }));
-  };
+      // Check if response is ok before trying to parse JSON
+      let responseData;
+      try {
+        const text = await response.text();
+        responseData = text ? JSON.parse(text) : {};
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError);
+        throw new Error('Invalid response from server');
+      }
 
-  const togglePermission = (key) => {
-    if (!activeUser || activeUser.user_role === "RHM/HRH") return;
-    setPermissionDraft((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+      console.log('Delete response status:', response.status);
+      console.log('Delete response data:', responseData);
 
-  const handleSave = async () => {
-    if (!activeUser) return;
-    setIsSaving(true);
-    setModalError("");
+      if (!response.ok) {
+        let errorMessage = responseData?.error || responseData?.details || responseData?.message || `Server error: ${response.status}`;
+        
+        // Provide more helpful error messages
+        if (responseData?.code === '23503' || errorMessage.includes('barangays') || errorMessage.includes('assigned')) {
+          errorMessage = responseData?.message || "This user is assigned to one or more barangays. Please unassign them first before deleting.";
+        }
+        
+        console.error('Delete failed:', errorMessage);
+        throw new Error(errorMessage);
+      }
 
-    const updatePayload = {
-      first_name: formState.first_name || null,
-      last_name: formState.last_name || null,
-      user_role: formState.user_role || null,
-      address: formState.address || null,
-      permissions: permissionDraft,
-    };
+      // Verify deletion was successful
+      if (responseData.warning) {
+        console.warn('Delete warning:', responseData.warning);
+        throw new Error(responseData.error || 'User not found or already deleted');
+      }
 
-    const response = await fetch(`/api/users/${activeUser.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatePayload),
-    });
+      // Check if deletion was actually successful
+      if (!responseData.message && !responseData.deletedCount) {
+        throw new Error('Delete operation completed but no confirmation received');
+      }
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      const message = body?.error || "Unable to save changes. Please try again.";
-      setModalError(message);
-      setIsSaving(false);
-      return;
+      console.log('User deleted successfully from database');
+
+      // Wait a bit for smooth animation
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Remove user from local state only after successful deletion
+      setUsers(users.filter((u) => u.id !== userId));
+      setShowDeleteModal(false);
+      setSelectedUser(null);
+      setDeletingUserId(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      const errorMessage = error.message || 'Unknown error occurred. Please try again.';
+      alert(`Failed to delete user: ${errorMessage}`);
+      setDeletingUserId(null);
+      throw error; // Re-throw to let modal handle it
     }
+  };
 
-    const { user: updatedUser } = await response.json();
-
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === activeUser.id
-          ? { ...user, ...updatedUser, permissions: permissionDraft }
-          : user
-      )
-    );
-
-    setIsSaving(false);
-    closeModal();
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setSelectedUser(null);
   };
 
   return (
@@ -253,7 +251,12 @@ export default function HeadNurseUserManagement() {
                       </tr>
                     ) : (
                       filteredUsers.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50">
+                        <tr 
+                          key={user.id} 
+                          className={`hover:bg-gray-50 transition-all duration-300 ${
+                            deletingUserId === user.id ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+                          }`}
+                        >
                           <td className="px-6 py-4 font-medium text-gray-900">
                             {user.name}
                           </td>
@@ -281,7 +284,8 @@ export default function HeadNurseUserManagement() {
                               </button>
                               <button
                                 type="button"
-                                className="hover:text-red-500"
+                                onClick={() => handleDeleteClick(user)}
+                                className="hover:text-red-500 cursor-pointer"
                                 aria-label={`Delete ${user.name}`}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -299,6 +303,15 @@ export default function HeadNurseUserManagement() {
           </div>
         </main>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedUser && (
+        <DeleteUserModal
+          user={selectedUser}
+          onClose={handleCloseDeleteModal}
+          onDelete={handleDeleteUser}
+        />
+      )}
     </div>
 
     {isModalOpen && activeUser && (
