@@ -276,7 +276,7 @@ export default function ResidentsPage() {
 
   // Update resident
   const handleUpdateResident = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // fixed bug
     try {
       const response = await fetch("/api/residents", {
         method: "PUT",
