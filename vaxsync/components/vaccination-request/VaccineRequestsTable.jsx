@@ -142,7 +142,7 @@ export default function VaccineRequestsTable({
               onClick={() => handleViewDetails(request)}
             >
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                {request.request_code || request.id}
+                {request.request_code || request.request_code}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {new Date(request.created_at).toLocaleDateString('en-CA')}

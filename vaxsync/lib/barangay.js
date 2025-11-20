@@ -13,7 +13,7 @@ export async function fetchBarangays() {
     .from("barangays")
     .select(`
       *,
-      assigned_health_worker:assigned_health_worker_id(id, first_name, last_name)
+      assigned_health_worker(id, first_name, last_name)
     `)
     .order("created_at", { ascending: false });
   

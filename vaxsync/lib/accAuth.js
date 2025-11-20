@@ -31,26 +31,40 @@ export const requireAuth = () => {
 
 export const getUserProfile = async (userId) => {
   try {
-    console.log('Fetching user profile with barangay...');
+    console.log('Fetching user profile...');
     
-    // Fetch user profile with barangay in a single query
+    // Fetch user profile first
     const { data: profile, error } = await supabase
       .from('user_profiles')
-      .select(`
-        *,
-        barangays:assigned_barangay_id (
-          id,
-          name,
-          municipality,
-          population
-        )
-      `)
+      .select('*')
       .eq('id', userId)
       .single();
 
     if (error) {
       console.error('Error fetching user profile:', error);
       return null;
+    }
+
+    if (!profile) {
+      console.warn('No profile found for user:', userId);
+      return null;
+    }
+
+    // If user has assigned_barangay_id, fetch barangay details separately
+    if (profile.assigned_barangay_id) {
+      console.log('Fetching barangay for ID:', profile.assigned_barangay_id);
+      const { data: barangay, error: barangayError } = await supabase
+        .from('barangays')
+        .select('id, name, municipality, population')
+        .eq('id', profile.assigned_barangay_id)
+        .single();
+
+      if (!barangayError && barangay) {
+        profile.barangays = barangay;
+        console.log('Barangay fetched successfully:', barangay.name);
+      } else if (barangayError) {
+        console.warn('Could not fetch barangay:', barangayError.message);
+      }
     }
 
     console.log('User profile fetched successfully');

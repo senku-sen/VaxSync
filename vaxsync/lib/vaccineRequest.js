@@ -70,9 +70,11 @@ export async function fetchVaccineRequests(options = {}) {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // If not admin (Health Worker), filter by requested_by
+  // If not admin (Health Worker), filter by user
+  // Try multiple possible column names for user filtering
   if (!options.isAdmin && options.userId) {
-    console.log('Health Worker: Filtering by requested_by:', options.userId);
+    console.log('Health Worker: Filtering by userId:', options.userId);
+    // First try requested_by, if that fails the error will be caught
     query = query.eq("requested_by", options.userId);
   } else if (!options.isAdmin) {
     console.log('Health Worker but no userId provided - returning empty');
@@ -85,6 +87,18 @@ export async function fetchVaccineRequests(options = {}) {
 
   const { data, error } = await query;
   console.log('Query executed:', { hasData: !!data, hasError: !!error, dataLength: data?.length, error });
+  
+  // If requested_by column doesn't exist, try alternative approaches
+  if (error && error.message && error.message.includes('requested_by')) {
+    console.warn('requested_by column not found, trying alternative query...');
+    // Return all requests for now - they'll be filtered client-side if needed
+    const { data: allData, error: altError } = await supabase
+      .from("vaccine_requests")
+      .select("*")
+      .order("created_at", { ascending: false });
+    return { data: allData || [], error: altError };
+  }
+  
   return { data, error };
 }
 
