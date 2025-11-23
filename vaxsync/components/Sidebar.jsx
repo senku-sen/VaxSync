@@ -40,7 +40,9 @@ export default function Sidebar() {
   }, [isSettingsStandalone]);
 
   const roleIsHW = isHealthWorker || (isSettingsStandalone && cachedRole === "Health Worker");
-  const roleIsHN = isHeadNurse || (isSettingsStandalone && cachedRole === "RHM/HRH");
+  const roleIsHN =
+    isHeadNurse ||
+    (isSettingsStandalone && (cachedRole === "Head Nurse" || cachedRole === "RHM/HRH"));
 
   if (!roleIsHW && !roleIsHN && !isSettingsStandalone) return null;
 
@@ -62,7 +64,7 @@ export default function Sidebar() {
     { name: "User Management", icon: UserCog, path: `${basePath}/usermanagement`, adminOnly: true },
   ];
 
-  // Filter: Health Worker = no admin items | RHM/HRH = all
+  // Filter: Health Worker = no admin items | Head Nurse = all
   const menuItems = allMenuItems.filter(item => !item.adminOnly || roleIsHN);
 
   return (

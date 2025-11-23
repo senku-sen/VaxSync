@@ -196,7 +196,14 @@ export default function SettingsPrivacyPage() {
               {/* Right: role */}
               <div>
                 <Label className="text-gray-800 mb-2 block">Role</Label>
-                <RadioGroup value={profile?.user_role === "RHM/HRH" ? "head" : "worker"} className="grid grid-cols-1 gap-3">
+                <RadioGroup
+                  value={
+                    profile?.user_role === "Head Nurse" || profile?.user_role === "RHM/HRH"
+                      ? "head"
+                      : "worker"
+                  }
+                  className="grid grid-cols-1 gap-3"
+                >
                   <div className="flex items-center space-x-3">
                     <RadioGroupItem
                       value="head"
@@ -204,7 +211,7 @@ export default function SettingsPrivacyPage() {
                       className="border-gray-400 data-[state=checked]:bg-[#3E5F44] data-[state=checked]:border-[#3E5F44] after:hidden"
                       disabled
                     />
-                    <Label htmlFor="head" className="text-gray-800">RHM/HRH</Label>
+                    <Label htmlFor="head" className="text-gray-800">Head Nurse</Label>
                   </div>
                   <div className="flex items-center space-x-3">
                     <RadioGroupItem

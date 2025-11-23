@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate:roles": "node scripts/migrate-head-nurse.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

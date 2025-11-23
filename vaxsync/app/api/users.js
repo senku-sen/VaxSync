@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-
+// This is for showing the information of the user in user management page
 export async function GET() {
   try {
     return NextResponse.json(users)

@@ -18,7 +18,7 @@ const FEATURE_CHECKLIST = [
   { key: "notifications", label: "Notifications" },
 ];
 
-const ROLE_OPTIONS = ["Health Worker", "RHM/HRH"];
+const ROLE_OPTIONS = ["Health Worker", "Head Nurse"];
 const BARANGAY_NAMES = [
   "BARANGAY II",
   "CALASGASAN",
@@ -32,12 +32,12 @@ const BARANGAY_NAMES = [
 ];
 const normalizeRole = (role) => {
   if (!role) return "Health Worker";
-  if (role === "Head Nurse") return "RHM/HRH";
+  if (role === "RHM/HRH" || role === "Head Nurse") return "Head Nurse";
   return role;
 };
 
 const toDatabaseRole = (role) => {
-  if (role === "RHM/HRH") return "RHM/HRH";
+  if (role === "Head Nurse" || role === "RHM/HRH") return "Head Nurse";
   return "Health Worker";
 };
 
@@ -295,9 +295,9 @@ export default function HeadNurseUserManagement() {
     setIsSaving(true);
     setModalError("");
     try {
-      const isRHM = normalizeRole(activeUser.user_role) === "RHM/HRH";
-      // Preserve original role for RHM users
-      const roleToSave = isRHM 
+      const isHeadNurse = normalizeRole(activeUser.user_role) === "Head Nurse";
+      // Preserve original role for Head Nurse users
+      const roleToSave = isHeadNurse 
         ? toDatabaseRole(normalizeRole(activeUser.user_role))
         : toDatabaseRole(normalizeRole(formState.user_role));
       
@@ -508,8 +508,8 @@ export default function HeadNurseUserManagement() {
                 Edit User
               </h2>
               <p className="text-sm text-gray-500">
-                {normalizeRole(activeUser.user_role) === "RHM/HRH"
-                  ? "Update user details. Role cannot be changed for RHM/HRH accounts."
+                {normalizeRole(activeUser.user_role) === "Head Nurse"
+                  ? "Update user details. Role cannot be changed for Head Nurse accounts."
                   : "Update user details and access permissions."}
               </p>
             </div>
@@ -570,7 +570,7 @@ export default function HeadNurseUserManagement() {
                   const newRole = e.target.value;
                   handleFormChange("user_role", newRole);
                 }}
-                disabled={normalizeRole(activeUser.user_role) === "RHM/HRH"}
+                disabled={normalizeRole(activeUser.user_role) === "Head Nurse"}
               >
                 {ROLE_OPTIONS.map((roleOption) => (
                   <option key={roleOption} value={roleOption}>

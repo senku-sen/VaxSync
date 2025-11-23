@@ -98,7 +98,7 @@ export default function SignUp() {
     // Validate authentication code
     const validAuthCodes = {
       'Health Worker': 'HW-6A9F',
-      'RHM/HRH': 'HN-4Z7Q'
+      'Head Nurse': 'HN-4Z7Q'
     };
 
     if (formData.authCode && validAuthCodes[formData.userRole] !== formData.authCode) {
@@ -383,13 +383,13 @@ export default function SignUp() {
                   type="radio"
                   id="headNurse"
                   name="userRole"
-                  value="RHM/HRH"
-                  checked={formData.userRole === "RHM/HRH"}
+                  value="Head Nurse"
+                  checked={formData.userRole === "Head Nurse"}
                   onChange={handleInputChange}
                   className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300"
                 />
                 <label htmlFor="headNurse" className="ml-2 block text-sm text-gray-700">
-                  RHM/HRH
+                  Head Nurse
                 </label>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin, hasSupabaseAdmin } from "@/lib/supabaseAdmin";
-
+// This is for editing the information of the user in user management page
 export async function PUT(request, { params }) {
   const { id } = params;
 

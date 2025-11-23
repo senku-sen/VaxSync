@@ -46,7 +46,7 @@ export default function SignIn() {
       console.log('Redirecting based on role:', data.userRole);
       if (data.userRole === 'Health Worker') {
         window.location.href = '/pages/Health_Worker/inventory';
-      } else if (data.userRole === 'RHM/HRH') {
+      } else if (data.userRole === 'Head Nurse' || data.userRole === 'RHM/HRH') {
         window.location.href = '/pages/Head_Nurse/inventory';
       } else {
         // Fallback for unknown roles
@@ -99,7 +99,7 @@ export default function SignIn() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
-              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
+              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900 placeholder:text-gray-500`}
               style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
               required
             />
@@ -122,7 +122,7 @@ export default function SignIn() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
-              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
+              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900 placeholder:text-gray-500`}
               style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
               required
             />
