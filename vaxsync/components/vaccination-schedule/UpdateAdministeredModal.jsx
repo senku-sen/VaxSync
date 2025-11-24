@@ -3,9 +3,17 @@
 // ============================================
 // Modal for updating administered count and status
 // Shows progress bar and allows status change
+// Includes photo upload and gallery for documentation
 // ============================================
 
-import { X, AlertCircle, CheckCircle } from "lucide-react";
+"use client";
+
+import { useState, useEffect } from "react";
+import { X, AlertCircle, CheckCircle, Camera } from "lucide-react";
+import PhotoUploadModal from "./PhotoUploadModal";
+import PhotoGallery from "./PhotoGallery";
+import { fetchSessionPhotos } from "@/lib/sessionPhotos";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 
 export default function UpdateAdministeredModal({
   isOpen,
@@ -16,11 +24,61 @@ export default function UpdateAdministeredModal({
   errors = {},
   isViewOnly = false
 }) {
+  const [isPhotoUploadOpen, setIsPhotoUploadOpen] = useState(false);
+  const [photos, setPhotos] = useState([]);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [showPhotos, setShowPhotos] = useState(false);
+
+  // Load user profile and photos when modal opens
+  useEffect(() => {
+    if (isOpen && session?.id) {
+      loadUserData();
+      loadPhotos();
+    }
+  }, [isOpen, session?.id]);
+
+  const loadUserData = async () => {
+    const profile = await loadUserProfile();
+    setUserProfile(profile);
+  };
+
+  const loadPhotos = async () => {
+    if (!session?.id) return;
+    setIsLoadingPhotos(true);
+    try {
+      const result = await fetchSessionPhotos(session.id);
+      if (result.success) {
+        setPhotos(result.data);
+      }
+    } catch (err) {
+      console.error("Error loading photos:", err);
+    } finally {
+      setIsLoadingPhotos(false);
+    }
+  };
+
+  const handlePhotoUploaded = (newPhoto) => {
+    setPhotos([newPhoto, ...photos]);
+    setIsPhotoUploadOpen(false);
+  };
+
+  const handlePhotoDeleted = (photoId) => {
+    setPhotos(photos.filter((p) => p.id !== photoId));
+  };
+
   if (!isOpen || !session) return null;
 
   const administered = session.administered || 0;
   const target = session.target || 0;
   const progress = target > 0 ? Math.round((administered / target) * 100) : 0;
+
+  // Check if health worker can upload photos (session is in progress or completed)
+  const canUploadPhotos =
+    !isViewOnly &&
+    userProfile &&
+    userProfile.user_role === "Health Worker" &&
+    (session.status === "In progress" || session.status === "Completed");
 
   const handleChange = (e) => {
     if (isViewOnly) return;
@@ -32,10 +90,10 @@ export default function UpdateAdministeredModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-opacity-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-opacity-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Update Vaccination Progress</h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -44,14 +102,14 @@ export default function UpdateAdministeredModal({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
           >
             <X size={24} />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
+        {/* Modal Body - Scrollable */}
+        <div className="p-6 overflow-y-auto flex-1">
           {/* Session Info */}
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="grid grid-cols-2 gap-4 text-sm">
@@ -199,29 +257,95 @@ export default function UpdateAdministeredModal({
               )}
             </div>
 
-            {/* Modal Footer */}
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                Close
-              </button>
-              {!isViewOnly && (
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? "Updating..." : "Update Progress"}
-                </button>
-              )}
-            </div>
+            {/* Photo Upload Section */}
+            {(canUploadPhotos || photos.length > 0) && (
+              <div className="border-t pt-4 mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Session Documentation
+                  </h3>
+                  {photos.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPhotos(!showPhotos)}
+                      className="text-xs font-medium text-[#4A7C59] hover:text-[#3E6B4D]"
+                    >
+                      {showPhotos ? "Hide" : "Show"} ({photos.length})
+                    </button>
+                  )}
+                </div>
+
+                {/* Upload Button */}
+                {canUploadPhotos && (
+                  <button
+                    type="button"
+                    onClick={() => setIsPhotoUploadOpen(true)}
+                    className="w-full mb-4 px-4 py-2 border-2 border-dashed border-[#4A7C59] text-[#4A7C59] font-medium rounded-lg hover:bg-green-50 transition-colors"
+                  >
+                    <Camera className="w-4 h-4 inline mr-2" />
+                    Upload Photo
+                  </button>
+                )}
+
+                {/* Photo Gallery */}
+                {showPhotos && photos.length > 0 && (
+                  <div className="mt-4 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3" onClick={(e) => e.stopPropagation()}>
+                    <PhotoGallery
+                      photos={photos}
+                      isLoading={isLoadingPhotos}
+                      canDelete={
+                        userProfile?.user_role === "Health Worker"
+                      }
+                      onPhotoDeleted={handlePhotoDeleted}
+                      userRole={userProfile?.user_role}
+                    />
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!canUploadPhotos && photos.length === 0 && (
+                  <p className="text-xs text-gray-500 text-center py-2">
+                    No photos uploaded yet
+                  </p>
+                )}
+              </div>
+            )}
+
           </form>
         </div>
+
+        {/* Modal Footer - Fixed at bottom */}
+        <div className="flex gap-3 p-6 border-t border-gray-200 bg-white flex-shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Close
+          </button>
+          {!isViewOnly && (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              onClick={() => onSubmit(session, 'submit')}
+              className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? "Updating..." : "Update Progress"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Photo Upload Modal */}
+      <PhotoUploadModal
+        isOpen={isPhotoUploadOpen}
+        onClose={() => setIsPhotoUploadOpen(false)}
+        sessionId={session?.id}
+        userId={userProfile?.id}
+        onPhotoUploaded={handlePhotoUploaded}
+      />
     </div>
   );
 }

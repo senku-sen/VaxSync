@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { supabase } from "../../../lib/supabase";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -41,6 +42,16 @@ export default function SignIn() {
 
       if (!data.ok) {
         throw new Error(data.error || 'Authentication failed.');
+      }
+
+      // Ensure the client has a Supabase auth session (needed for Storage RLS)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (authError) {
+        console.error('Client auth sign-in error:', authError);
+        throw new Error(authError.message || 'Failed to establish client session');
       }
 
       // Cache minimal profile for client-only pages
