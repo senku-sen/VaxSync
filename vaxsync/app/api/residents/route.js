@@ -56,10 +56,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by } = body;
+    const { name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given } = body;
 
     // Validate required fields
-    if (!name || !age || !address || !contact) {
+    if (!name || !birthday || !sex || !address || !contact) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -107,7 +107,8 @@ export async function POST(request) {
       .insert([
         {
           name,
-          age: parseInt(age),
+          birthday: birthday || null,
+          sex: sex || null,
           address,
           contact,
           vaccine_status: vaccine_status || 'not_vaccinated',
@@ -115,6 +116,7 @@ export async function POST(request) {
           barangay: barangay || null,
           barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
           submitted_by: submitted_by || 'system',
+          vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
           submitted_at: new Date().toISOString()
         }
       ])
@@ -151,7 +153,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality } = body;
+    const { id, name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, vaccines_given } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -183,18 +185,26 @@ export async function PUT(request) {
     }
 
     // Update resident in Supabase
+    const updateData = {
+      name,
+      birthday: birthday !== undefined ? birthday : undefined,
+      sex: sex !== undefined ? sex : undefined,
+      address,
+      contact,
+      vaccine_status: vaccine_status || 'not_vaccinated',
+      barangay: barangay || null,
+      barangay_id: resolvedBarangayId ?? undefined,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update vaccines_given if provided
+    if (vaccines_given !== undefined) {
+      updateData.vaccines_given = Array.isArray(vaccines_given) ? vaccines_given : [];
+    }
+
     const { data: updatedResident, error } = await supabase
       .from('residents')
-      .update({
-        name,
-        age: parseInt(age),
-        address,
-        contact,
-        vaccine_status: vaccine_status || 'not_vaccinated',
-        barangay: barangay || null,
-        barangay_id: resolvedBarangayId ?? undefined,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

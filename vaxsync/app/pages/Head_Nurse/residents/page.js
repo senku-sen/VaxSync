@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Upload, 
   Plus, 
@@ -23,6 +24,7 @@ import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
+import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
@@ -32,6 +34,7 @@ export default function ResidentsPage() {
   const [selectedBarangay, setSelectedBarangay] = useState("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [approvedCount, setApprovedCount] = useState(0);
@@ -40,12 +43,25 @@ export default function ResidentsPage() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
-    age: "",
+    birthday: "",
+    sex: "",
     address: "",
     vaccine_status: "not_vaccinated",
     contact: "",
-    barangay: ""
+    barangay: "",
+    vaccines_given: []
   });
+
+  // Available vaccine types
+  const VACCINE_TYPES = [
+    "penta1", "penta2",
+    "pcv1", "pcv2", "pcv3",
+    "mcv1", "mcv2",
+    "opv1", "opv2",
+    "mmr1", "mmr2",
+    "ipv1", "ipv2",
+    "tt1", "tt2"
+  ];
 
   // Initialize data with auth check
   const initializeData = async () => {
@@ -219,7 +235,8 @@ export default function ResidentsPage() {
           address: "",
           vaccine_status: "not_vaccinated",
           contact: "",
-          barangay: ""
+          barangay: "",
+          vaccines_given: []
         });
         fetchResidents(activeTab);
         fetchCounts();
@@ -316,11 +333,13 @@ export default function ResidentsPage() {
     setSelectedResident(resident);
     setFormData({
       name: resident.name || "",
-      age: resident.age || "",
+      birthday: resident.birthday || "",
+      sex: resident.sex || "",
       address: resident.address || "",
       vaccine_status: resident.vaccine_status || "not_vaccinated",
       contact: resident.contact || "",
-      barangay: resident.barangay || ""
+      barangay: resident.barangay || "",
+      vaccines_given: resident.vaccines_given || []
     });
     setIsEditDialogOpen(true);
   };
@@ -398,7 +417,10 @@ export default function ResidentsPage() {
           {/* Action Buttons */}
           {!isAuthLoading && (
             <div className="flex flex-wrap gap-4 mb-6">
-              <Button className="bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white">
+              <Button 
+                className="bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white"
+                onClick={() => setIsUploadModalOpen(true)}
+              >
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Master List
               </Button>
@@ -406,14 +428,15 @@ export default function ResidentsPage() {
                 setIsAddDialogOpen(open);
                 if (open) {
                   // Reset form data when opening add dialog
-                  setFormData({
-                    name: "",
-                    age: "",
-                    address: "",
-                    vaccine_status: "not_vaccinated",
-                    contact: "",
-                    barangay: ""
-                  });
+        setFormData({
+          name: "",
+          age: "",
+          address: "",
+          vaccine_status: "not_vaccinated",
+          contact: "",
+          barangay: "",
+          vaccines_given: []
+        });
                 }
               }}>
                 <DialogTrigger asChild>
@@ -451,26 +474,38 @@ export default function ResidentsPage() {
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="age">Age *</Label>
+                        <Label htmlFor="birthday">Birthday *</Label>
                         <Input
-                          id="age"
-                          type="number"
-                          placeholder="Age"
-                          value={formData.age}
-                          onChange={(e) => setFormData({...formData, age: e.target.value})}
+                          id="birthday"
+                          type="date"
+                          value={formData.birthday}
+                          onChange={(e) => setFormData({...formData, birthday: e.target.value})}
                           required
                         />
                       </div>
                       <div>
-                        <Label htmlFor="contact">Contact Number *</Label>
-                        <Input
-                          id="contact"
-                          placeholder="09XXXXXXXXX"
-                          value={formData.contact}
-                          onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                          required
-                        />
+                        <Label htmlFor="sex">Sex *</Label>
+                        <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sex" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="contact">Contact Number *</Label>
+                      <Input
+                        id="contact"
+                        placeholder="09XXXXXXXXX"
+                        value={formData.contact}
+                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        required
+                      />
                     </div>
                     
                     <div>
@@ -499,6 +534,46 @@ export default function ResidentsPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    
+                    <div>
+                      <Label>Vaccines Given</Label>
+                      <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {VACCINE_TYPES.map((vaccine) => (
+                            <div key={vaccine} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`vaccine-${vaccine}`}
+                                checked={formData.vaccines_given.includes(vaccine)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setFormData({
+                                      ...formData,
+                                      vaccines_given: [...formData.vaccines_given, vaccine]
+                                    });
+                                  } else {
+                                    setFormData({
+                                      ...formData,
+                                      vaccines_given: formData.vaccines_given.filter(v => v !== vaccine)
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label
+                                htmlFor={`vaccine-${vaccine}`}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {vaccine.toUpperCase()}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        {formData.vaccines_given.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-3">
+                            Selected: {formData.vaccines_given.join(", ")}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="flex justify-end space-x-2">
@@ -613,26 +688,38 @@ export default function ResidentsPage() {
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="edit-age">Age *</Label>
+                    <Label htmlFor="edit-birthday">Birthday *</Label>
                     <Input
-                      id="edit-age"
-                      type="number"
-                      placeholder="Age"
-                      value={formData.age}
-                      onChange={(e) => setFormData({...formData, age: e.target.value})}
+                      id="edit-birthday"
+                      type="date"
+                      value={formData.birthday}
+                      onChange={(e) => setFormData({...formData, birthday: e.target.value})}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-contact">Contact Number *</Label>
-                    <Input
-                      id="edit-contact"
-                      placeholder="09XXXXXXXXX"
-                      value={formData.contact}
-                      onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                      required
-                    />
+                    <Label htmlFor="edit-sex">Sex *</Label>
+                    <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select sex" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="edit-contact">Contact Number *</Label>
+                  <Input
+                    id="edit-contact"
+                    placeholder="09XXXXXXXXX"
+                    value={formData.contact}
+                    onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                    required
+                  />
                 </div>
                 
                 <div>
@@ -663,6 +750,46 @@ export default function ResidentsPage() {
                   </Select>
                 </div>
                 
+                <div>
+                  <Label>Vaccines Given</Label>
+                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {VACCINE_TYPES.map((vaccine) => (
+                        <div key={vaccine} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-vaccine-${vaccine}`}
+                            checked={formData.vaccines_given.includes(vaccine)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  vaccines_given: [...formData.vaccines_given, vaccine]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  vaccines_given: formData.vaccines_given.filter(v => v !== vaccine)
+                                });
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`edit-vaccine-${vaccine}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {vaccine.toUpperCase()}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {formData.vaccines_given.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Selected: {formData.vaccines_given.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
                 <div className="flex justify-end space-x-2">
                   <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                     Cancel
@@ -674,6 +801,18 @@ export default function ResidentsPage() {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* Upload Master List Modal */}
+          <UploadMasterListModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onUploadSuccess={() => {
+              fetchResidents(activeTab);
+              fetchCounts();
+            }}
+            userProfile={userProfile}
+            selectedBarangay={selectedBarangay === "all" ? "" : selectedBarangay}
+          />
           
         </main>
       </div>

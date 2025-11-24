@@ -40,10 +40,12 @@ export default function ApprovedResidentsTable({
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-3 px-4 font-medium">Name</th>
-                  <th className="text-left py-3 px-4 font-medium">Age</th>
+                  <th className="text-left py-3 px-4 font-medium">Birthday</th>
+                  <th className="text-left py-3 px-4 font-medium">Sex</th>
                   <th className="text-left py-3 px-4 font-medium">Address</th>
                   <th className="text-left py-3 px-4 font-medium">Barangay</th>
                   <th className="text-left py-3 px-4 font-medium">Vaccine Status</th>
+                  <th className="text-left py-3 px-4 font-medium">Vaccines Given</th>
                   <th className="text-left py-3 px-4 font-medium">Contact</th>
                   <th className="text-left py-3 px-4 font-medium">Submitted</th>
                   <th className="text-left py-3 px-4 font-medium">Actions</th>
@@ -55,7 +57,19 @@ export default function ApprovedResidentsTable({
                     <td className="py-3 px-4">
                       <div className="font-medium">{resident.name}</div>
                     </td>
-                    <td className="py-3 px-4">{resident.age}</td>
+                    <td className="py-3 px-4">
+                      {resident.birthday 
+                        ? new Date(resident.birthday).toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit', 
+                            year: 'numeric' 
+                          })
+                        : 'N/A'
+                      }
+                    </td>
+                    <td className="py-3 px-4">
+                      {resident.sex || 'N/A'}
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center text-sm text-gray-600">
                         {resident.address}
@@ -68,6 +82,19 @@ export default function ApprovedResidentsTable({
                     </td>
                     <td className="py-3 px-4">
                       {getVaccineStatusBadge(resident.vaccine_status)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
+                          resident.vaccines_given.map((vaccine, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {vaccine.toUpperCase()}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-gray-400">None</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center text-sm">
