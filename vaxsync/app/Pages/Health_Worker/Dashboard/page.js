@@ -46,10 +46,7 @@ export default function HealthWorkerDashboard() {
       try {
         setLoading(true);
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
-
-        const { data: vaccines } = await supabase.from('vaccine_inventory').select('*');
+        const { data: vaccines } = await supabase.from('barangay_vaccine_inventory').select('*');
         const { data: sessions } = await supabase.from('vaccination_sessions').select('*');
         const { data: workers } = await supabase.from('user_profiles').select('*').eq('role', 'health_worker');
         const { data: barangays } = await supabase.from('barangays').select('*');
