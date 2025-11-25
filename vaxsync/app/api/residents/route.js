@@ -32,6 +32,13 @@ export async function GET(request) {
 
     if (error) {
       console.error('Supabase error:', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          { success: false, error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { success: false, error: 'Failed to fetch residents' },
         { status: 500 }
@@ -74,7 +81,12 @@ export async function POST(request) {
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle?.();
+        .maybeSingle();
+      
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+        // Continue to try creating if lookup fails (could be network issue)
+      }
 
       if (foundBarangay && foundBarangay.id) {
         resolvedBarangayId = foundBarangay.id;
@@ -125,6 +137,16 @@ export async function POST(request) {
 
     if (error) {
       console.error('Supabase error (create resident):', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.'
+          },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -165,11 +187,15 @@ export async function PUT(request) {
     // Resolve barangay_id if provided as name
     let resolvedBarangayId = barangay_id || null;
     if (!resolvedBarangayId && barangay) {
-      const { data: foundBarangay } = await supabase
+      const { data: foundBarangay, error: findBarangayError } = await supabase
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle?.();
+        .maybeSingle();
+      
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+      }
       if (foundBarangay?.id) {
         resolvedBarangayId = foundBarangay.id;
       } else {

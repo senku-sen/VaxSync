@@ -42,22 +42,132 @@ export default function UploadMasterListModal({
     }
   };
 
-  // Parse CSV to preview first few rows
-  const parseCSVPreview = (csvText) => {
-    const lines = csvText.split('\n').filter(line => line.trim());
-    if (lines.length === 0) return null;
+  // Check if a row is empty or invalid (only dashes, empty values, etc.)
+  const isEmptyRow = (values) => {
+    if (!values || values.length === 0) return true;
+    const nonEmpty = values.filter(v => v && v.trim() && v.trim() !== '-');
+    return nonEmpty.length === 0;
+  };
+
+  // Detect barangay name from CSV (usually in first few rows, before header)
+  const detectBarangayFromCSV = (lines, headerRowIndex) => {
+    // Known barangay names for validation
+    const knownBarangays = [
+      'mancruz', 'alawihao', 'bibirao', 'calasgasan', 'camambugan',
+      'dogongan', 'magang', 'pamorangan', 'barangay ii'
+    ];
     
-    const headers = parseCSVLine(lines[0]);
-    const previewRows = [];
-    
-    for (let i = 1; i < Math.min(6, lines.length); i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length > 0) {
-        previewRows.push(values);
+    // Check rows before the header row
+    for (let i = 0; i < headerRowIndex && i < 10; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = parseCSVLine(line);
+      if (isEmptyRow(values)) continue;
+      
+      // Check each cell in the row
+      for (const cell of values) {
+        const cleaned = cell.trim().toLowerCase();
+        if (!cleaned || cleaned.length < 3) continue;
+        
+        // Check if it matches a known barangay (case-insensitive)
+        const matchedBarangay = knownBarangays.find(b => cleaned.includes(b) || b.includes(cleaned));
+        if (matchedBarangay) {
+          // Return proper case version
+          const index = knownBarangays.indexOf(matchedBarangay);
+          const properCaseBarangays = [
+            'Mancruz', 'Alawihao', 'Bibirao', 'Calasgasan', 'Camambugan',
+            'Dogongan', 'Magang', 'Pamorangan', 'Barangay II'
+          ];
+          return properCaseBarangays[index];
+        }
+        
+        // Also check if it's a single word that looks like a barangay name
+        if (cleaned.length >= 4 && cleaned.length <= 20 && 
+            !cleaned.match(/^\d+$/) && 
+            !cleaned.includes('name') && !cleaned.includes('sex') && 
+            !cleaned.includes('birthday') && !cleaned.includes('vaccine')) {
+          // Return with proper capitalization
+          return cleaned.split(' ').map(word => 
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+          ).join(' ');
+        }
       }
     }
     
-    return { headers, rows: previewRows, totalRows: lines.length - 1 };
+    return null;
+  };
+
+  // Find header row by looking for required columns
+  const findHeaderRow = (lines) => {
+    for (let i = 0; i < Math.min(20, lines.length); i++) {
+      const values = parseCSVLine(lines[i]);
+      const headers = values.map(h => h.toLowerCase().trim());
+      
+      // Check if this row contains the required column headers
+      const hasName = headers.some(h => h.includes('name') && h.length > 2);
+      const hasSex = headers.some(h => h.includes('sex'));
+      const hasBirthday = headers.some(h => (h.includes('birthday') || h.includes('birth')) && h.length > 3);
+      
+      if (hasName && hasSex && hasBirthday) {
+        return { rowIndex: i, headers: values };
+      }
+    }
+    return null;
+  };
+
+  // Parse CSV to preview first few rows
+  const parseCSVPreview = (csvText) => {
+    const lines = csvText.split('\n');
+    if (lines.length === 0) return null;
+    
+    // Find the header row
+    const headerInfo = findHeaderRow(lines);
+    if (!headerInfo) {
+      // If no header found, try using first row
+      return { 
+        headers: parseCSVLine(lines[0] || ''), 
+        rows: [], 
+        totalRows: lines.length - 1,
+        headerRowIndex: 0
+      };
+    }
+    
+    const headers = headerInfo.headers;
+    const headerRowIndex = headerInfo.rowIndex;
+    
+    // Detect barangay from CSV
+    const detectedBarangay = detectBarangayFromCSV(lines, headerRowIndex);
+    
+    const previewRows = [];
+    
+    // Show data rows after the header (skip empty rows)
+    let dataRowCount = 0;
+    for (let i = headerRowIndex + 1; i < lines.length && dataRowCount < 5; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (!isEmptyRow(values)) {
+        previewRows.push(values);
+        dataRowCount++;
+      }
+    }
+    
+    // Count total data rows (excluding header and empty rows)
+    let totalDataRows = 0;
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (!isEmptyRow(values)) {
+        totalDataRows++;
+      }
+    }
+    
+    return { 
+      headers, 
+      rows: previewRows, 
+      totalRows: totalDataRows,
+      headerRowIndex,
+      detectedBarangay,
+      allLines: lines.slice(0, Math.min(10, headerRowIndex + 5)) // Include some context before header
+    };
   };
 
   // Simple CSV line parser (handles quoted fields)
@@ -102,9 +212,12 @@ export default function UploadMasterListModal({
     setErrors([]);
 
     try {
+      // Use detected barangay from CSV if available, otherwise use selected barangay
+      const barangayToUse = preview?.detectedBarangay || selectedBarangay || '';
+      
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('barangay', selectedBarangay || '');
+      formData.append('barangay', barangayToUse);
       formData.append('submitted_by', userProfile.id);
 
       const response = await fetch('/api/residents/upload', {
@@ -150,19 +263,13 @@ export default function UploadMasterListModal({
     onClose();
   };
 
-  // Validate CSV format
+  // Validate CSV format - lenient: just check if headers were found
   const validateCSVFormat = () => {
     if (!preview || !preview.headers) return false;
     
-    const headers = preview.headers.map(h => h.toLowerCase().trim());
-    const requiredHeaders = ['name', 'sex', 'birthday'];
-    
-    // Check if at least required headers exist
-    const hasName = headers.some(h => h.includes('name'));
-    const hasSex = headers.some(h => h.includes('sex'));
-    const hasBirthday = headers.some(h => h.includes('birthday') || h.includes('birth'));
-    
-    return hasName && hasSex && hasBirthday;
+    // If we have headers and at least some rows, consider it valid
+    // The API will do the actual validation
+    return preview.headers.length > 0 && preview.totalRows >= 0;
   };
 
   const isValidFormat = validateCSVFormat();
@@ -215,41 +322,61 @@ export default function UploadMasterListModal({
           {preview && (
             <div className="border rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold">Preview ({preview.totalRows} rows)</h3>
-                {isValidFormat ? (
-                  <div className="flex items-center gap-2 text-green-600">
+                <div>
+                  <h3 className="font-semibold">Preview ({preview.totalRows} rows)</h3>
+                  {preview.detectedBarangay && (
+                    <p className="text-sm text-green-600 mt-1">
+                      Barangay: <span className="font-semibold">{preview.detectedBarangay}</span>
+                    </p>
+                  )}
+                </div>
+                {preview.headers && preview.headers.length > 0 ? (
+                  <div className="flex items-center gap-2 text-blue-600">
                     <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm">Valid format</span>
+                    <span className="text-sm">Ready to upload ({preview.totalRows} data rows found)</span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-red-600">
+                  <div className="flex items-center gap-2 text-yellow-600">
                     <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">Invalid format</span>
+                    <span className="text-sm">Header row will be auto-detected during upload</span>
                   </div>
                 )}
               </div>
               
               <div className="overflow-x-auto">
+                {preview.headerRowIndex > 0 && (
+                  <div className="mb-2 text-xs text-gray-500">
+                    Note: Header row found at row {preview.headerRowIndex + 1}. Previous rows will be skipped.
+                  </div>
+                )}
                 <table className="min-w-full text-sm border-collapse">
                   <thead>
                     <tr className="border-b">
                       {preview.headers.map((header, idx) => (
                         <th key={idx} className="text-left p-2 font-semibold bg-gray-50">
-                          {header}
+                          {header || `Column ${idx + 1}`}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.rows.map((row, rowIdx) => (
-                      <tr key={rowIdx} className="border-b">
-                        {row.map((cell, cellIdx) => (
-                          <td key={cellIdx} className="p-2">
-                            {cell || '-'}
-                          </td>
-                        ))}
+                    {preview.rows.length > 0 ? (
+                      preview.rows.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="border-b">
+                          {preview.headers.map((_, cellIdx) => (
+                            <td key={cellIdx} className="p-2">
+                              {row[cellIdx] || '-'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={preview.headers.length} className="p-4 text-center text-gray-500">
+                          No data rows found (empty rows are skipped)
+                        </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -289,7 +416,7 @@ export default function UploadMasterListModal({
             <Button
               type="button"
               onClick={handleUpload}
-              disabled={!file || isUploading || !isValidFormat}
+              disabled={!file || isUploading}
               className="bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white"
             >
               {isUploading ? (

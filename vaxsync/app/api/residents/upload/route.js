@@ -137,7 +137,7 @@ export async function POST(request) {
 
     // Read file content
     const fileContent = await file.text();
-    const lines = fileContent.split('\n').filter(line => line.trim());
+    const lines = fileContent.split('\n');
     
     if (lines.length < 2) {
       return NextResponse.json(
@@ -146,33 +146,144 @@ export async function POST(request) {
       );
     }
 
-    // Parse header row
-    const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
-    
-    // Find column indices
-    const nameIndex = headers.findIndex(h => h.includes('name'));
-    const sexIndex = headers.findIndex(h => h.includes('sex'));
-    const birthdayIndex = headers.findIndex(h => h.includes('birthday') || h.includes('birth'));
-    const dateOfVaccineIndex = headers.findIndex(h => h.includes('date of vaccine') || h.includes('vaccine date'));
-    const vaccineGivenIndex = headers.findIndex(h => h.includes('vaccine given') || h.includes('vaccines'));
-    const noIndex = headers.findIndex(h => h === 'no.' || h === 'no' || h === '#');
+    // Helper function to check if a row is empty or invalid
+    const isEmptyRow = (values) => {
+      if (!values || values.length === 0) return true;
+      const nonEmpty = values.filter(v => v && v.trim() && v.trim() !== '-');
+      return nonEmpty.length === 0;
+    };
 
-    if (nameIndex === -1 || sexIndex === -1 || birthdayIndex === -1) {
+    // Detect barangay name from CSV (usually in first few rows, before header)
+    const detectBarangayFromCSV = (lines, headerRowIndex) => {
+      // Known barangay names for validation
+      const knownBarangays = [
+        'mancruz', 'alawihao', 'bibirao', 'calasgasan', 'camambugan',
+        'dogongan', 'magang', 'pamorangan', 'barangay ii'
+      ];
+      
+      // Check rows before the header row
+      for (let i = 0; i < headerRowIndex && i < 10; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const values = parseCSVLine(line);
+        if (isEmptyRow(values)) continue;
+        
+        // Check each cell in the row
+        for (const cell of values) {
+          const cleaned = cell.trim().toLowerCase();
+          if (!cleaned || cleaned.length < 3) continue;
+          
+          // Check if it matches a known barangay (case-insensitive)
+          const matchedBarangay = knownBarangays.find(b => cleaned.includes(b) || b.includes(cleaned));
+          if (matchedBarangay) {
+            // Return proper case version
+            const index = knownBarangays.indexOf(matchedBarangay);
+            const properCaseBarangays = [
+              'Mancruz', 'Alawihao', 'Bibirao', 'Calasgasan', 'Camambugan',
+              'Dogongan', 'Magang', 'Pamorangan', 'Barangay II'
+            ];
+            return properCaseBarangays[index];
+          }
+          
+          // Also check if it's a single word that looks like a barangay name
+          // (not a header, not a number, has proper length)
+          if (cleaned.length >= 4 && cleaned.length <= 20 && 
+              !cleaned.match(/^\d+$/) && 
+              !cleaned.includes('name') && !cleaned.includes('sex') && 
+              !cleaned.includes('birthday') && !cleaned.includes('vaccine')) {
+            // Return with proper capitalization
+            return cleaned.split(' ').map(word => 
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+          }
+        }
+      }
+      
+      return null;
+    };
+
+    // Find header row by scanning through the file
+    let headerRowIndex = -1;
+    let headers = [];
+    let nameIndex = -1;
+    let sexIndex = -1;
+    let birthdayIndex = -1;
+    let dateOfVaccineIndex = -1;
+    let vaccineGivenIndex = -1;
+
+    // Scan up to 50 rows to find the header
+    for (let i = 0; i < Math.min(50, lines.length); i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const rowValues = parseCSVLine(line);
+      if (isEmptyRow(rowValues)) continue;
+      
+      const normalizedHeaders = rowValues.map(h => h.toLowerCase().trim());
+      
+      // Check if this row contains the required column headers
+      const foundNameIndex = normalizedHeaders.findIndex(h => h.includes('name') && h.length > 2);
+      const foundSexIndex = normalizedHeaders.findIndex(h => h.includes('sex'));
+      const foundBirthdayIndex = normalizedHeaders.findIndex(h => (h.includes('birthday') || h.includes('birth')) && h.length > 3);
+      
+      if (foundNameIndex !== -1 && foundSexIndex !== -1 && foundBirthdayIndex !== -1) {
+        // Found the header row!
+        headerRowIndex = i;
+        headers = normalizedHeaders;
+        nameIndex = foundNameIndex;
+        sexIndex = foundSexIndex;
+        birthdayIndex = foundBirthdayIndex;
+        dateOfVaccineIndex = normalizedHeaders.findIndex(h => h.includes('date of vaccine') || h.includes('vaccine date'));
+        vaccineGivenIndex = normalizedHeaders.findIndex(h => h.includes('vaccine given') || h.includes('vaccines'));
+        break;
+      }
+    }
+
+    // If header row not found, return error
+    if (headerRowIndex === -1) {
       return NextResponse.json(
-        { success: false, error: 'CSV must contain NAME, SEX, and BIRTHDAY columns' },
+        { success: false, error: 'Could not find required columns (NAME, SEX, BIRTHDAY) in the CSV file. Please check the file format.' },
         { status: 400 }
       );
     }
 
+    // Detect barangay from CSV file (check rows before header)
+    const detectedBarangay = detectBarangayFromCSV(lines, headerRowIndex);
+    
+    // Use detected barangay from CSV, fallback to provided barangay, then 'Unknown'
+    const effectiveBarangayName = detectedBarangay || barangayName || 'Unknown';
+    
+    // Log detected barangay for debugging
+    if (detectedBarangay) {
+      console.log(`Detected barangay from CSV: ${detectedBarangay}`);
+    }
+
     // Resolve barangay_id
     let barangayId = null;
-    const effectiveBarangayName = barangayName || 'Unknown';
     
-    const { data: foundBarangay } = await supabase
+    const { data: foundBarangay, error: findBarangayError } = await supabase
       .from('barangays')
       .select('id')
       .eq('name', effectiveBarangayName)
       .maybeSingle();
+    
+    // Check if we got a valid barangay or if there was a connection error
+    if (findBarangayError) {
+      // If it's a fetch/network error, provide better error message
+      if (findBarangayError.message?.includes('fetch failed') || findBarangayError.message?.includes('TypeError')) {
+        console.error('Supabase connection error:', findBarangayError);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
+          },
+          { status: 503 }
+        );
+      }
+      // Other errors, continue to try creating
+      console.error('Error finding barangay:', findBarangayError);
+    }
     
     if (foundBarangay?.id) {
       barangayId = foundBarangay.id;
@@ -184,53 +295,69 @@ export async function POST(request) {
         .select('id')
         .single();
       
-      if (!insertBarangayError && newBarangay) {
-        barangayId = newBarangay.id;
-      } else {
+      if (insertBarangayError) {
+        // If it's a fetch/network error, provide better error message
+        if (insertBarangayError.message?.includes('fetch failed') || insertBarangayError.message?.includes('TypeError')) {
+          console.error('Supabase connection error:', insertBarangayError);
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
+            },
+            { status: 503 }
+          );
+        }
         console.error('Failed to create/find barangay:', insertBarangayError);
         return NextResponse.json(
           { success: false, error: 'Failed to resolve barangay. Please ensure a valid barangay is selected.' },
           { status: 400 }
         );
       }
+      
+      if (newBarangay?.id) {
+        barangayId = newBarangay.id;
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Failed to create barangay. Please try again.' },
+          { status: 500 }
+        );
+      }
     }
 
-    // Parse data rows
+    // Parse data rows (start after header row, skip empty rows)
     const residents = [];
     const errors = [];
     
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
       
       const values = parseCSVLine(line);
       
-      // Skip if row doesn't have enough columns
-      if (values.length < Math.max(nameIndex, sexIndex, birthdayIndex) + 1) {
-        errors.push(`Row ${i + 1}: Insufficient columns`);
+      // Skip empty rows
+      if (isEmptyRow(values)) continue;
+      
+      // Safely extract values (handle cases where row might have fewer columns)
+      const name = values[nameIndex]?.trim() || '';
+      const sex = values[sexIndex]?.trim() || '';
+      const birthday = values[birthdayIndex]?.trim() || '';
+      const dateOfVaccine = (dateOfVaccineIndex >= 0 && values[dateOfVaccineIndex]) ? values[dateOfVaccineIndex].trim() : null;
+      const vaccineGiven = (vaccineGivenIndex >= 0 && values[vaccineGivenIndex]) ? values[vaccineGivenIndex].trim() : null;
+      
+      // Skip rows with empty or invalid names (likely empty rows that weren't caught)
+      if (!name || name === '-' || name.length < 2) {
         continue;
       }
       
-      const name = values[nameIndex]?.trim();
-      const sex = values[sexIndex]?.trim();
-      const birthday = values[birthdayIndex]?.trim();
-      const dateOfVaccine = dateOfVaccineIndex >= 0 ? values[dateOfVaccineIndex]?.trim() : null;
-      const vaccineGiven = vaccineGivenIndex >= 0 ? values[vaccineGivenIndex]?.trim() : null;
-      
-      // Validate required fields
-      if (!name) {
-        errors.push(`Row ${i + 1}: Missing name`);
-        continue;
-      }
-      
-      if (!birthday) {
-        errors.push(`Row ${i + 1}: Missing birthday`);
+      // Validate required fields - be lenient with missing data
+      if (!birthday || birthday === '-') {
+        errors.push(`Row ${i + 1}: Missing birthday for ${name}`);
         continue;
       }
       
       const parsedBirthday = parseDate(birthday);
       if (!parsedBirthday) {
-        errors.push(`Row ${i + 1}: Invalid birthday format: ${birthday}`);
+        errors.push(`Row ${i + 1}: Invalid birthday format "${birthday}" for ${name}`);
         continue;
       }
       
@@ -294,6 +421,19 @@ export async function POST(request) {
 
       if (error) {
         console.error(`Error inserting batch ${Math.floor(i / batchSize) + 1}:`, error);
+        // Check if it's a connection error
+        if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+          // Return early if it's a connection error - can't continue
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.',
+              successCount, // Return count of successfully inserted before error
+              errors: [...errors, ...batchErrors, `Batch ${Math.floor(i / batchSize) + 1}: Connection failed`]
+            },
+            { status: 503 }
+          );
+        }
         batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
         // Continue with next batch even if one fails
       } else {
@@ -307,7 +447,8 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       successCount,
-      totalRows: lines.length - 1,
+      totalRows: residents.length, // Count of parsed residents, not total file rows
+      processedRows: lines.length - headerRowIndex - 1, // Rows processed after header
       errors: allErrors.length > 0 ? allErrors : undefined
     });
 
