@@ -32,6 +32,13 @@ export async function GET(request) {
 
     if (error) {
       console.error('Supabase error:', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          { success: false, error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { success: false, error: 'Failed to fetch residents' },
         { status: 500 }
@@ -56,10 +63,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by } = body;
+    const { name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given } = body;
 
     // Validate required fields
-    if (!name || !age || !address || !contact) {
+    if (!name || !birthday || !sex || !address || !contact) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -74,7 +81,12 @@ export async function POST(request) {
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle?.();
+        .maybeSingle();
+      
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+        // Continue to try creating if lookup fails (could be network issue)
+      }
 
       if (foundBarangay && foundBarangay.id) {
         resolvedBarangayId = foundBarangay.id;
@@ -107,7 +119,8 @@ export async function POST(request) {
       .insert([
         {
           name,
-          age: parseInt(age),
+          birthday: birthday || null,
+          sex: sex || null,
           address,
           contact,
           vaccine_status: vaccine_status || 'not_vaccinated',
@@ -115,6 +128,7 @@ export async function POST(request) {
           barangay: barangay || null,
           barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
           submitted_by: submitted_by || 'system',
+          vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
           submitted_at: new Date().toISOString()
         }
       ])
@@ -123,6 +137,16 @@ export async function POST(request) {
 
     if (error) {
       console.error('Supabase error (create resident):', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.'
+          },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -151,7 +175,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality } = body;
+    const { id, name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, vaccines_given } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -163,11 +187,15 @@ export async function PUT(request) {
     // Resolve barangay_id if provided as name
     let resolvedBarangayId = barangay_id || null;
     if (!resolvedBarangayId && barangay) {
-      const { data: foundBarangay } = await supabase
+      const { data: foundBarangay, error: findBarangayError } = await supabase
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle?.();
+        .maybeSingle();
+      
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+      }
       if (foundBarangay?.id) {
         resolvedBarangayId = foundBarangay.id;
       } else {
@@ -183,18 +211,26 @@ export async function PUT(request) {
     }
 
     // Update resident in Supabase
+    const updateData = {
+      name,
+      birthday: birthday !== undefined ? birthday : undefined,
+      sex: sex !== undefined ? sex : undefined,
+      address,
+      contact,
+      vaccine_status: vaccine_status || 'not_vaccinated',
+      barangay: barangay || null,
+      barangay_id: resolvedBarangayId ?? undefined,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update vaccines_given if provided
+    if (vaccines_given !== undefined) {
+      updateData.vaccines_given = Array.isArray(vaccines_given) ? vaccines_given : [];
+    }
+
     const { data: updatedResident, error } = await supabase
       .from('residents')
-      .update({
-        name,
-        age: parseInt(age),
-        address,
-        contact,
-        vaccine_status: vaccine_status || 'not_vaccinated',
-        barangay: barangay || null,
-        barangay_id: resolvedBarangayId ?? undefined,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
