@@ -37,7 +37,7 @@ export default function Sidebar() {
 
   // Full list of items
   const allMenuItems = [
-    { name: "Dashboard", icon: Home, path: basePath },
+    { name: "Dashboard", icon: Home, path: `${basePath}/Dashboard` },
     { name: "Inventory", icon: Package, path: `${basePath}/inventory` },
     { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
     

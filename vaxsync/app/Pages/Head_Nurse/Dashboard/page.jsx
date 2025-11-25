@@ -1,53 +1,29 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import Sidebar from '@/components/shared/Sidebar';
+import Header from '@/components/shared/Header';
 
 export default function Page() {
-  const [stats, setStats] = useState([
-    { label: 'Total Stock', value: 0, unit: 'Doses available', color: 'text-[#93DA97]' },
-    { label: 'Used Today', value: 0, unit: 'Doses administered', color: 'text-[#93DA97]' },
-    { label: 'Low Stock Alerts', value: 0, unit: 'Vaccines below threshold', color: 'text-[#93DA97]' },
-    { label: 'Active Users', value: 0, unit: 'Health workers online', color: 'text-[#93DA97]' }
-  ]);
 
-  const [weeklyData, setWeeklyData] = useState([
-    { day: 'Mon', usage: 0 },
-    { day: 'Tue', usage: 0 },
-    { day: 'Wed', usage: 0 },
-    { day: 'Thu', usage: 0 },
-    { day: 'Fri', usage: 0 },
-    { day: 'Sat', usage: 0 },
-    { day: 'Sun', usage: 0 }
-  ]);
+  const [weeklyData, setWeeklyData] = useState([]);
+  const [barangayData, setBarangayData] = useState([]);
+  const [sessionStats, setSessionStats] = useState({});
+  const [vaccineTypes, setVaccineTypes] = useState([]);
+  const [residentStats, setResidentStats] = useState({});
 
-  const [barangayData, setBarangayData] = useState([
-    { name: 'Barangay A', percentage: 0, color: '#3E5F44' },
-    { name: 'Barangay B', percentage: 0, color: '#5E936C' },
-    { name: 'Barangay C', percentage: 0, color: '#93DA97' },
-    { name: 'Barangay D', percentage: 0, color: '#C8E6C9' }
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const { data: vaccines } = await supabase.from('barangay_vaccine_inventory').select('*');
+        setLoading(true);
+        setError(null);
         const { data: sessions } = await supabase.from('vaccination_sessions').select('*');
-        const { data: workers } = await supabase.from('user_profiles').select('*').eq('role', 'health_worker');
         const { data: barangays } = await supabase.from('barangays').select('*');
-
-        // Calculate stats
-        const totalStock = vaccines?.reduce((sum, v) => sum + (v.quantity || 0), 0) || 0;
-        const lowStock = vaccines?.filter(v => (v.quantity || 0) < 50).length || 0;
-        const today = new Date().toISOString().split('T')[0];
-        const usedToday = sessions?.filter(s => s.session_date === today).reduce((sum, s) => sum + (s.administered || 0), 0) || 0;
-        const activeUsers = workers?.length || 0;
-
-        setStats([
-          { label: 'Total Stock', value: totalStock, unit: 'Doses available', color: 'text-[#93DA97]' },
-          { label: 'Used Today', value: usedToday, unit: 'Doses administered', color: 'text-[#93DA97]' },
-          { label: 'Low Stock Alerts', value: lowStock, unit: 'Vaccines below threshold', color: 'text-[#93DA97]' },
-          { label: 'Active Users', value: activeUsers, unit: 'Health workers online', color: 'text-[#93DA97]' }
-        ]);
+        const { data: vaccineList } = await supabase.from('vaccines').select('id, name');
+        const { data: residents } = await supabase.from('residents').select('*');
 
         // Calculate weekly data (last 7 days)
         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -86,8 +62,41 @@ export default function Page() {
           }
           setBarangayData(distributions);
         }
+
+        // Calculate session statistics
+        const scheduled = sessions?.filter(s => s.status === 'Scheduled').length || 0;
+        const inProgress = sessions?.filter(s => s.status === 'In progress').length || 0;
+        const completed = sessions?.filter(s => s.status === 'Completed').length || 0;
+        const totalSessions = scheduled + inProgress + completed;
+        const completionRate = totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0;
+
+        setSessionStats({
+          scheduled,
+          inProgress,
+          completed,
+          completionRate
+        });
+
+        // Set vaccine types
+        setVaccineTypes(vaccineList || []);
+
+        // Calculate resident statistics
+        const totalResidents = residents?.length || 0;
+        const vaccinatedResidents = residents?.filter(r => r.vaccine_status === 'fully_vaccinated' || r.vaccine_status === 'vaccinated').length || 0;
+        const pendingResidents = residents?.filter(r => r.status === 'pending').length || 0;
+        const vaccinationRate = totalResidents > 0 ? Math.round((vaccinatedResidents / totalResidents) * 100) : 0;
+
+        setResidentStats({
+          total: totalResidents,
+          vaccinated: vaccinatedResidents,
+          pending: pendingResidents,
+          vaccinationRate
+        });
       } catch (error) {
         console.error('Error:', error);
+        setError(error.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -131,47 +140,85 @@ export default function Page() {
 
   const linePoints = getLineChartPoints();
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white px-8 py-6 border-b border-gray-200 flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Real-time vaccine inventory overview</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="relative p-2 hover:bg-gray-100 rounded-lg">
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-          <button className="p-2 hover:bg-gray-100 rounded-lg">
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </button>
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 lg:ml-64 p-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-700">Error loading dashboard: {error}</p>
+          </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 lg:ml-64">
+      <Header title="Dashboard" subtitle="Real-time vaccine program overview" />
 
       <div className="p-8">
+
+        {/* Session Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {stats.map((stat, i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-              <p className="text-sm text-gray-600">{stat.label}</p>
-              <p className={`text-4xl font-bold ${stat.color} mt-2`}>{stat.value}</p>
-              <p className="text-xs text-gray-500 mt-1">{stat.unit}</p>
-            </div>
-          ))}
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Scheduled Sessions</p>
+            <p className="text-4xl font-bold text-purple-600 mt-2">{sessionStats.scheduled}</p>
+            <p className="text-xs text-gray-500 mt-1">Upcoming sessions</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">In Progress</p>
+            <p className="text-4xl font-bold text-yellow-600 mt-2">{sessionStats.inProgress}</p>
+            <p className="text-xs text-gray-500 mt-1">Active sessions</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Completed Sessions</p>
+            <p className="text-4xl font-bold text-green-600 mt-2">{sessionStats.completed}</p>
+            <p className="text-xs text-gray-500 mt-1">Finished sessions</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Completion Rate</p>
+            <p className="text-4xl font-bold text-[#3E5F44] mt-2">{sessionStats.completionRate}%</p>
+            <p className="text-xs text-gray-500 mt-1">Overall progress</p>
+          </div>
         </div>
 
-        {stats[2].value > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm text-red-700">{stats[2].value} vaccine type{stats[2].value > 1 ? 's are' : ' is'} running low. Please reorder soon.</p>
+        {/* Resident Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Total Residents</p>
+            <p className="text-4xl font-bold text-blue-600 mt-2">{residentStats.total}</p>
+            <p className="text-xs text-gray-500 mt-1">Registered beneficiaries</p>
           </div>
-        )}
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Vaccinated</p>
+            <p className="text-4xl font-bold text-green-600 mt-2">{residentStats.vaccinated}</p>
+            <p className="text-xs text-gray-500 mt-1">Fully vaccinated</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+            <p className="text-sm text-gray-600">Vaccination Rate</p>
+            <p className="text-4xl font-bold text-[#3E5F44] mt-2">{residentStats.vaccinationRate}%</p>
+            <p className="text-xs text-gray-500 mt-1">Coverage percentage</p>
+          </div>
+        </div>
+
+        {/* Vaccine Types Card */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Available Vaccines</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {vaccineTypes.map((vaccine, index) => (
+              <div key={vaccine.id} className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                  <p className="text-sm font-medium text-gray-800">{vaccine.name}</p>
+                </div>
+                <p className="text-xs text-gray-600">Vaccine Type</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -231,6 +278,7 @@ export default function Page() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
