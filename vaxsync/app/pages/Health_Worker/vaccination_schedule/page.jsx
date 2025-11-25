@@ -17,7 +17,8 @@ import ConfirmDialog from "../../../../components/dialogs/ConfirmDialog";
 import SessionCalendar from "../../../../components/vaccination-schedule/SessionCalendar";
 import SearchBar from "../../../../components/shared/SearchBar";
 import SessionsContainer from "../../../../components/vaccination-schedule/SessionsContainer";
-import { Plus, Calendar } from "lucide-react";
+import SessionPerformanceCards from "../../../../components/vaccination-schedule/SessionPerformanceCards";
+import { Plus, Calendar, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
@@ -84,6 +85,9 @@ export default function VaccinationSchedule({
   
   // Search term for filtering sessions
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Status filter state
+  const [statusFilter, setStatusFilter] = useState(null);
   
   // Form data state
   const [formData, setFormData] = useState({
@@ -308,14 +312,17 @@ export default function VaccinationSchedule({
     });
   };
 
-  // Filter sessions based on search term
+  // Filter sessions based on search term and status
   const filteredSessions = sessions.filter((session) => {
     const term = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = 
       (session.barangays?.name || "").toLowerCase().includes(term) ||
       (session.vaccines?.name || "").toLowerCase().includes(term) ||
-      (session.session_date || "").includes(searchTerm)
-    );
+      (session.session_date || "").includes(searchTerm);
+    
+    const matchesStatus = !statusFilter || session.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
   });
 
   // Validate form before submission
@@ -477,6 +484,57 @@ export default function VaccinationSchedule({
           {/* Table View */}
           {!isLoading && !isCalendarView && (
             <>
+              {/* Session Performance Cards */}
+              <SessionPerformanceCards 
+                sessions={sessions}
+                userRole={userProfile?.user_role}
+                userBarangayId={userProfile?.barangays?.id}
+              />
+
+              {/* Status Filter Buttons */}
+              <div className="mb-6 flex flex-wrap gap-2">
+                <button
+                  onClick={() => setStatusFilter(null)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === null
+                      ? 'bg-[#4A7C59] text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  All Sessions
+                </button>
+                <button
+                  onClick={() => setStatusFilter("Scheduled")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "Scheduled"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  Scheduled
+                </button>
+                <button
+                  onClick={() => setStatusFilter("In progress")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "In progress"
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                  }`}
+                >
+                  In Progress
+                </button>
+                <button
+                  onClick={() => setStatusFilter("Completed")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "Completed"
+                      ? 'bg-green-600 text-white'
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
+                >
+                  Completed
+                </button>
+              </div>
+
               {/* Search Bar */}
               <SearchBar
                 placeholder="Search by barangay, vaccine, or date..."

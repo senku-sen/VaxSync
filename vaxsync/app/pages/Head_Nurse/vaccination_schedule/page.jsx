@@ -15,6 +15,7 @@ import UpdateAdministeredModal from "../../../../components/vaccination-schedule
 import SessionCalendar from "../../../../components/vaccination-schedule/SessionCalendar";
 import SearchBar from "../../../../components/shared/SearchBar";
 import SessionsContainer from "../../../../components/vaccination-schedule/SessionsContainer";
+import SessionPerformanceCards from "../../../../components/vaccination-schedule/SessionPerformanceCards";
 import { Plus, Calendar, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
@@ -71,6 +72,9 @@ export default function HeadNurseVaccinationSchedule({
   
   // Search term for filtering sessions
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Status filter state
+  const [statusFilter, setStatusFilter] = useState(null);
   
   // Form data state
   const [formData, setFormData] = useState({
@@ -263,7 +267,7 @@ export default function HeadNurseVaccinationSchedule({
   };
 
 
-  // Filter sessions based on search term and selected barangay
+  // Filter sessions based on search term, selected barangay, and status
   const filteredSessions = sessions.filter((session) => {
     const term = searchTerm.toLowerCase();
     const matchesSearch = 
@@ -272,8 +276,9 @@ export default function HeadNurseVaccinationSchedule({
       (session.session_date || "").includes(searchTerm);
     
     const matchesBarangay = !selectedBarangay || session.barangay_id === selectedBarangay;
+    const matchesStatus = !statusFilter || session.status === statusFilter;
     
-    return matchesSearch && matchesBarangay;
+    return matchesSearch && matchesBarangay && matchesStatus;
   });
 
   // Validate form before submission
@@ -418,6 +423,15 @@ export default function HeadNurseVaccinationSchedule({
             </div>
           )}
 
+          {/* Session Performance Cards */}
+          {!isLoading && !isCalendarView && (
+            <SessionPerformanceCards 
+              sessions={sessions}
+              userRole={userProfile?.user_role}
+              userBarangayId={null}
+            />
+          )}
+
           {/* Barangay Filter and Search */}
           {!isLoading && !isCalendarView && (
             <div className="mb-6 space-y-4">
@@ -439,6 +453,50 @@ export default function HeadNurseVaccinationSchedule({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Status Filter Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setStatusFilter(null)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === null
+                      ? 'bg-[#4A7C59] text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  All Sessions
+                </button>
+                <button
+                  onClick={() => setStatusFilter("Scheduled")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "Scheduled"
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                >
+                  Scheduled
+                </button>
+                <button
+                  onClick={() => setStatusFilter("In progress")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "In progress"
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                  }`}
+                >
+                  In Progress
+                </button>
+                <button
+                  onClick={() => setStatusFilter("Completed")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    statusFilter === "Completed"
+                      ? 'bg-green-600 text-white'
+                      : 'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}
+                >
+                  Completed
+                </button>
               </div>
 
               {/* Search Bar */}

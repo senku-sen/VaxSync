@@ -9,6 +9,7 @@ export default function VaccineRequestsTable({
   isLoading = false,
   error = null,
   searchQuery = "",
+  statusFilter = null,
   onDelete,
   onRetry,
   onUpdateStatus,
@@ -96,8 +97,10 @@ export default function VaccineRequestsTable({
   const filteredRequests = requests.filter(request => {
     const searchLower = searchQuery.toLowerCase();
     const vaccineName = vaccines.find(v => v.id === request.vaccine_id)?.name?.toLowerCase() || '';
-    return request.id?.toString().toLowerCase().includes(searchLower) ||
+    const matchesSearch = request.id?.toString().toLowerCase().includes(searchLower) ||
            vaccineName.includes(searchLower);
+    const matchesStatus = !statusFilter || request.status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   if (requests.length === 0) {
@@ -126,6 +129,7 @@ export default function VaccineRequestsTable({
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barangay</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vaccine Type</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (dose)</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (vial)</th>
@@ -146,6 +150,9 @@ export default function VaccineRequestsTable({
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {new Date(request.created_at).toLocaleDateString('en-CA')}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {request.barangays?.name || 'Loading...'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {vaccines.find(v => v.id === request.vaccine_id)?.name || 'Loading...'}

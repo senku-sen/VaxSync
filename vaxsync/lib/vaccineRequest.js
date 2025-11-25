@@ -67,7 +67,7 @@ export async function fetchVaccineRequests(options = {}) {
 
   let query = supabase
     .from("vaccine_requests")
-    .select("*")
+    .select("*, barangays(id, name, municipality)")
     .order("created_at", { ascending: false });
 
   // If not admin (Health Worker), filter by user
@@ -94,7 +94,7 @@ export async function fetchVaccineRequests(options = {}) {
     // Return all requests for now - they'll be filtered client-side if needed
     const { data: allData, error: altError } = await supabase
       .from("vaccine_requests")
-      .select("*")
+      .select("*, barangays(id, name, municipality)")
       .order("created_at", { ascending: false });
     return { data: allData || [], error: altError };
   }

@@ -113,6 +113,15 @@ export default function VaccineRequestDetailModal({
           <div className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Barangay
+              </label>
+              <p className="mt-1 text-sm text-gray-900 font-medium">
+                {request.barangays?.name || "Loading..."}
+              </p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Vaccine Type
               </label>
               <p className="mt-1 text-sm text-gray-900 font-medium">

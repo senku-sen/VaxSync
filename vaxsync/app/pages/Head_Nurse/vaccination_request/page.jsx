@@ -46,6 +46,9 @@ export default function VaccinationRequest({
   // Loading state for vaccines
   const [isLoadingVaccines, setIsLoadingVaccines] = useState(true);
 
+  // Status filter state
+  const [statusFilter, setStatusFilter] = useState(null);
+
   useEffect(() => {
     initializeData();
   }, []);
@@ -130,6 +133,50 @@ export default function VaccinationRequest({
               </div>
             </div>
 
+            {/* Status Filter Buttons */}
+            <div className="mb-6 flex flex-wrap gap-2">
+              <button
+                onClick={() => setStatusFilter(null)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  statusFilter === null
+                    ? 'bg-[#4A7C59] text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                All Requests
+              </button>
+              <button
+                onClick={() => setStatusFilter("pending")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  statusFilter === "pending"
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                }`}
+              >
+                Pending
+              </button>
+              <button
+                onClick={() => setStatusFilter("approved")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  statusFilter === "approved"
+                    ? 'bg-green-600 text-white'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                }`}
+              >
+                Approved
+              </button>
+              <button
+                onClick={() => setStatusFilter("rejected")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                  statusFilter === "rejected"
+                    ? 'bg-red-600 text-white'
+                    : 'bg-red-100 text-red-700 hover:bg-red-200'
+                }`}
+              >
+                Rejected
+              </button>
+            </div>
+
             {/* Search Section */}
             <div className="mb-6">
               <div className="relative w-full">
@@ -165,6 +212,7 @@ export default function VaccinationRequest({
                   isLoading={isLoading}
                   error={error}
                   searchQuery={searchQuery}
+                  statusFilter={statusFilter}
                   onDelete={handleDeleteRequest}
                   onUpdateStatus={handleUpdateStatus}
                   onRetry={loadRequests}

@@ -181,7 +181,7 @@ export default function UpdateAdministeredModal({
               <label htmlFor="administered" className="block text-sm font-medium text-gray-700 mb-2">
                 Administered Count <span className="text-red-500">*</span>
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-3">
                 <input
                   type="number"
                   id="administered"
@@ -199,6 +199,30 @@ export default function UpdateAdministeredModal({
                   / {target}
                 </span>
               </div>
+
+              {/* Quick Add Buttons */}
+              {!isViewOnly && session.status !== "Scheduled" && session.status !== "Cancelled" && (
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {[3, 5, 10, 20].map((increment) => (
+                    <button
+                      key={increment}
+                      type="button"
+                      onClick={() => {
+                        const newValue = Math.min((session.administered || 0) + increment, target);
+                        onSubmit({
+                          ...session,
+                          administered: newValue
+                        }, 'update');
+                      }}
+                      disabled={isViewOnly || (session.administered || 0) >= target}
+                      className="px-2 py-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      +{increment}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {isViewOnly && (
                 <p className="text-xs text-blue-500 mt-1">
                   This is a read-only view
