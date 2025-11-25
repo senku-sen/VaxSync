@@ -28,40 +28,119 @@ function parseCSVLine(line) {
   return result;
 }
 
-// Parse date from various formats (MM/DD/YYYY, MM-DD-YYYY, MM-DD-YY)
+// Parse date from various formats (MM/DD/YYYY, MM-DD-YYYY, MM/DD/YY, MM-DD-YY)
+// Returns { date: string, isFuture: boolean, error: string } or null
 function parseDate(dateString) {
   if (!dateString || !dateString.trim()) return null;
   
   const str = dateString.trim();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time to compare dates only
   
   // Try MM/DD/YYYY
   let match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (match) {
     const [, month, day, year] = match;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const date = new Date(dateStr);
+    
+    // Validate date
+    if (isNaN(date.getTime())) {
+      return { error: 'Invalid date' };
+    }
+    
+    const isFuture = date > today;
+    return { date: dateStr, isFuture };
   }
   
   // Try MM-DD-YYYY
   match = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (match) {
     const [, month, day, year] = match;
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const dateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const date = new Date(dateStr);
+    
+    if (isNaN(date.getTime())) {
+      return { error: 'Invalid date' };
+    }
+    
+    const isFuture = date > today;
+    return { date: dateStr, isFuture };
   }
   
-  // Try MM-DD-YY (assume 20XX)
+  // Try MM/DD/YY (2-digit year with slashes) - NEW
+  match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (match) {
+    const [, month, day, year] = match;
+    const yearNum = parseInt(year);
+    const currentYear = today.getFullYear();
+    const currentCentury = Math.floor(currentYear / 100) * 100;
+    
+    // For 2-digit years, interpret intelligently:
+    // - Years 00-30: try 2000-2030 first, if future then use 1900-1930
+    // - Years 31-99: use 1931-1999 (previous century)
+    let fullYear;
+    
+    if (yearNum <= 30) {
+      // For 2-digit years 00-30, use current century (2000-2030)
+      // Accept future dates as-is
+      fullYear = currentCentury + yearNum;
+    } else {
+      // Years 31-99: previous century (1931-1999)
+      fullYear = currentCentury - 100 + yearNum;
+    }
+    
+    const dateStr = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const date = new Date(dateStr);
+    
+    if (isNaN(date.getTime())) {
+      return { error: 'Invalid date' };
+    }
+    
+    const isFuture = date > today;
+    return { date: dateStr, isFuture };
+  }
+  
+  // Try MM-DD-YY (2-digit year with dashes)
   match = str.match(/^(\d{1,2})-(\d{1,2})-(\d{2})$/);
   if (match) {
     const [, month, day, year] = match;
-    const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`;
-    return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const yearNum = parseInt(year);
+    const currentYear = today.getFullYear();
+    const currentCentury = Math.floor(currentYear / 100) * 100;
+    
+    let fullYear;
+    
+    if (yearNum <= 30) {
+      // For 2-digit years 00-30, use current century (2000-2030)
+      // Accept future dates as-is
+      fullYear = currentCentury + yearNum;
+    } else {
+      fullYear = currentCentury - 100 + yearNum;
+    }
+    
+    const dateStr = `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const date = new Date(dateStr);
+    
+    if (isNaN(date.getTime())) {
+      return { error: 'Invalid date' };
+    }
+    
+    const isFuture = date > today;
+    return { date: dateStr, isFuture };
   }
   
   // Try ISO format (YYYY-MM-DD)
   if (str.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    return str;
+    const date = new Date(str);
+    if (isNaN(date.getTime())) {
+      return { error: 'Invalid date' };
+    }
+    const isFuture = date > today;
+    return { date: str, isFuture };
   }
   
-  return null;
+  return { error: 'Unrecognized date format' };
 }
 
 // Normalize vaccine names (e.g., "PENTA1, PCV1" -> ["penta1", "pcv1"])
@@ -355,11 +434,15 @@ export async function POST(request) {
         continue;
       }
       
-      const parsedBirthday = parseDate(birthday);
-      if (!parsedBirthday) {
-        errors.push(`Row ${i + 1}: Invalid birthday format "${birthday}" for ${name}`);
+      const parsedBirthdayResult = parseDate(birthday);
+      if (!parsedBirthdayResult || parsedBirthdayResult.error) {
+        const errorMsg = parsedBirthdayResult?.error || 'Invalid format';
+        errors.push(`Row ${i + 1}: Invalid birthday format "${birthday}" for ${name} (${errorMsg})`);
         continue;
       }
+      
+      // Accept all dates, even future dates - keep format as is in CSV
+      const parsedBirthday = parsedBirthdayResult.date;
       
       const normalizedSex = normalizeSex(sex);
       const vaccines = parseVaccines(vaccineGiven);
@@ -434,7 +517,12 @@ export async function POST(request) {
             { status: 503 }
           );
         }
-        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
+        // Check for constraint violations (like birthday_not_future)
+        let errorMessage = error.message;
+        if (error.message?.includes('birthday_not_future') || error.code === '23514') {
+          errorMessage = `Database constraint violation: Some birthdays are in the future. Please remove the 'birthday_not_future' constraint from your database if you want to allow future dates.`;
+        }
+        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${errorMessage}`);
         // Continue with next batch even if one fails
       } else {
         successCount += data?.length || 0;
