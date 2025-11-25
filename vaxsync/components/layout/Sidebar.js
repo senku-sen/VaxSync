@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 
 const Icon = ({ name, isActive }) => {
   const iconClass = `w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`;
@@ -77,11 +78,17 @@ const Icon = ({ name, isActive }) => {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [userRole, setUserRole] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Detect user role based on current pathname (no state to avoid hydration mismatch)
-  const userRole = pathname.includes('Head_Nurse') 
-    ? 'Head_Nurse' 
-    : 'Health_Worker';
+  // Detect user role based on current pathname after mount to avoid hydration mismatch
+  useEffect(() => {
+    const role = pathname.includes('Head_Nurse') 
+      ? 'Head_Nurse' 
+      : 'Health_Worker';
+    setUserRole(role);
+    setIsMounted(true);
+  }, [pathname]);
 
   const handleLogout = () => {
     // Clear any stored user data
@@ -105,22 +112,21 @@ export default function Sidebar() {
     { name: 'Notifications', path: '/notifications', icon: 'bell' },
   ];
 
-  // Head Nurse sidebar menu items (11 items - full admin access)
+  // Head Nurse sidebar menu items (10 items - full admin access)
   const headNurseMenuItems = [
     { name: 'Dashboard', path: '/Pages/Head_Nurse/Dashboard', icon: 'dashboard' },
     { name: 'Inventory', path: '/inventory', icon: 'inventory' },
-    { name: 'Vaccination Schedule', path: '/vaccination-schedule', icon: 'calendar' },
-    { name: 'Resident Data', path: '/resident-data', icon: 'users' },
-    { name: 'Resident Approval', path: '/resident-approval', icon: 'check' },
+    { name: 'Barangay Management', path: '/barangay-management', icon: 'users' },
+    { name: 'Vaccination Schedule', path: '/Pages/Head_Nurse/Vaccine_Schedule', icon: 'calendar' },
+    { name: 'NIP Tracking', path: '/nip-tracking', icon: 'chart' },
     { name: 'Vaccine Requests', path: '/vaccine-requests', icon: 'document' },
     { name: 'Request Approval', path: '/request-approval', icon: 'download' },
     { name: 'Reports', path: '/reports', icon: 'chart' },
     { name: 'Notifications', path: '/notifications', icon: 'bell' },
     { name: 'User Management', path: '/user-management', icon: 'user' },
-    { name: 'Settings', path: '/settings', icon: 'settings' },
   ];
 
-  // Select menu items based on role
+  // Select menu items based on role (default to health worker if not loaded yet)
   const menuItems = userRole === 'Head_Nurse' ? headNurseMenuItems : healthWorkerMenuItems;
 
   return (
@@ -135,7 +141,7 @@ export default function Sidebar() {
 
       {/* Navigation Menu */}
       <nav className="flex-1 px-2 py-3">
-        {menuItems.map((item) => {
+        {isMounted && menuItems.map((item) => {
           const isActive = pathname === item.path;
           return (
             <Link
