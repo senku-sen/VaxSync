@@ -191,8 +191,13 @@ export default function ResidentsPage() {
       const params = new URLSearchParams({
         status,
         search: searchTerm,
-        barangay: selectedBarangay || ""
       });
+
+      // For Health Workers, filter primarily by their assigned barangay name.
+      // The API uses a case-insensitive match so 'MAGANG' and 'Magang' both work.
+      if (selectedBarangay) {
+        params.set("barangay", selectedBarangay);
+      }
       
       const response = await fetch(`/api/residents?${params}`);
       const data = await response.json();
@@ -217,8 +222,10 @@ export default function ResidentsPage() {
       const pendingParams = new URLSearchParams({
         status: "pending",
         search: searchTerm,
-        barangay: selectedBarangay || ""
       });
+      if (selectedBarangay) {
+        pendingParams.set("barangay", selectedBarangay);
+      }
       const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
       const pendingData = await pendingResponse.json();
       
@@ -226,8 +233,10 @@ export default function ResidentsPage() {
       const approvedParams = new URLSearchParams({
         status: "approved",
         search: searchTerm,
-        barangay: selectedBarangay || ""
       });
+      if (selectedBarangay) {
+        approvedParams.set("barangay", selectedBarangay);
+      }
       const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
       const approvedData = await approvedResponse.json();
       

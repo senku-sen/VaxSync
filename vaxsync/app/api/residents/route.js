@@ -8,6 +8,7 @@ export async function GET(request) {
     const status = searchParams.get('status') || 'pending';
     const search = searchParams.get('search') || '';
     const barangay = searchParams.get('barangay') || '';
+    const barangayId = searchParams.get('barangay_id') || '';
 
     // Build the query
     let query = supabase
@@ -21,8 +22,14 @@ export async function GET(request) {
     }
 
     // Apply barangay filter
+    // Prefer barangay_id when available, but be tolerant of casing / legacy name-only rows
+    if (barangayId) {
+      query = query.eq('barangay_id', barangayId);
+    }
+
     if (barangay) {
-      query = query.eq('barangay', barangay);
+      // Case-insensitive match on barangay name so 'MAGANG', 'Magang', etc. all match
+      query = query.ilike('barangay', barangay);
     }
 
     // Order by submitted_at descending
