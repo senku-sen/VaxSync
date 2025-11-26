@@ -94,13 +94,16 @@ export const uploadSessionPhoto = async (
 
     console.log("Photo uploaded to storage:", storageData);
 
-    // Get signed URL (valid for 1 hour)
+    // Get signed URL (valid for 7 days = 604800 seconds)
+    // Using longer expiry than 1 hour to prevent "Image not available" issues
     const { data: urlData, error: urlError } = await supabase.storage
       .from(BUCKET_NAME)
-      .createSignedUrl(fileName, 3600);
+      .createSignedUrl(fileName, 604800); // 7 days
 
     if (urlError) {
       console.error("Signed URL error:", urlError);
+      // Try to delete the uploaded file if URL generation fails
+      await supabase.storage.from(BUCKET_NAME).remove([fileName]);
       return {
         success: false,
         data: null,
@@ -109,6 +112,7 @@ export const uploadSessionPhoto = async (
     }
 
     const photoUrl = urlData.signedUrl;
+    console.log("Generated signed URL:", photoUrl);
 
     // Save to database
     const { data: dbData, error: dbError } = await supabase
@@ -188,9 +192,46 @@ export const fetchSessionPhotos = async (sessionId) => {
 
     console.log("Photos fetched:", data?.length || 0);
 
+    // Regenerate signed URLs for photos to ensure they don't expire
+    // Extract file path from stored URL and create fresh signed URL
+    const photosWithFreshUrls = await Promise.all(
+      (data || []).map(async (photo) => {
+        try {
+          // Extract file path from the stored URL
+          // URL format: https://...storage.supabase.co/object/sign/vaccination-session-photos/...
+          const urlObj = new URL(photo.photo_url);
+          const pathParts = urlObj.pathname.split("/");
+          const objectIndex = pathParts.indexOf("vaccination-session-photos");
+          
+          if (objectIndex !== -1 && objectIndex + 2 < pathParts.length) {
+            const filePath = `${pathParts[objectIndex + 1]}/${pathParts[objectIndex + 2]}`;
+            
+            // Generate fresh signed URL (7 days)
+            const { data: urlData, error: urlError } = await supabase.storage
+              .from(BUCKET_NAME)
+              .createSignedUrl(filePath, 604800); // 7 days
+            
+            if (urlError) {
+              console.error("Error regenerating URL for photo:", photo.id, urlError);
+              return photo; // Return original if regeneration fails
+            }
+            
+            return {
+              ...photo,
+              photo_url: urlData.signedUrl
+            };
+          }
+          return photo;
+        } catch (err) {
+          console.error("Error processing photo URL:", err);
+          return photo;
+        }
+      })
+    );
+
     return {
       success: true,
-      data: data || [],
+      data: photosWithFreshUrls || [],
       error: null,
     };
   } catch (err) {
