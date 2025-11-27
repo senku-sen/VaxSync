@@ -74,21 +74,38 @@ export default function ScheduleConfirmationModal({
                 </div>
               </div>
 
-              {/* Vaccine */}
-              <div className="mb-3">
-                <p className="text-xs text-gray-500">Vaccine</p>
-                <p className="text-sm font-medium text-gray-900">
-                  {vaccineInfo?.name || sessionData.vaccineName || "N/A"}
-                </p>
-              </div>
+              {/* Vaccines - Handle both single and multiple */}
+              {sessionData.isMultiple && sessionData.sessions ? (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Vaccines Scheduled</p>
+                  <div className="space-y-2">
+                    {sessionData.sessions.map((session, idx) => (
+                      <div key={idx} className="p-2 bg-gray-50 rounded border border-gray-200">
+                        <p className="text-sm font-medium text-gray-900">{session.vaccineName}</p>
+                        <p className="text-xs text-gray-600">Target: {session.target} people</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Single Vaccine */}
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500">Vaccine</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {vaccineInfo?.name || sessionData.vaccineName || "N/A"}
+                    </p>
+                  </div>
 
-              {/* Target */}
-              <div>
-                <p className="text-xs text-gray-500">Target People</p>
-                <p className="text-sm font-medium text-gray-900">
-                  {sessionData.target || "N/A"}
-                </p>
-              </div>
+                  {/* Target */}
+                  <div>
+                    <p className="text-xs text-gray-500">Target People</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {sessionData.target || "N/A"}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
 
 /**
  * Fetch barangay vaccine inventory
@@ -134,52 +135,233 @@ export async function updateBarangayVaccineInventory(inventoryId, quantityVial, 
 }
 
 /**
- * Deduct vaccine from inventory (when administered)
+ * Deduct vaccine from inventory (when administered) - FIFO Method
+ * Deducts from oldest inventory records first, handles multiple records
  * @param {string} barangayId - The barangay ID
  * @param {string} vaccineId - The vaccine ID
  * @param {number} quantityToDeduct - Number of vials to deduct
- * @returns {Promise<{success: boolean, error: Object|null}>}
+ * @returns {Promise<{success: boolean, error: Object|null, deductedRecords: Array}>}
  */
 export async function deductBarangayVaccineInventory(barangayId, vaccineId, quantityToDeduct) {
   try {
-    console.log('Deducting vaccine from inventory:', { barangayId, vaccineId, quantityToDeduct });
+    console.log('🔴 FIFO Deducting vaccine from inventory:', { barangayId, vaccineId, quantityToDeduct });
 
-    // Get current inventory
+    // Get vaccine name to look up doses per vial
+    const { data: vaccineData } = await supabase
+      .from('vaccines')
+      .select('name')
+      .eq('id', vaccineId)
+      .single();
+
+    const vaccineName = vaccineData?.name || '';
+    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
+    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+
+    // Get ALL inventory records for this vaccine in this barangay - FIFO (oldest first)
     const { data: inventory, error: fetchError } = await supabase
       .from('barangay_vaccine_inventory')
-      .select('id, quantity_vial, quantity_dose')
+      .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
       .eq('vaccine_id', vaccineId)
-      .order('created_at', { ascending: true })
-      .limit(1);
+      .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
+      .order('id', { ascending: true });  // Secondary sort by ID for consistency
 
     if (fetchError || !inventory || inventory.length === 0) {
       console.error('Inventory not found:', fetchError);
-      return { success: false, error: 'Inventory not found' };
+      return { success: false, error: 'Inventory not found', deductedRecords: [] };
     }
 
-    const currentInventory = inventory[0];
-    const newQuantity = Math.max(0, currentInventory.quantity_vial - quantityToDeduct);
+    console.log(`Found ${inventory.length} inventory record(s) for FIFO deduction:`, 
+      inventory.map(i => ({ id: i.id, quantity_vial: i.quantity_vial, batch: i.batch_number }))
+    );
 
-    // Update inventory
-    const { error: updateError } = await supabase
-      .from('barangay_vaccine_inventory')
-      .update({
-        quantity_vial: newQuantity,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', currentInventory.id);
+    let remainingToDeduct = quantityToDeduct;
+    const deductedRecords = [];
+    const updates = [];
 
-    if (updateError) {
-      console.error('Error deducting inventory:', updateError);
-      return { success: false, error: updateError };
+    // Process each inventory record in FIFO order
+    for (const record of inventory) {
+      if (remainingToDeduct <= 0) break;
+
+      const availableInThisRecord = record.quantity_vial;
+      const deductFromThisRecord = Math.min(remainingToDeduct, availableInThisRecord);
+      const newQuantity = availableInThisRecord - deductFromThisRecord;
+      
+      // Calculate doses to deduct based on vial mapping
+      const dosesToDeduct = deductFromThisRecord * dosesPerVial;
+      const newDoseQuantity = (record.quantity_dose || 0) - dosesToDeduct;
+
+      console.log(`  📦 Record ${record.id} (Batch: ${record.batch_number}):`);
+      console.log(`     Vials: ${availableInThisRecord} → ${newQuantity} (deducting ${deductFromThisRecord})`);
+      console.log(`     Doses: ${record.quantity_dose} → ${newDoseQuantity} (deducting ${dosesToDeduct})`);
+
+      deductedRecords.push({
+        id: record.id,
+        batch_number: record.batch_number,
+        previousQuantity: availableInThisRecord,
+        deductedQuantity: deductFromThisRecord,
+        newQuantity: newQuantity,
+        previousDoses: record.quantity_dose,
+        deductedDoses: dosesToDeduct,
+        newDoses: newDoseQuantity
+      });
+
+      // Queue this update
+      updates.push({
+        id: record.id,
+        newQuantity: newQuantity,
+        newDoseQuantity: newDoseQuantity
+      });
+
+      remainingToDeduct -= deductFromThisRecord;
     }
 
-    console.log('Inventory deducted successfully. New quantity:', newQuantity);
-    return { success: true, error: null };
+    // Check if we could deduct the full amount
+    if (remainingToDeduct > 0) {
+      console.warn(`⚠️ Warning: Could only deduct ${quantityToDeduct - remainingToDeduct}/${quantityToDeduct} vials. Shortage: ${remainingToDeduct}`);
+    }
+
+    // Apply all updates
+    console.log(`📝 Applying ${updates.length} update(s) to database...`);
+    for (const update of updates) {
+      console.log(`  Updating record ${update.id}:`);
+      console.log(`    quantity_vial = ${update.newQuantity}, quantity_dose = ${update.newDoseQuantity}`);
+      
+      const { error: updateError } = await supabase
+        .from('barangay_vaccine_inventory')
+        .update({
+          quantity_vial: update.newQuantity,
+          quantity_dose: update.newDoseQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', update.id);
+
+      if (updateError) {
+        console.error(`❌ ERROR updating inventory record ${update.id}:`, updateError);
+        return { success: false, error: updateError, deductedRecords: [] };
+      } else {
+        console.log(`  ✅ Record ${update.id} updated successfully`);
+      }
+    }
+
+    console.log(`✅ FIFO Deduction complete. Deducted from ${deductedRecords.length} record(s):`, deductedRecords);
+    return { success: true, error: null, deductedRecords };
   } catch (err) {
     console.error('Error in deductBarangayVaccineInventory:', err);
-    return { success: false, error: err };
+    return { success: false, error: err, deductedRecords: [] };
+  }
+}
+
+/**
+ * Add back vaccine to barangay inventory (when administered count is decreased) - FIFO Method
+ * Adds back to oldest inventory records first, handles multiple records
+ * @param {string} barangayId - The barangay ID
+ * @param {string} vaccineId - The vaccine ID
+ * @param {number} quantityToAdd - Number of vials to add back
+ * @returns {Promise<{success: boolean, error: Object|null, addedRecords: Array}>}
+ */
+export async function addBackBarangayVaccineInventory(barangayId, vaccineId, quantityToAdd) {
+  try {
+    console.log('🟢 FIFO Adding back vaccine to inventory:', { barangayId, vaccineId, quantityToAdd });
+
+    // Get vaccine name to look up doses per vial
+    const { data: vaccineData } = await supabase
+      .from('vaccines')
+      .select('name')
+      .eq('id', vaccineId)
+      .single();
+
+    const vaccineName = vaccineData?.name || '';
+    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
+    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+
+    // Get ALL inventory records for this vaccine in this barangay - FIFO (oldest first)
+    const { data: inventory, error: fetchError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .select('id, quantity_vial, quantity_dose, batch_number, created_at')
+      .eq('barangay_id', barangayId)
+      .eq('vaccine_id', vaccineId)
+      .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
+      .order('id', { ascending: true });  // Secondary sort by ID for consistency
+
+    if (fetchError || !inventory || inventory.length === 0) {
+      console.error('Inventory not found:', fetchError);
+      return { success: false, error: 'Inventory not found', addedRecords: [] };
+    }
+
+    console.log(`Found ${inventory.length} inventory record(s) for FIFO add-back:`, 
+      inventory.map(i => ({ id: i.id, quantity_vial: i.quantity_vial, batch: i.batch_number }))
+    );
+
+    let remainingToAdd = quantityToAdd;
+    const addedRecords = [];
+    const updates = [];
+
+    // Process each inventory record in FIFO order
+    for (const record of inventory) {
+      if (remainingToAdd <= 0) break;
+
+      const currentQuantity = record.quantity_vial;
+      const addToThisRecord = remainingToAdd;  // Add all remaining to this record
+      const newQuantity = currentQuantity + addToThisRecord;
+      
+      // Calculate doses to add back based on vial mapping
+      const dosesToAdd = addToThisRecord * dosesPerVial;
+      const newDoseQuantity = (record.quantity_dose || 0) + dosesToAdd;
+
+      console.log(`  📦 Record ${record.id} (Batch: ${record.batch_number}):`);
+      console.log(`     Vials: ${currentQuantity} → ${newQuantity} (adding ${addToThisRecord})`);
+      console.log(`     Doses: ${record.quantity_dose} → ${newDoseQuantity} (adding ${dosesToAdd})`);
+
+      addedRecords.push({
+        id: record.id,
+        batch_number: record.batch_number,
+        previousQuantity: currentQuantity,
+        addedQuantity: addToThisRecord,
+        newQuantity: newQuantity,
+        previousDoses: record.quantity_dose,
+        addedDoses: dosesToAdd,
+        newDoses: newDoseQuantity
+      });
+
+      // Queue this update
+      updates.push({
+        id: record.id,
+        newQuantity: newQuantity,
+        newDoseQuantity: newDoseQuantity
+      });
+
+      remainingToAdd -= addToThisRecord;
+    }
+
+    // Apply all updates
+    console.log(`📝 Applying ${updates.length} update(s) to database...`);
+    for (const update of updates) {
+      console.log(`  Updating record ${update.id}:`);
+      console.log(`    quantity_vial = ${update.newQuantity}, quantity_dose = ${update.newDoseQuantity}`);
+      
+      const { error: updateError } = await supabase
+        .from('barangay_vaccine_inventory')
+        .update({
+          quantity_vial: update.newQuantity,
+          quantity_dose: update.newDoseQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', update.id);
+
+      if (updateError) {
+        console.error(`❌ ERROR updating inventory record ${update.id}:`, updateError);
+        return { success: false, error: updateError, addedRecords: [] };
+      } else {
+        console.log(`  ✅ Record ${update.id} updated successfully`);
+      }
+    }
+
+    console.log(`✅ FIFO Add-back complete. Added to ${addedRecords.length} record(s):`, addedRecords);
+    return { success: true, error: null, addedRecords };
+  } catch (err) {
+    console.error('Error in addBackBarangayVaccineInventory:', err);
+    return { success: false, error: err, addedRecords: [] };
   }
 }
 
@@ -203,9 +385,14 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
       .order('created_at', { ascending: true })
       .limit(1);
 
-    if (fetchError || !inventory || inventory.length === 0) {
-      console.error('Inventory not found:', fetchError);
-      return { success: false, error: 'Inventory not found' };
+    if (fetchError) {
+      console.error('Error fetching inventory:', fetchError);
+      return { success: false, error: `Database error: ${fetchError.message}` };
+    }
+
+    if (!inventory || inventory.length === 0) {
+      console.warn('No inventory found for vaccine in this barangay:', { barangayId, vaccineId });
+      return { success: false, error: `No inventory found for this vaccine in barangay. Please add vaccine to inventory first.` };
     }
 
     const currentInventory = inventory[0];
@@ -214,8 +401,16 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
 
     // Check if enough vials are available
     if (availableVials < quantityToReserve) {
-      console.error('Not enough vials available to reserve');
-      return { success: false, error: `Not enough vials. Available: ${availableVials}, Requested: ${quantityToReserve}` };
+      console.warn('Not enough vials available to reserve:', {
+        availableVials,
+        quantityToReserve,
+        totalVials: currentInventory.quantity_vial,
+        alreadyReserved: currentReserved
+      });
+      return { 
+        success: false, 
+        error: `Not enough vials available to reserve. Available: ${availableVials}, Requested: ${quantityToReserve}. Total vials: ${currentInventory.quantity_vial}, Already reserved: ${currentReserved}` 
+      };
     }
 
     const newReservedQuantity = currentReserved + quantityToReserve;
@@ -325,12 +520,233 @@ export async function getLowStockVaccines(barangayId, threshold = 5) {
   }
 }
 
+/**
+ * Add back to main vaccine tables (vaccines and vaccine_doses) - FIFO Method
+ * Called when administered count is decreased
+ * @param {string} vaccineId - The vaccine ID
+ * @param {number} quantityToAdd - Number of doses to add back
+ * @returns {Promise<{success: boolean, error: Object|null}>}
+ */
+export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
+  try {
+    console.log('🟢 FIFO Adding back to main vaccine inventory:', { vaccineId, quantityToAdd });
+
+    // Add back to vaccines table
+    const { data: vaccine, error: vaccineError } = await supabase
+      .from('vaccines')
+      .select('id, quantity_available, name')
+      .eq('id', vaccineId)
+      .single();
+
+    if (vaccineError || !vaccine) {
+      console.error('Vaccine not found:', vaccineError);
+      return { success: false, error: 'Vaccine not found' };
+    }
+
+    // Get doses per vial from mapping
+    const vaccineName = vaccine.name || '';
+    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
+    const dosesToAddToVaccines = quantityToAdd * dosesPerVial;
+    
+    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+    console.log(`   Adding back ${quantityToAdd} vials = ${dosesToAddToVaccines} doses to vaccines table`);
+
+    const newVaccineQuantity = vaccine.quantity_available + dosesToAddToVaccines;
+
+    const { error: updateVaccineError } = await supabase
+      .from('vaccines')
+      .update({
+        quantity_available: newVaccineQuantity
+      })
+      .eq('id', vaccineId);
+
+    if (updateVaccineError) {
+      console.error('Error updating vaccines table:', updateVaccineError);
+      return { success: false, error: updateVaccineError };
+    }
+
+    console.log(`✅ Vaccines table updated. ${vaccine.quantity_available} → ${newVaccineQuantity}`);
+
+    // Also add back to vaccine_doses table (all doses of this vaccine)
+    // Use FIFO (First-In-First-Out) - add to oldest doses first
+    console.log('🔍 Attempting to fetch vaccine_doses for vaccine:', vaccineId);
+    console.log(`📊 Using same mapping: Doses per vial: ${dosesPerVial}, Total doses to add: ${dosesToAddToVaccines}`);
+    
+    const { data: doses, error: fetchDosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id, quantity_available, dose_code, created_at')
+      .eq('vaccine_id', vaccineId)
+      .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
+      .order('id', { ascending: true });
+
+    if (fetchDosesError) {
+      console.error('❌ ERROR: Could not fetch vaccine doses:', fetchDosesError);
+      console.error('Error details:', { message: fetchDosesError.message, code: fetchDosesError.code });
+      // Don't fail - just warn
+    } else if (!doses) {
+      console.warn('⚠️ Warning: vaccine_doses query returned null');
+    } else if (doses.length === 0) {
+      console.warn(`⚠️ Warning: No vaccine_doses found for vaccine ${vaccineId}. Vaccine_doses table may not have data for this vaccine.`);
+    } else {
+      console.log(`✅ Found ${doses.length} dose record(s) for FIFO add-back:`, 
+        doses.map(d => ({ id: d.id, dose_code: d.dose_code, quantity: d.quantity_available }))
+      );
+
+      // Add back to doses in FIFO order
+      let remainingToAdd = dosesToAddToVaccines;
+
+      for (const dose of doses) {
+        if (remainingToAdd <= 0) break;
+
+        const addToThisDose = remainingToAdd;  // Add all remaining to this dose
+        const newDoseQuantity = dose.quantity_available + addToThisDose;
+
+        console.log(`  💉 Dose ${dose.dose_code} (${dose.id}): ${dose.quantity_available} → ${newDoseQuantity} (adding ${addToThisDose} doses)`);
+
+        const { error: updateDoseError } = await supabase
+          .from('vaccine_doses')
+          .update({
+            quantity_available: newDoseQuantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', dose.id);
+
+        if (updateDoseError) {
+          console.error(`❌ ERROR: Could not update dose ${dose.id}:`, updateDoseError);
+        } else {
+          console.log(`✅ Dose ${dose.dose_code} updated. Added back: ${addToThisDose}, New quantity: ${newDoseQuantity}`);
+          remainingToAdd -= addToThisDose;
+        }
+      }
+    }
+
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error in addMainVaccineInventory:', err);
+    return { success: false, error: err };
+  }
+}
+
+/**
+ * Deduct from main vaccine tables (vaccines and vaccine_doses) - FIFO Method
+ * Called when vaccination is administered
+ * @param {string} vaccineId - The vaccine ID
+ * @param {number} quantityToDeduct - Number of doses to deduct
+ * @returns {Promise<{success: boolean, error: Object|null}>}
+ */
+export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
+  try {
+    console.log('🔴 FIFO Deducting from main vaccine inventory:', { vaccineId, quantityToDeduct });
+
+    // Deduct from vaccines table
+    const { data: vaccine, error: vaccineError } = await supabase
+      .from('vaccines')
+      .select('id, quantity_available, name')
+      .eq('id', vaccineId)
+      .single();
+
+    if (vaccineError || !vaccine) {
+      console.error('Vaccine not found:', vaccineError);
+      return { success: false, error: 'Vaccine not found' };
+    }
+
+    // Get doses per vial from mapping
+    const vaccineName = vaccine.name || '';
+    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
+    const dosesToDeductFromVaccines = quantityToDeduct * dosesPerVial;
+    
+    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+    console.log(`   Deducting ${quantityToDeduct} vials = ${dosesToDeductFromVaccines} doses from vaccines table`);
+
+    const newVaccineQuantity = Math.max(0, vaccine.quantity_available - dosesToDeductFromVaccines);
+
+    const { error: updateVaccineError } = await supabase
+      .from('vaccines')
+      .update({
+        quantity_available: newVaccineQuantity
+      })
+      .eq('id', vaccineId);
+
+    if (updateVaccineError) {
+      console.error('Error updating vaccines table:', updateVaccineError);
+      return { success: false, error: updateVaccineError };
+    }
+
+    console.log(`✅ Vaccines table updated. ${vaccine.quantity_available} → ${newVaccineQuantity}`);
+
+    // Also deduct from vaccine_doses table (all doses of this vaccine)
+    // Use FIFO (First-In-First-Out) - deduct from oldest doses first
+    console.log('🔍 Attempting to fetch vaccine_doses for vaccine:', vaccineId);
+    console.log(`📊 Using same mapping: Doses per vial: ${dosesPerVial}, Total doses to deduct: ${dosesToDeductFromVaccines}`);
+    
+    const { data: doses, error: fetchDosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id, quantity_available, dose_code, created_at')
+      .eq('vaccine_id', vaccineId)
+      .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
+      .order('id', { ascending: true });
+
+    if (fetchDosesError) {
+      console.error('❌ ERROR: Could not fetch vaccine doses:', fetchDosesError);
+      console.error('Error details:', { message: fetchDosesError.message, code: fetchDosesError.code });
+      // Don't fail - just warn
+    } else if (!doses) {
+      console.warn('⚠️ Warning: vaccine_doses query returned null');
+    } else if (doses.length === 0) {
+      console.warn(`⚠️ Warning: No vaccine_doses found for vaccine ${vaccineId}. Vaccine_doses table may not have data for this vaccine.`);
+    } else {
+      console.log(`✅ Found ${doses.length} dose record(s) for FIFO deduction:`, 
+        doses.map(d => ({ id: d.id, dose_code: d.dose_code, quantity: d.quantity_available }))
+      );
+
+      // Deduct from doses in FIFO order
+      let remainingToDeduct = dosesToDeductFromVaccines;
+
+      for (const dose of doses) {
+        if (remainingToDeduct <= 0) break;
+
+        const deductFromThisDose = Math.min(remainingToDeduct, dose.quantity_available);
+        const newDoseQuantity = dose.quantity_available - deductFromThisDose;
+
+        console.log(`  💉 Dose ${dose.dose_code} (${dose.id}): ${dose.quantity_available} → ${newDoseQuantity} (deducting ${deductFromThisDose} doses)`);
+
+        const { error: updateDoseError } = await supabase
+          .from('vaccine_doses')
+          .update({
+            quantity_available: newDoseQuantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', dose.id);
+
+        if (updateDoseError) {
+          console.error(`❌ ERROR: Could not update dose ${dose.id}:`, updateDoseError);
+        } else {
+          console.log(`✅ Dose ${dose.dose_code} updated. Deducted: ${deductFromThisDose}, New quantity: ${newDoseQuantity}`);
+          remainingToDeduct -= deductFromThisDose;
+        }
+      }
+
+      if (remainingToDeduct > 0) {
+        console.warn(`⚠️ Warning: Could only deduct ${quantityToDeduct - remainingToDeduct}/${quantityToDeduct} doses. Shortage: ${remainingToDeduct}`);
+      }
+    }
+
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error in deductMainVaccineInventory:', err);
+    return { success: false, error: err };
+  }
+}
+
 export default {
   fetchBarangayVaccineInventory,
   getBarangayVaccineTotal,
   addBarangayVaccineInventory,
   updateBarangayVaccineInventory,
   deductBarangayVaccineInventory,
+  addBackBarangayVaccineInventory,
+  addMainVaccineInventory,
+  deductMainVaccineInventory,
   reserveBarangayVaccineInventory,
   releaseBarangayVaccineReservation,
   getLowStockVaccines

@@ -9,7 +9,7 @@
 
 import Sidebar from "../../../../components/shared/Sidebar";
 import Header from "../../../../components/shared/Header";
-import ScheduleSessionModal from "../../../../components/vaccination-schedule/ScheduleSessionModal";
+import ScheduleSessionModal from "../../../../components/vaccination-schedule/ScheduleSessionModalMultiple";
 import ScheduleConfirmationModal from "../../../../components/vaccination-schedule/ScheduleConfirmationModal";
 import EditSessionModal from "../../../../components/vaccination-schedule/EditSessionModal";
 import UpdateAdministeredModal from "../../../../components/vaccination-schedule/UpdateAdministeredModal";
@@ -21,6 +21,7 @@ import SessionPerformanceCards from "../../../../components/vaccination-schedule
 import { Plus, Calendar, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/vaccineVialMapping";
 import {
   createVaccinationSession,
   fetchVaccinationSessions,
@@ -31,7 +32,7 @@ import {
   updateSessionAdministered,
   updateSessionStatus
 } from "@/lib/vaccinationSession";
-import { deductBarangayVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/barangayVaccineInventory";
+import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, addMainVaccineInventory, deductMainVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/barangayVaccineInventory";
 
 export default function VaccinationSchedule({
   title = "Vaccination Schedule",
@@ -52,6 +53,8 @@ export default function VaccinationSchedule({
   // Update progress modal state
   const [isUpdateProgressOpen, setIsUpdateProgressOpen] = useState(false);
   const [updatingSession, setUpdatingSession] = useState(null);
+  // Store original administered count BEFORE modal opens (for calculating difference)
+  const [originalAdministeredCount, setOriginalAdministeredCount] = useState(0);
   
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState({
@@ -89,12 +92,11 @@ export default function VaccinationSchedule({
   // Status filter state
   const [statusFilter, setStatusFilter] = useState(null);
   
-  // Form data state
+  // Form data state - now supports multiple vaccines
   const [formData, setFormData] = useState({
     date: "",
     time: "",
-    vaccine_id: "",
-    target: "",
+    vaccines: [{ vaccine_id: "", target: "" }]
   });
   
   // Validation errors
@@ -213,6 +215,8 @@ export default function VaccinationSchedule({
   // Handle update progress - open modal
   const handleUpdateProgress = (session) => {
     console.log('Update progress for session:', session);
+    // Store the ORIGINAL administered count BEFORE opening modal
+    setOriginalAdministeredCount(session.administered || 0);
     setUpdatingSession(session);
     setIsUpdateProgressOpen(true);
   };
@@ -228,10 +232,18 @@ export default function VaccinationSchedule({
 
       setIsSubmitting(true);
       try {
-        // Get previous administered count to calculate difference
-        const previousAdministered = updatingSession?.administered || 0;
+        // ⚠️ IMPORTANT: Use originalAdministeredCount (stored when modal opened)
+        // NOT updatingSession.administered (which gets updated as user types)
+        const previousAdministered = originalAdministeredCount;
         const newAdministered = updatedSession.administered;
         const administeredDifference = newAdministered - previousAdministered;
+        
+        console.log('🔍 INVENTORY CALCULATION:', {
+          originalAdministeredCount,
+          newAdministered,
+          administeredDifference,
+          action: administeredDifference > 0 ? 'DEDUCT' : administeredDifference < 0 ? 'ADD BACK' : 'NO CHANGE'
+        });
 
         // Update session in database
         const result = await updateSessionAdministered(
@@ -243,31 +255,91 @@ export default function VaccinationSchedule({
         if (result.success) {
           console.log('Session progress updated successfully');
 
-          // Deduct from reserved vials if administered count increased
-          if (administeredDifference > 0) {
-            console.log('Deducting from reserved vaccine inventory:', {
+          // Handle inventory changes based on administered count difference
+          if (administeredDifference !== 0) {
+            console.log('Updating vaccine inventory:', {
               barangayId: updatedSession.barangay_id,
               vaccineId: updatedSession.vaccine_id,
-              quantityToDeduct: administeredDifference
+              difference: administeredDifference,
+              action: administeredDifference > 0 ? 'DEDUCT' : 'ADD BACK'
             });
 
-            const deductResult = await deductBarangayVaccineInventory(
-              updatedSession.barangay_id,
-              updatedSession.vaccine_id,
-              administeredDifference
-            );
+            if (administeredDifference > 0) {
+              // INCREASE: Deduct from inventory
+              console.log('🔴 DEDUCTING inventory for administered increase:', {
+                barangayId: updatedSession.barangay_id,
+                vaccineId: updatedSession.vaccine_id,
+                quantityToDeduct: administeredDifference
+              });
 
-            if (deductResult.success) {
-              console.log('Vaccine inventory deducted successfully');
+              // 1. Deduct from barangay inventory
+              const deductResult = await deductBarangayVaccineInventory(
+                updatedSession.barangay_id,
+                updatedSession.vaccine_id,
+                administeredDifference
+              );
+
+              if (deductResult.success) {
+                console.log('✅ Barangay vaccine inventory deducted successfully');
+              } else {
+                console.warn('❌ Warning: Failed to deduct from barangay inventory:', deductResult.error);
+              }
+
+              // 2. Deduct from main vaccine tables (vaccines and vaccine_doses)
+              const mainDeductResult = await deductMainVaccineInventory(
+                updatedSession.vaccine_id,
+                administeredDifference
+              );
+
+              if (mainDeductResult.success) {
+                console.log('✅ Main vaccine inventory deducted successfully');
+              } else {
+                console.warn('❌ Warning: Failed to deduct from main vaccine inventory:', mainDeductResult.error);
+              }
             } else {
-              console.warn('Warning: Failed to deduct from inventory:', deductResult.error);
-              // Don't fail the update if inventory deduction fails - just warn
+              // DECREASE: Add back to inventory
+              const quantityToAddBack = Math.abs(administeredDifference);
+
+              console.log('🟢 ADDING BACK inventory for administered decrease:', {
+                barangayId: updatedSession.barangay_id,
+                vaccineId: updatedSession.vaccine_id,
+                quantityToAddBack
+              });
+
+              // 1. Add back to barangay inventory
+              const addBackResult = await addBackBarangayVaccineInventory(
+                updatedSession.barangay_id,
+                updatedSession.vaccine_id,
+                quantityToAddBack
+              );
+
+              if (addBackResult.success) {
+                console.log('✅ Barangay vaccine inventory added back successfully');
+              } else {
+                console.warn('❌ Warning: Failed to add back to barangay inventory:', addBackResult.error);
+              }
+
+              // 2. Add back to main vaccine tables (vaccines and vaccine_doses)
+              const mainAddBackResult = await addMainVaccineInventory(
+                updatedSession.vaccine_id,
+                quantityToAddBack
+              );
+
+              if (mainAddBackResult.success) {
+                console.log('Main vaccine inventory added back successfully');
+              } else {
+                console.warn('Warning: Failed to add back to main vaccine inventory:', mainAddBackResult.error);
+              }
             }
           }
 
           setIsUpdateProgressOpen(false);
           setUpdatingSession(null);
+          
+          // Reload sessions to reflect inventory changes
+          console.log('Reloading sessions after inventory update...');
           await reloadSessions();
+          
           alert('Session progress updated successfully');
         } else {
           alert('Error updating session: ' + result.error);
@@ -337,12 +409,18 @@ export default function VaccinationSchedule({
       newErrors.time = "Time is required";
     }
 
-    if (!formData.vaccine_id) {
-      newErrors.vaccine_id = "Please select a vaccine";
-    }
-
-    if (!formData.target) {
-      newErrors.target = "Target is required";
+    // Validate vaccines array
+    if (!formData.vaccines || formData.vaccines.length === 0) {
+      newErrors.vaccines = "At least one vaccine is required";
+    } else {
+      formData.vaccines.forEach((vaccine, index) => {
+        if (!vaccine.vaccine_id) {
+          newErrors[`vaccine_${index}`] = "Please select a vaccine";
+        }
+        if (!vaccine.target) {
+          newErrors[`target_${index}`] = "Target is required";
+        }
+      });
     }
 
     setErrors(newErrors);
@@ -362,7 +440,7 @@ export default function VaccinationSchedule({
     }
   };
 
-  // Handle form submission
+  // Handle form submission - now creates multiple sessions
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -377,61 +455,90 @@ export default function VaccinationSchedule({
 
     setIsSubmitting(true);
     try {
-      const result = await createVaccinationSession({
-        barangay_id: userProfile.barangays.id,
-        vaccine_id: formData.vaccine_id,
-        session_date: formData.date,
-        session_time: formData.time,
-        target: parseInt(formData.target),
-        created_by: userProfile.id
-      });
-
-      if (result.success) {
-        // Reserve vaccine vials for this session
-        const reserveResult = await reserveBarangayVaccineInventory(
-          userProfile.barangays.id,
-          formData.vaccine_id,
-          parseInt(formData.target)
-        );
-
-        if (reserveResult.success) {
-          console.log('Vaccine vials reserved successfully');
-        } else {
-          console.warn('Warning: Failed to reserve vaccine vials:', reserveResult.error);
-          // Don't fail the session creation if reservation fails - just warn
-        }
-
-        // Show confirmation modal
-        const vaccineName = getVaccineName(formData.vaccine_id, vaccines);
-        setConfirmationData({
-          barangayName: userProfile.barangays.name,
-          date: formData.date,
-          time: formData.time,
-          vaccineName: vaccineName,
-          target: formData.target
+      const createdSessions = [];
+      
+      // Create a session for each vaccine
+      for (let i = 0; i < formData.vaccines.length; i++) {
+        const vaccine = formData.vaccines[i];
+        
+        const result = await createVaccinationSession({
+          barangay_id: userProfile.barangays.id,
+          vaccine_id: vaccine.vaccine_id,
+          session_date: formData.date,
+          session_time: formData.time,
+          target: parseInt(vaccine.target),
+          created_by: userProfile.id
         });
-        setIsConfirmationOpen(true);
-        
-        // Reset form
-        setFormData({ date: "", time: "", vaccine_id: "", target: "" });
-        setIsModalOpen(false);
-        
-        // Reload sessions
-        await reloadSessions();
-      } else {
-        console.error('Error creating session:', result.error);
-        alert('Error: ' + result.error);
+
+        if (result.success) {
+          createdSessions.push({
+            vaccineName: getVaccineName(vaccine.vaccine_id, vaccines),
+            target: vaccine.target
+          });
+
+          // Reserve vaccine vials for this session
+          // Calculate vials needed based on vaccine type and target people
+          const vaccineName = getVaccineName(vaccine.vaccine_id, vaccines);
+          const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 10;
+          const vialsNeeded = calculateVialsNeeded(vaccineName, parseInt(vaccine.target));
+
+          console.log(`Attempting to reserve vials for ${vaccineName}:`, {
+            barangayId: userProfile.barangays.id,
+            vaccineId: vaccine.vaccine_id,
+            target: vaccine.target,
+            dosesPerVial,
+            vialsNeeded
+          });
+
+          const reserveResult = await reserveBarangayVaccineInventory(
+            userProfile.barangays.id,
+            vaccine.vaccine_id,
+            vialsNeeded
+          );
+
+          if (reserveResult.success) {
+            console.log(`✅ Vaccine vials reserved for ${vaccineName}: ${vialsNeeded} vials`);
+          } else {
+            console.warn(`⚠️ Warning: Failed to reserve vaccine vials for ${vaccineName}:`, {
+              error: reserveResult.error,
+              vialsNeeded,
+              barangayId: userProfile.barangays.id,
+              vaccineId: vaccine.vaccine_id
+            });
+            // Don't fail session creation if reservation fails
+            // Reservation is optional - session can still be created
+          }
+        } else {
+          throw new Error(`Failed to create session for ${getVaccineName(vaccine.vaccine_id, vaccines)}: ${result.error}`);
+        }
       }
+
+      // Show confirmation modal with all created sessions
+      setConfirmationData({
+        barangayName: userProfile.barangays.name,
+        date: formData.date,
+        time: formData.time,
+        sessions: createdSessions,
+        isMultiple: createdSessions.length > 1
+      });
+      setIsConfirmationOpen(true);
+      
+      // Reset form
+      setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "" }] });
+      setIsModalOpen(false);
+      
+      // Reload sessions
+      await reloadSessions();
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('Unexpected error: ' + err.message);
+      alert('Error: ' + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    setFormData({ date: "", time: "", vaccine_id: "", target: "" });
+    setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "" }] });
     setErrors({});
     setIsModalOpen(false);
   };

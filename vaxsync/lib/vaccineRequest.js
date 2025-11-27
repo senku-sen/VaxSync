@@ -188,7 +188,8 @@ export async function createVaccineRequest(request) {
 
   const { data, error } = await supabase
     .from("vaccine_requests")
-    .insert([requestData]);
+    .insert([requestData])
+    .select();
 
   if (error) {
     console.error('Supabase insert error:', error);

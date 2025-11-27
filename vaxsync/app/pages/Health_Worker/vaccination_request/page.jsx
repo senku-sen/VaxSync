@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import { Plus, Search } from "lucide-react";
 import Sidebar from "../../../../components/shared/Sidebar";
 import Header from "../../../../components/shared/Header";
-import VaccineRequestModal from "../../../../components/vaccination-request/VaccineRequestModal";
+import VaccineRequestModalDoses from "../../../../components/vaccination-request/VaccineRequestModalDoses";
 import VaccineSummaryCards from "../../../../components/vaccination-request/VaccineSummaryCards";
 import VaccineRequestsTable from "../../../../components/vaccination-request/VaccineRequestsTable";
 import {
@@ -257,17 +257,16 @@ export default function VaccinationRequest({
               </div>
             </div>
 
-            {/* Vaccine Request Modal */}
+            {/* Vaccine Request Modal - Dose Based */}
             {isModalOpen && (
-              <VaccineRequestModal
+              <VaccineRequestModalDoses
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSubmit={handleSubmitRequest}
-                profileID={profileID}
-                barangayName={barangayName || "Barangay A"}
-                barangayId={userProfile?.barangays?.id || userProfile?.assigned_barangay_id}
-                vaccines={vaccines}
-                isLoading={isLoadingVaccines}
+                onSuccess={() => {
+                  loadRequests();
+                  setIsModalOpen(false);
+                }}
+                userProfile={userProfile}
               />
             )}
           </div>

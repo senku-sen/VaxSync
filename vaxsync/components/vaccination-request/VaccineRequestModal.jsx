@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle } from "lucide-react";
 import { validateVaccineForRequest } from "@/lib/vaccineRequestValidation";
+import { getBarangayVaccineTotal } from "@/lib/barangayVaccineInventory";
 
 export default function VaccineRequestModal({ 
   isOpen, 
@@ -40,6 +41,9 @@ export default function VaccineRequestModal({
     validationErrors: []
   });
 
+  // Vaccine quantity dose from Head Nurse inventory
+  const [vaccineQuantityDose, setVaccineQuantityDose] = useState(null);
+
   // Validate vaccine when selected
   useEffect(() => {
     const validateSelectedVaccine = async () => {
@@ -60,6 +64,10 @@ export default function VaccineRequestModal({
           formData.vaccine_id
         );
 
+        // Fetch quantity dose from barangay inventory
+        const quantityDose = await getBarangayVaccineTotal(barangayId, formData.vaccine_id);
+        setVaccineQuantityDose(quantityDose);
+
         setVaccineValidation({
           isValid,
           isChecking: false,
@@ -78,7 +86,7 @@ export default function VaccineRequestModal({
     };
 
     validateSelectedVaccine();
-  }, [formData.vaccine_id]);
+  }, [formData.vaccine_id, barangayId]);
 
   // Validate form before submission
   const validateForm = () => {
@@ -222,6 +230,11 @@ export default function VaccineRequestModal({
               <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-green-700">Vaccine is valid and available</p>
+                {vaccineQuantityDose !== null && (
+                  <p className="text-sm text-green-600 mt-1">
+                    Available in Head Nurse inventory: <span className="font-semibold">{vaccineQuantityDose} doses</span>
+                  </p>
+                )}
               </div>
             </div>
           )}
