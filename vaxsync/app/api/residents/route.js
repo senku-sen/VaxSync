@@ -8,7 +8,6 @@ export async function GET(request) {
     const status = searchParams.get('status') || 'pending';
     const search = searchParams.get('search') || '';
     const barangay = searchParams.get('barangay') || '';
-    const barangayId = searchParams.get('barangay_id') || '';
 
     // Build the query
     let query = supabase
@@ -22,14 +21,8 @@ export async function GET(request) {
     }
 
     // Apply barangay filter
-    // Prefer barangay_id when available, but be tolerant of casing / legacy name-only rows
-    if (barangayId) {
-      query = query.eq('barangay_id', barangayId);
-    }
-
     if (barangay) {
-      // Case-insensitive match on barangay name so 'MAGANG', 'Magang', etc. all match
-      query = query.ilike('barangay', barangay);
+      query = query.eq('barangay', barangay);
     }
 
     // Order by submitted_at descending
@@ -39,13 +32,6 @@ export async function GET(request) {
 
     if (error) {
       console.error('Supabase error:', error);
-      // Check if it's a connection error
-      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
-        return NextResponse.json(
-          { success: false, error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' },
-          { status: 503 }
-        );
-      }
       return NextResponse.json(
         { success: false, error: 'Failed to fetch residents' },
         { status: 500 }
@@ -70,10 +56,10 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given } = body;
+    const { name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by } = body;
 
     // Validate required fields
-    if (!name || !birthday || !sex || !address || !contact) {
+    if (!name || !age || !address || !contact) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -88,12 +74,7 @@ export async function POST(request) {
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle();
-      
-      if (findBarangayError) {
-        console.error('Supabase error (find barangay):', findBarangayError);
-        // Continue to try creating if lookup fails (could be network issue)
-      }
+        .maybeSingle?.();
 
       if (foundBarangay && foundBarangay.id) {
         resolvedBarangayId = foundBarangay.id;
@@ -126,8 +107,7 @@ export async function POST(request) {
       .insert([
         {
           name,
-          birthday: birthday || null,
-          sex: sex || null,
+          age: parseInt(age),
           address,
           contact,
           vaccine_status: vaccine_status || 'not_vaccinated',
@@ -135,7 +115,6 @@ export async function POST(request) {
           barangay: barangay || null,
           barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
           submitted_by: submitted_by || 'system',
-          vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
           submitted_at: new Date().toISOString()
         }
       ])
@@ -144,16 +123,6 @@ export async function POST(request) {
 
     if (error) {
       console.error('Supabase error (create resident):', error);
-      // Check if it's a connection error
-      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.'
-          },
-          { status: 503 }
-        );
-      }
       return NextResponse.json(
         {
           success: false,
@@ -182,7 +151,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, vaccines_given } = body;
+    const { id, name, age, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -194,15 +163,11 @@ export async function PUT(request) {
     // Resolve barangay_id if provided as name
     let resolvedBarangayId = barangay_id || null;
     if (!resolvedBarangayId && barangay) {
-      const { data: foundBarangay, error: findBarangayError } = await supabase
+      const { data: foundBarangay } = await supabase
         .from('barangays')
         .select('id')
         .eq('name', barangay)
-        .maybeSingle();
-      
-      if (findBarangayError) {
-        console.error('Supabase error (find barangay):', findBarangayError);
-      }
+        .maybeSingle?.();
       if (foundBarangay?.id) {
         resolvedBarangayId = foundBarangay.id;
       } else {
@@ -218,26 +183,18 @@ export async function PUT(request) {
     }
 
     // Update resident in Supabase
-    const updateData = {
-      name,
-      birthday: birthday !== undefined ? birthday : undefined,
-      sex: sex !== undefined ? sex : undefined,
-      address,
-      contact,
-      vaccine_status: vaccine_status || 'not_vaccinated',
-      barangay: barangay || null,
-      barangay_id: resolvedBarangayId ?? undefined,
-      updated_at: new Date().toISOString()
-    };
-
-    // Only update vaccines_given if provided
-    if (vaccines_given !== undefined) {
-      updateData.vaccines_given = Array.isArray(vaccines_given) ? vaccines_given : [];
-    }
-
     const { data: updatedResident, error } = await supabase
       .from('residents')
-      .update(updateData)
+      .update({
+        name,
+        age: parseInt(age),
+        address,
+        contact,
+        vaccine_status: vaccine_status || 'not_vaccinated',
+        barangay: barangay || null,
+        barangay_id: resolvedBarangayId ?? undefined,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', id)
       .select()
       .single();
