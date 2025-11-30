@@ -24,7 +24,7 @@ export async function POST(request) {
       }
     } catch {}
 
-    const validAuthCodes = { 'Health Worker': 'HW-6A9F', 'Head Nurse': 'HN-4Z7Q' };
+    const validAuthCodes = { 'Health Worker': 'HW-6A9F', 'RHM/HRH': 'HN-4Z7Q' };
     if (validAuthCodes[userRole] !== authCode) {
       return NextResponse.json({ error: `Invalid authentication code for ${userRole}. Please contact your administrator.` }, { status: 400 });
     }
@@ -79,7 +79,6 @@ export async function POST(request) {
           address,
           user_role: userRole,
           auth_code: authCode,
-          assigned_barangay_id: null, // Explicitly set to null for new users
           created_at: new Date().toISOString()
         });
       if (profileError) {

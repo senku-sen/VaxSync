@@ -17,7 +17,37 @@ export async function getVaccineById(id) {
   return { data, error };
 }
 
+export async function createVaccine(vaccineData) {
+  const { data, error } = await supabase
+    .from("vaccines")
+    .insert([vaccineData])
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function updateVaccine(id, vaccineData) {
+  const { data, error } = await supabase
+    .from("vaccines")
+    .update(vaccineData)
+    .eq("id", id)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function deleteVaccine(id) {
+  const { data, error } = await supabase
+    .from("vaccines")
+    .delete()
+    .eq("id", id);
+  return { data, error };
+}
+
 export default {
   fetchVaccines,
   getVaccineById,
+  createVaccine,
+  updateVaccine,
+  deleteVaccine,
 };

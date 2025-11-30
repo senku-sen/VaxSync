@@ -30,31 +30,49 @@ export const requireAuth = () => {
 };
 
 export const getUserProfile = async (userId) => {
-  const { data: profile, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
-
-  // If profile has assigned_barangay_id, fetch barangay separately
-  if (profile && profile.assigned_barangay_id) {
-    const { data: barangay, error: barangayError } = await supabase
-      .from('barangays')
-      .select('id, name, municipality, health_center_name')
-      .eq('id', profile.assigned_barangay_id)
+  try {
+    console.log('Fetching user profile...');
+    
+    // Fetch user profile first
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', userId)
       .single();
 
-    if (!barangayError && barangay) {
-      profile.barangays = barangay;
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
     }
-  }
 
-  return profile;
+    if (!profile) {
+      console.warn('No profile found for user:', userId);
+      return null;
+    }
+
+    // If user has assigned_barangay_id, fetch barangay details separately
+    if (profile.assigned_barangay_id) {
+      console.log('Fetching barangay for ID:', profile.assigned_barangay_id);
+      const { data: barangay, error: barangayError } = await supabase
+        .from('barangays')
+        .select('id, name, municipality, population')
+        .eq('id', profile.assigned_barangay_id)
+        .single();
+
+      if (!barangayError && barangay) {
+        profile.barangays = barangay;
+        console.log('Barangay fetched successfully:', barangay.name);
+      } else if (barangayError) {
+        console.warn('Could not fetch barangay:', barangayError.message);
+      }
+    }
+
+    console.log('User profile fetched successfully');
+    return profile;
+  } catch (err) {
+    console.error('Error in getUserProfile:', err);
+    return null;
+  }
 };
 
 export const logout = async () => {
