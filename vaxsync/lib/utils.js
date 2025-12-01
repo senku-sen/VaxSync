@@ -15,5 +15,17 @@ export const BARANGAYS = [
   "Magang",
   "Mancruz",
   "Pamorangan",
-  "Barangay II"
+  "Barangay II",
+  "Bunawan",
+  "Consuelo",
+  "Imelda",
+  "La Paz",
+  "Libuan",
+  "Loreto",
+  "Mahayag",
+  "New Visayas",
+  "Poblacion",
+  "San Andres",
+  "San Marcos",
+  "Tagbay",
 ];

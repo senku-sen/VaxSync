@@ -33,10 +33,7 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 // Create Supabase client
 const supabase = createClient(SUPABASE_URL || "", SUPABASE_ANON_KEY || "");
 
-export default function Inventory({
-  title = "Inventory Management",
-  subtitle = "Manage vaccine stock and supplies",
-}) {
+export default function Inventory() {
   // Modal visibility for adding/editing vaccines
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -195,7 +192,7 @@ export default function Inventory({
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
-        <Header title={title} subtitle={subtitle} />
+        <Header title="Inventory Management" subtitle="Manage vaccine stock and supplies" />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
           {/* Error Display */}
