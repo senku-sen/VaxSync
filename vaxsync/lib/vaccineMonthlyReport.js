@@ -1,6 +1,86 @@
 import { supabase } from "./supabase";
 
 /**
+ * NIP Monthly Vials Needed Reference Table
+ * Fixed values based on National Immunization Program
+ */
+const MONTHLY_VIALS_NEEDED = {
+  'bcg': 11,
+  'bcg diluent': 11,
+  'hep b': 11,
+  'hep b (10 dose)': 11,
+  'pentavalent': 289,
+  'bopv': 18,
+  'dropper': 18,
+  'pcv10': 72,
+  'pcv10 (4 dose)': 72,
+  'ipv': 22,
+  'ipv 10 dose': 22,
+  'mmr': 24,
+  'mmr diluent': 24,
+  'mr': 24,
+  'mr diluent': 24,
+  'td': 22,
+  'td10': 22,
+  'tt': 108,
+  'tt1': 108,
+  'hpv': 96,
+  'ppv': 96,
+  'ppv23': 96,
+  'flu': 11
+};
+
+/**
+ * MAX ALLOCATION (Buffer + 1 month) Reference Table
+ * Fixed values based on National Immunization Program
+ */
+const MAX_ALLOCATION = {
+  'bcg': 23,
+  'bcg diluent': 275,
+  'hep b': 22,
+  'hep b (10 dose)': 22,
+  'pentavalent': 578,
+  'bopv': 37,
+  'dropper': 439,
+  'pcv10': 145,
+  'pcv10 (4 dose)': 145,
+  'ipv': 43,
+  'ipv 10 dose': 43,
+  'mmr': 49,
+  'mmr diluent': 586,
+  'mr': 49,
+  'mr diluent': 586,
+  'td': 43,
+  'td10': 43,
+  'tt': 217,
+  'tt1': 217,
+  'hpv': 193,
+  'ppv': 193,
+  'ppv23': 193,
+  'flu': 23
+};
+
+/**
+ * Get monthly vials needed for a vaccine
+ * @param {string} vaccineName - Vaccine name
+ * @returns {number} Monthly vials needed
+ */
+export function getMonthlyVialsNeeded(vaccineName) {
+  const key = vaccineName.toLowerCase().trim();
+  return MONTHLY_VIALS_NEEDED[key] || 0;
+}
+
+/**
+ * Get max allocation (buffer stock) for a vaccine
+ * @param {string} vaccineName - Vaccine name
+ * @returns {number} Max allocation
+ */
+export function getMaxAllocation(vaccineName) {
+  const key = vaccineName.toLowerCase().trim();
+  return MAX_ALLOCATION[key] || 0;
+}
+
+/**
  * Calculate ending inventory
  * Formula: Initial + Supplied - Used - Wastage
  * @param {number} initial - Initial inventory
@@ -49,40 +129,284 @@ export function determineStockStatus(stockPercentage) {
 }
 
 /**
- * Fetch monthly vaccine report for a barangay
- * @param {string} barangayId - Barangay ID
- * @param {string} month - Month in YYYY-MM-01 format
+ * Calculate monthly vaccine report in real-time from transaction data
+ * Aggregates data across all barangays for each vaccine
+ * @param {string} month - Month in YYYY-MM-01 format (e.g., "2025-12-01")
  * @returns {Promise<{data: Array, error: Object|null}>}
  */
 export async function fetchMonthlyVaccineReport(barangayId, month) {
   try {
-    console.log('Fetching monthly report:', { barangayId, month });
+    console.log('📊 Calculating monthly report (vaccines only):', { month });
     
-    const { data, error } = await supabase
-      .from('vaccine_monthly_report')
-      .select(`
-        *,
-        vaccine:vaccine_id (
-          id,
-          name,
-          batch_number,
-          doses_per_vial
-        )
-      `)
-      .eq('barangay_id', barangayId)
-      .eq('month', month)
-      .order('vaccine:name', { ascending: true });
+    // Parse month to get start and end dates
+    const monthDate = new Date(month);
+    const startDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+    const endDate = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    console.log(`📅 Date range: ${startDateStr} to ${endDateStr}`);
 
-    if (error) {
-      console.error('Error fetching monthly report:', error);
-      return { data: [], error };
+    // Get all vaccines
+    const { data: vaccines, error: vaccineError } = await supabase
+      .from('vaccines')
+      .select('id, name, batch_number');
+
+    if (vaccineError) {
+      console.error('Error fetching vaccines:', vaccineError);
+      return { data: [], error: vaccineError };
     }
 
-    console.log('Monthly report fetched:', data?.length || 0, 'vaccines');
-    return { data: data || [], error: null };
+    const reportMap = new Map(); // Use Map to merge duplicates by vaccine name
+
+    // For each vaccine, calculate aggregated data across ALL barangays
+    for (const vaccine of vaccines) {
+      console.log(`\n🔍 Processing: ${vaccine.name}`);
+
+      // Get ALL vaccination sessions for this vaccine across all barangays for the month
+      const { data: sessions, error: sessionError } = await supabase
+        .from('vaccination_sessions')
+        .select('id, administered, target, session_date')
+        .eq('vaccine_id', vaccine.id)
+        .gte('session_date', startDateStr)
+        .lte('session_date', endDateStr);
+
+      if (sessionError) {
+        console.error(`Error fetching sessions for ${vaccine.name}:`, sessionError);
+        continue;
+      }
+
+      // Calculate totals from sessions across all barangays
+      const totalAdministered = sessions?.reduce((sum, s) => sum + (s.administered || 0), 0) || 0;
+      const totalTarget = sessions?.reduce((sum, s) => sum + (s.target || 0), 0) || 0;
+
+      console.log(`  Sessions found: ${sessions?.length || 0}`);
+      console.log(`  Administered: ${totalAdministered}, Target: ${totalTarget}`);
+
+      // Get initial inventory from vaccines table
+      const { data: vaccineData, error: vaccineDetailError } = await supabase
+        .from('vaccines')
+        .select('quantity_available, created_at')
+        .eq('id', vaccine.id);
+
+      if (vaccineDetailError) {
+        console.error(`Error fetching vaccine details:`, vaccineDetailError);
+        continue;
+      }
+
+      if (!vaccineData || vaccineData.length === 0) {
+        console.warn(`  No vaccine data found for ID: ${vaccine.id}`);
+        continue;
+      }
+
+      // Get initial inventory from previous month's ending inventory
+      // Calculate previous month
+      const previousMonth = new Date(monthDate);
+      previousMonth.setMonth(previousMonth.getMonth() - 1);
+      const previousMonthStr = previousMonth.toISOString().split('T')[0].substring(0, 7) + '-01';
+      
+      // Get previous month's ending inventory from vaccination sessions
+      // Calculate ending inventory for previous month
+      let initialVials = vaccineData[0]?.quantity_available || 0;
+      
+      // Get previous month's sessions to calculate ending inventory
+      const prevStartDate = new Date(previousMonth.getFullYear(), previousMonth.getMonth(), 1);
+      const prevEndDate = new Date(previousMonth.getFullYear(), previousMonth.getMonth() + 1, 0);
+      const prevStartDateStr = prevStartDate.toISOString().split('T')[0];
+      const prevEndDateStr = prevEndDate.toISOString().split('T')[0];
+      
+      const { data: prevSessions, error: prevSessionError } = await supabase
+        .from('vaccination_sessions')
+        .select('administered')
+        .eq('vaccine_id', vaccine.id)
+        .gte('session_date', prevStartDateStr)
+        .lte('session_date', prevEndDateStr);
+      
+      if (!prevSessionError && prevSessions && prevSessions.length > 0) {
+        // Calculate previous month's ending inventory
+        const prevAdministered = prevSessions.reduce((sum, s) => sum + (s.administered || 0), 0) || 0;
+        // Previous ending = Previous initial - Previous administered
+        // We use current quantity_available as a proxy for previous initial
+        initialVials = initialVials - prevAdministered;
+        console.log(`  Initial inventory (from previous month ending): ${initialVials} vials`);
+      } else {
+        console.log(`  Initial inventory (quantity_available - no previous data): ${initialVials} vials`);
+      }
+
+      // Calculate total quantity supplied (IN) during the month
+      // This represents NEW stock that was added/received (not initial stock)
+      // For now, IN is always 0 unless we have a separate supply transaction table
+      const quantitySupplied = 0;
+      console.log(`  Quantity Supplied (IN): ${quantitySupplied} vials (no supply transactions recorded)`);
+
+      // Get total current inventory for this vaccine across all barangays
+      const { data: inventory, error: inventoryError } = await supabase
+        .from('barangay_vaccine_inventory')
+        .select('quantity_vial, quantity_dose')
+        .eq('vaccine_id', vaccine.id);
+
+      if (inventoryError) {
+        console.error(`Error fetching inventory:`, inventoryError);
+        continue;
+      }
+
+      const currentVials = inventory?.reduce((sum, i) => sum + (i.quantity_vial || 0), 0) || 0;
+      const currentDoses = inventory?.reduce((sum, i) => sum + (i.quantity_dose || 0), 0) || 0;
+
+      console.log(`  Current inventory: ${currentVials} vials, ${currentDoses} doses`);
+
+      // Get Monthly Vials Needed from NIP reference table
+      const monthlyVialsNeeded = getMonthlyVialsNeeded(vaccine.name);
+      console.log(`  Monthly Vials Needed: ${monthlyVialsNeeded} vials`);
+      
+      // Get Max Allocation (Buffer + 1 month) from NIP reference table
+      const maxAllocation = getMaxAllocation(vaccine.name);
+      console.log(`  Max Allocation: ${maxAllocation} vials`);
+      
+      // Calculate ending inventory
+      const endingInventory = initialVials - totalAdministered;
+      
+      // Calculate stock percentage based on NIP formula
+      // Stock % = (Ending Inventory / Max Allocation) × 100
+      // Store raw value (not capped) for database
+      const stockPercentage = maxAllocation > 0 ? Math.round((endingInventory / maxAllocation) * 100) : 0;
+      console.log(`  Stock %: (${endingInventory} / ${maxAllocation}) × 100 = ${stockPercentage}%`);
+
+      // Determine status based on NIP stock levels
+      let status = 'GOOD';
+      if (stockPercentage === 0) status = 'STOCKOUT';
+      else if (stockPercentage < 25) status = 'STOCKOUT';
+      else if (stockPercentage < 50) status = 'UNDERSTOCK';
+      else if (stockPercentage > 75) status = 'OVERSTOCK';
+      else status = 'GOOD';
+
+      // Use vaccine name as key to merge duplicates
+      const vaccineKey = vaccine.name.toLowerCase().trim();
+      
+      if (reportMap.has(vaccineKey)) {
+        // Merge with existing vaccine entry using NIP formula
+        console.log(`  ⚠️ Duplicate vaccine found: ${vaccine.name}, merging data...`);
+        const existing = reportMap.get(vaccineKey);
+        existing.initial_inventory += initialVials;
+        existing.quantity_supplied += quantitySupplied; // Add IN from new supply
+        existing.quantity_used += totalAdministered;
+        existing.ending_inventory = existing.initial_inventory + existing.quantity_supplied - existing.quantity_used - existing.quantity_wastage; // Initial + IN - OUT - Wastage
+        // vials_needed and max_allocation stay the same (fixed from NIP table)
+        // Recalculate stock percentage: (Ending Inventory / Max Allocation) × 100
+        existing.stock_level_percentage = existing.max_allocation > 0 
+          ? Math.round((existing.ending_inventory / existing.max_allocation) * 100) 
+          : 0;
+        // Update status based on NIP levels
+        if (existing.stock_level_percentage === 0) existing.status = 'STOCKOUT';
+        else if (existing.stock_level_percentage < 25) existing.status = 'STOCKOUT';
+        else if (existing.stock_level_percentage < 50) existing.status = 'UNDERSTOCK';
+        else if (existing.stock_level_percentage > 75) existing.status = 'OVERSTOCK';
+        else existing.status = 'GOOD';
+      } else {
+        // Create new report record for vaccine using NIP formula
+        const endingInventoryCalc = initialVials + quantitySupplied - totalAdministered;
+        const report = {
+          id: `${vaccine.id}-${month}`,
+          vaccine_id: vaccine.id,
+          month: month,
+          initial_inventory: initialVials,
+          quantity_supplied: quantitySupplied, // IN: New stock added during month
+          quantity_used: totalAdministered,
+          quantity_wastage: 0,
+          ending_inventory: endingInventoryCalc, // Initial + IN - OUT - Wastage
+          vials_needed: monthlyVialsNeeded, // Monthly Vials Needed from NIP table
+          max_allocation: maxAllocation, // Max Allocation (Buffer + 1 month) from NIP table
+          stock_level_percentage: stockPercentage,
+          status: status,
+          vaccine: {
+            id: vaccine.id,
+            name: vaccine.name,
+            batch_number: vaccine.batch_number
+          }
+        };
+        reportMap.set(vaccineKey, report);
+      }
+    }
+
+    // Convert Map to array
+    const reports = Array.from(reportMap.values());
+
+    console.log(`✅ Monthly report calculated: ${reports.length} unique vaccines (duplicates merged)`);
+    
+    // Save reports to Supabase (disabled)
+    // await saveMonthlyReportsToSupabase(reports, month);
+    
+    return { data: reports, error: null };
   } catch (err) {
     console.error('Error in fetchMonthlyVaccineReport:', err);
     return { data: [], error: err };
+  }
+}
+
+/**
+ * Save monthly reports to Supabase database
+ * @param {Array} reports - Array of monthly report records
+ * @param {string} month - Month in YYYY-MM-01 format
+ */
+async function saveMonthlyReportsToSupabase(reports, month) {
+  try {
+    if (!reports || reports.length === 0) {
+      console.log('No reports to save');
+      return;
+    }
+
+    // Prepare data for insertion
+    const reportsToSave = reports.map(report => ({
+      vaccine_id: report.vaccine_id,
+      month: month,
+      initial_inventory: report.initial_inventory,
+      quantity_supplied: report.quantity_supplied,
+      quantity_used: report.quantity_used,
+      quantity_wastage: report.quantity_wastage,
+      ending_inventory: report.ending_inventory,
+      vials_needed: report.vials_needed,
+      max_allocation: report.max_allocation,
+      stock_level_percentage: report.stock_level_percentage,
+      status: report.status
+    }));
+
+    try {
+      // Delete existing records for this month first
+      const { error: deleteError } = await supabase
+        .from('vaccine_monthly_report')
+        .delete()
+        .eq('month', month);
+
+      if (deleteError) {
+        console.warn('⚠️ Could not delete existing records:', deleteError.message);
+      }
+
+      // Insert new records
+      const { data, error } = await supabase
+        .from('vaccine_monthly_report')
+        .insert(reportsToSave)
+        .select();
+
+      if (error) {
+        console.error('❌ Error saving monthly reports to Supabase:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          status: error.status
+        });
+        
+        // Log the data being sent for debugging
+        console.log('📝 Data being saved:', JSON.stringify(reportsToSave, null, 2));
+      } else {
+        console.log(`✅ Saved ${reportsToSave.length} monthly reports to Supabase for month ${month}`);
+      }
+    } catch (insertErr) {
+      console.error('❌ Exception during save:', insertErr);
+    }
+  } catch (err) {
+    console.error('Error in saveMonthlyReportsToSupabase:', err);
   }
 }
 
@@ -305,25 +629,51 @@ export async function updateMonthlyReportWastage(vaccineId, barangayId, month, q
 }
 
 /**
- * Get all months with data for a barangay
- * @param {string} barangayId - Barangay ID
+ * Get all months with vaccination session data
+ * @param {string} barangayId - Barangay ID (optional)
  * @returns {Promise<{data: Array, error: Object|null}>}
  */
 export async function getAvailableMonths(barangayId) {
   try {
-    const { data, error } = await supabase
-      .from('vaccine_monthly_report')
-      .select('month')
-      .eq('barangay_id', barangayId)
-      .order('month', { ascending: false })
-      .distinct();
+    console.log('Fetching available months from vaccination sessions');
+    
+    // Get all vaccination sessions to determine available months
+    let query = supabase
+      .from('vaccination_sessions')
+      .select('session_date');
+    
+    // Filter by barangay if provided
+    if (barangayId) {
+      query = query.eq('barangay_id', barangayId);
+    }
+    
+    const { data: sessions, error } = await query;
 
     if (error) {
-      console.error('Error fetching available months:', error);
+      console.error('Error fetching sessions:', error);
       return { data: [], error };
     }
 
-    return { data: data || [], error: null };
+    // Extract unique months from session dates
+    const uniqueMonths = new Set();
+    
+    if (sessions && Array.isArray(sessions)) {
+      for (const session of sessions) {
+        if (session.session_date) {
+          // Extract YYYY-MM-01 format
+          const monthStr = session.session_date.substring(0, 7) + '-01';
+          uniqueMonths.add(monthStr);
+        }
+      }
+    }
+
+    // Convert to array and sort descending
+    const monthsArray = Array.from(uniqueMonths)
+      .map(month => ({ month }))
+      .sort((a, b) => new Date(b.month) - new Date(a.month));
+
+    console.log('Available months:', monthsArray);
+    return { data: monthsArray, error: null };
   } catch (err) {
     console.error('Error in getAvailableMonths:', err);
     return { data: [], error: err };

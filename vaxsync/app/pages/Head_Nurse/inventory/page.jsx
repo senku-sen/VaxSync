@@ -60,6 +60,12 @@ export default function Inventory() {
   
   // Active tab (current-stock or monthly-report)
   const [activeTab, setActiveTab] = useState("current-stock");
+  
+  // Selected barangay for monthly report (Head Nurse can view all)
+  const [selectedBarangayForReport, setSelectedBarangayForReport] = useState(null);
+  
+  // Available barangays
+  const [barangays, setBarangays] = useState([]);
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
@@ -73,6 +79,20 @@ export default function Inventory() {
       if (profile) {
         setUserProfile(profile);
         console.log('User profile loaded:', profile);
+      }
+      
+      // Fetch all barangays for Head Nurse
+      const { data: barangayData, error: barangayError } = await supabase
+        .from('barangays')
+        .select('id, name')
+        .order('name', { ascending: true });
+      
+      if (!barangayError && barangayData) {
+        setBarangays(barangayData);
+        // Set first barangay as default
+        if (barangayData.length > 0) {
+          setSelectedBarangayForReport(barangayData[0].id);
+        }
       }
       
       // Then fetch vaccines
@@ -266,7 +286,7 @@ export default function Inventory() {
 
               {/* Monthly Report Tab */}
               {activeTab === "monthly-report" && (
-                <MonthlyReportTable barangayId={userProfile?.barangays?.id} />
+                <MonthlyReportTable barangayId={null} />
               )}
 
               {activeTab === "current-stock" && (

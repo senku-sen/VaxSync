@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
+import NotificationBadge from "@/components/NotificationBadge";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -42,8 +43,8 @@ export default function Sidebar() {
     { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
     
     { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/vaccination_schedule` },
-    { name: "Resident Data", icon: Users, path: `${basePath}/residents` },
-    { name: "Resident Approval", icon: CheckCircle, path: `${basePath}/resident-approval`, adminOnly: true },
+    { name: "NIP Tracking", icon: Users, path: `${basePath}/residents` },
+
     { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
    
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
@@ -94,24 +95,27 @@ export default function Sidebar() {
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.path;
+              const isNotifications = item.name === "Notifications";
 
               return (
-                <Button
-                  key={item.name}
-                  asChild
-                  variant={isActive ? "secondary" : "ghost"}
-                  className={`w-full justify-start text-base font-medium px-4 py-6 ${
-                    isActive
-                      ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
-                      : "text-gray-900 hover:bg-gray-300"
-                  }`}
-                  onClick={() => setIsOpen(false)}
-                >
-                  <Link href={item.path}>
-                    <Icon className="mr-3 h-5 w-5" />
-                    {item.name}
-                  </Link>
-                </Button>
+                <div key={item.name} className="relative">
+                  <Button
+                    asChild
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={`w-full justify-start text-base font-medium px-4 py-6 ${
+                      isActive
+                        ? "bg-[#3E5F44] text-white hover:bg-[#3E5F44]/90"
+                        : "text-gray-900 hover:bg-gray-300"
+                    }`}
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <Link href={item.path}>
+                      <Icon className="mr-3 h-5 w-5" />
+                      {item.name}
+                    </Link>
+                  </Button>
+                  {isNotifications && <NotificationBadge />}
+                </div>
               );
             })}
           </div>

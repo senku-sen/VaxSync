@@ -26,10 +26,21 @@ export default function NotificationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [barangayId, setBarangayId] = useState(null);
 
   // NOTIF-03: Initialize notifications on mount
   useEffect(() => {
+    // Load cached notifications from localStorage first
+    const cachedNotifications = localStorage.getItem('headNurseNotifications');
+    if (cachedNotifications) {
+      try {
+        const parsed = JSON.parse(cachedNotifications);
+        setNotifications(parsed);
+      } catch (e) {
+        console.error('Error parsing cached notifications:', e);
+      }
+    }
+    
+    // Then fetch fresh data from database
     initializeNotifications();
   }, []);
 
@@ -41,9 +52,8 @@ export default function NotificationsPage() {
       const profile = await loadUserProfile();
       if (profile && profile.id) {
         setUserId(profile.id);
-        setBarangayId(profile.assigned_barangay_id);
         
-        // FEATURE 1 & 3: Fetch all three notification types for Health Worker
+        // FEATURE 1 & 3: Fetch all three notification types for Head Nurse
         const [
           { data: vaccineNotifications, error: vaccineError },
           { data: residentNotifications, error: residentError },
@@ -51,7 +61,7 @@ export default function NotificationsPage() {
         ] = await Promise.all([
           fetchVaccineRequestNotifications(profile.id),
           fetchResidentApprovalNotifications(profile.id),
-          fetchVaccinationSessionNotifications(profile.id, profile.assigned_barangay_id, false)
+          fetchVaccinationSessionNotifications(profile.id, null, true)
         ]);
         
         if (vaccineError || residentError || sessionError) {
@@ -68,12 +78,29 @@ export default function NotificationsPage() {
           // Sort by date descending
           allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           
-          // Mark older notifications as read by default
-          const notificationsWithReadStatus = allNotifications.map((notif, index) => ({
+          // Merge with cached read/archived status
+          const cachedNotifications = localStorage.getItem('headNurseNotifications');
+          let cachedMap = {};
+          if (cachedNotifications) {
+            try {
+              const cached = JSON.parse(cachedNotifications);
+              cachedMap = Object.fromEntries(cached.map(n => [n.id, { read: n.read, archived: n.archived }]));
+            } catch (e) {
+              console.error('Error parsing cached notifications:', e);
+            }
+          }
+          
+          // Apply cached read/archived status to new notifications
+          const notificationsWithReadStatus = allNotifications.map((notif) => ({
             ...notif,
-            read: index > 2, // First 3 notifications are unread
+            read: cachedMap[notif.id]?.read ?? false,
+            archived: cachedMap[notif.id]?.archived ?? false,
           }));
+          
           setNotifications(notificationsWithReadStatus);
+          
+          // Save to localStorage
+          localStorage.setItem('headNurseNotifications', JSON.stringify(notificationsWithReadStatus));
         }
       }
     } catch (err) {
@@ -86,7 +113,7 @@ export default function NotificationsPage() {
 
   // NOTIF-03: Subscribe to real-time updates
   useEffect(() => {
-    if (!userId || !barangayId) return;
+    if (!userId) return;
 
     // Subscribe to all three notification types
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(userId, (payload) => {
@@ -99,7 +126,7 @@ export default function NotificationsPage() {
       initializeNotifications();
     });
 
-    const unsubscribeSessions = subscribeToVaccinationSessionUpdates(barangayId, (payload) => {
+    const unsubscribeSessions = subscribeToVaccinationSessionUpdates(null, (payload) => {
       console.log('Vaccination session update received:', payload);
       initializeNotifications();
     });
@@ -109,7 +136,7 @@ export default function NotificationsPage() {
       if (unsubscribeResident) unsubscribeResident();
       if (unsubscribeSessions) unsubscribeSessions();
     };
-  }, [userId, barangayId]);
+  }, [userId]);
 
   // NOTIF-03: Check for new notifications periodically
   useEffect(() => {
@@ -123,25 +150,36 @@ export default function NotificationsPage() {
 
   // NOTIF-03: Mark as read/unread
   const handleToggleRead = (id) => {
-    setNotifications(prev =>
-      prev.map(notif =>
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
         notif.id === id ? { ...notif, read: !notif.read } : notif
-      )
-    );
+      );
+      // Save to localStorage
+      localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // NOTIF-03: Archive notification
   const handleArchive = (id) => {
-    setNotifications(prev =>
-      prev.map(notif =>
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
         notif.id === id ? { ...notif, archived: true, read: true } : notif
-      )
-    );
+      );
+      // Save to localStorage
+      localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Delete notification
   const handleDelete = (id) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
+    setNotifications(prev => {
+      const updated = prev.filter(notif => notif.id !== id);
+      // Save to localStorage
+      localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // NOTIF-03: Sort notifications
@@ -150,12 +188,12 @@ export default function NotificationsPage() {
     
     switch (sortBy) {
       case 'date-desc':
-        return sorted.sort((a, b) => b.date - a.date);
+        return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       case 'date-asc':
-        return sorted.sort((a, b) => a.date - b.date);
+        return sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       case 'status':
-        const statusOrder = { pending: 0, approved: 1, rejected: 2, released: 3 };
-        return sorted.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+        const statusOrder = { pending: 0, approved: 1, rejected: 2, released: 3, 'in-progress': 4, completed: 5, scheduled: 6 };
+        return sorted.sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
       default:
         return sorted;
     }
@@ -182,10 +220,11 @@ export default function NotificationsPage() {
   };
 
   const filteredNotifications = getFilteredNotifications();
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read && !n.archived).length;
   const archivedCount = notifications.filter(n => n.archived).length;
 
-  // Get status icon based on vaccine request status
+
+  // Get status icon based on notification type and status
   const getStatusIcon = (status) => {
     switch (status) {
       case 'pending':
@@ -418,7 +457,7 @@ export default function NotificationsPage() {
                     {/* Delete Button */}
                     <button
                       onClick={() => handleDelete(notification.id)}
-                      className="shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
