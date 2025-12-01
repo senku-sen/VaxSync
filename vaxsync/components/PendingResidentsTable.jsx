@@ -38,29 +38,29 @@ export default function PendingResidentsTable({
             <p>No pending residents found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-2 md:mx-0">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium">Name</th>
-                  <th className="text-left py-3 px-4 font-medium">Birthday</th>
-                  <th className="text-left py-3 px-4 font-medium">Sex</th>
-                  <th className="text-left py-3 px-4 font-medium">Address</th>
-                  <th className="text-left py-3 px-4 font-medium">Barangay</th>
-                  <th className="text-left py-3 px-4 font-medium">Vaccine Status</th>
-                  <th className="text-left py-3 px-4 font-medium">Vaccines Given</th>
-                  <th className="text-left py-3 px-4 font-medium">Contact</th>
-                  <th className="text-left py-3 px-4 font-medium">Submitted</th>
-                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Name</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Sex</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Address</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Barangay</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Vaccine Status</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Contact</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {residents.map((resident) => (
                   <tr key={resident.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="font-medium">{resident.name}</div>
+                    <td className="py-2 px-2">
+                      <div className="font-medium text-xs">{resident.name}</div>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-2 text-xs">
                       {resident.birthday 
                         ? new Date(resident.birthday).toLocaleDateString('en-US', { 
                             month: '2-digit', 
@@ -70,47 +70,39 @@ export default function PendingResidentsTable({
                         : 'N/A'
                       }
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-2 text-xs">
                       {resident.sex || 'N/A'}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        {resident.address}
-                      </div>
+                    <td className="py-2 px-2 text-xs max-w-xs truncate">
+                      {resident.address}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="text-sm">
-                        {resident.barangay || 'N/A'}
-                      </div>
+                    <td className="py-2 px-2 text-xs">
+                      {resident.barangay || 'N/A'}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-2">
                       {getVaccineStatusBadge(resident.vaccine_status)}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
+                    <td className="py-2 px-2">
+                      <div className="flex flex-wrap gap-0.5 max-w-xs">
                         {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
                           resident.vaccines_given.map((vaccine, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
+                            <Badge key={index} variant="outline" className="text-xs py-0 px-1">
                               {vaccine.toUpperCase()}
                             </Badge>
                           ))
                         ) : (
-                          <span className="text-sm text-gray-400">None</span>
+                          <span className="text-xs text-gray-400">None</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center text-sm">
-                        {resident.contact}
-                      </div>
+                    <td className="py-2 px-2 text-xs">
+                      {resident.contact}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        {formatDate(resident.submitted_at)}
-                      </div>
+                    <td className="py-2 px-2 text-xs">
+                      {formatDate(resident.submitted_at)}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center space-x-2">
+                    <td className="py-2 px-2">
+                      <div className="flex items-center space-x-1">
                         <Button
                           size="sm"
                           variant="ghost"

@@ -17,11 +17,13 @@ import {
   Download, 
   Search, 
   CheckCircle, 
-  Clock
+  Clock,
+  MapPin
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
@@ -31,7 +33,8 @@ export default function ResidentsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
-  const [selectedBarangay, setSelectedBarangay] = useState("all");
+  const [selectedBarangay, setSelectedBarangay] = useState("");
+  const [selectedBarangayId, setSelectedBarangayId] = useState(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -71,9 +74,46 @@ export default function ResidentsPage() {
       if (profile) {
         setUserProfile(profile);
         console.log('User profile loaded:', profile);
-        // Auto-select user's barangay if available
-        if (profile.barangays?.name) {
-          setSelectedBarangay(profile.barangays.name);
+        
+        // Determine assigned barangay using assigned_barangay_id
+        let assignedBarangay = null;
+        let assignedBarangayId = null;
+        
+        // Use assigned_barangay_id from profile
+        if (profile.assigned_barangay_id) {
+          assignedBarangayId = profile.assigned_barangay_id;
+          
+          // If barangays info is already loaded, use it
+          if (profile.barangays?.name) {
+            assignedBarangay = profile.barangays.name;
+          } else {
+            // Fetch barangay info by ID
+            const { data: barangay, error: barangayError } = await supabase
+              .from('barangays')
+              .select('id, name')
+              .eq('id', assignedBarangayId)
+              .maybeSingle();
+            
+            if (!barangayError && barangay) {
+              assignedBarangay = barangay.name;
+              profile.barangays = barangay;
+            }
+          }
+        } else if (profile.barangays?.name) {
+          // Fallback: use barangays name if assigned_barangay_id is not set
+          assignedBarangay = profile.barangays.name;
+          assignedBarangayId = profile.barangays.id;
+        }
+        
+        // Lock the barangay filter to assigned barangay
+        if (assignedBarangay) {
+          setSelectedBarangay(assignedBarangay);
+          if (assignedBarangayId) {
+            setSelectedBarangayId(assignedBarangayId);
+          }
+        } else {
+          // If no barangay assigned, show error or empty state
+          setAuthError('No barangay assigned. Please contact your head nurse.');
         }
       }
     } catch (err) {
@@ -147,11 +187,17 @@ export default function ResidentsPage() {
   const fetchResidents = async (status = "pending") => {
     try {
       setLoading(true);
+      // Always filter by assigned barangay for health workers
       const params = new URLSearchParams({
         status,
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
       });
+
+      // For Health Workers, filter primarily by their assigned barangay name.
+      // The API uses a case-insensitive match so 'MAGANG' and 'Magang' both work.
+      if (selectedBarangay) {
+        params.set("barangay", selectedBarangay);
+      }
       
       const response = await fetch(`/api/residents?${params}`);
       const data = await response.json();
@@ -172,21 +218,25 @@ export default function ResidentsPage() {
   // Fetch counts for both pending and approved residents
   const fetchCounts = async () => {
     try {
-      // Fetch pending count
+      // Fetch pending count - always filter by assigned barangay
       const pendingParams = new URLSearchParams({
         status: "pending",
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
       });
+      if (selectedBarangay) {
+        pendingParams.set("barangay", selectedBarangay);
+      }
       const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
       const pendingData = await pendingResponse.json();
       
-      // Fetch approved count
+      // Fetch approved count - always filter by assigned barangay
       const approvedParams = new URLSearchParams({
         status: "approved",
         search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
       });
+      if (selectedBarangay) {
+        approvedParams.set("barangay", selectedBarangay);
+      }
       const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
       const approvedData = await approvedResponse.json();
       
@@ -220,6 +270,7 @@ export default function ResidentsPage() {
         },
         body: JSON.stringify({
           ...formData,
+          barangay_id: selectedBarangayId || null,
           submitted_by: userProfile.id
         }),
       });
@@ -231,7 +282,8 @@ export default function ResidentsPage() {
         setIsAddDialogOpen(false);
         setFormData({
           name: "",
-          age: "",
+          birthday: "",
+          sex: "",
           address: "",
           vaccine_status: "not_vaccinated",
           contact: "",
@@ -251,14 +303,18 @@ export default function ResidentsPage() {
 
   // Update resident
   const handleUpdateResident = async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // fixed bug
     try {
       const response = await fetch("/api/residents", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id: selectedResident.id, ...formData }),
+        body: JSON.stringify({ 
+          id: selectedResident.id, 
+          ...formData,
+          barangay_id: selectedBarangayId || null
+        }),
       });
 
       const data = await response.json();
@@ -371,7 +427,7 @@ export default function ResidentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthLoading && userProfile) {
+    if (!isAuthLoading && userProfile && selectedBarangay) {
       fetchResidents(activeTab);
       fetchCounts();
     }
@@ -384,13 +440,13 @@ export default function ResidentsPage() {
       <div className="flex-1 flex flex-col w-full lg:ml-64">
         <Header 
           title="Resident Information Management" 
-          subtitle={`Assigned Barangay: ${selectedBarangay === "all" ? "All Barangays" : selectedBarangay}`} 
+          subtitle={`Assigned Barangay: ${selectedBarangay || "Not Assigned"}`} 
         />
 
-        <main className="p-2 md:p-3 lg:p-4 flex-1 overflow-auto">
+        <main className="p-2 md:p-3 lg:p-4 flex-1 overflow-auto w-full">
           {/* User Info Display */}
           {userProfile && (
-            <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="mb-2 p-1 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-900">
                 <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
               </p>
@@ -399,7 +455,7 @@ export default function ResidentsPage() {
 
           {/* Auth Error Display */}
           {authError && (
-            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-2 p-1 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-xs text-red-900">
                 <span className="font-semibold">Error:</span> {authError}
               </p>
@@ -427,16 +483,17 @@ export default function ResidentsPage() {
               <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
                 setIsAddDialogOpen(open);
                 if (open) {
-                  // Reset form data when opening add dialog
-        setFormData({
-          name: "",
-          age: "",
-          address: "",
-          vaccine_status: "not_vaccinated",
-          contact: "",
-          barangay: "",
-          vaccines_given: []
-        });
+                  // Reset form data when opening add dialog, auto-set barangay to assigned
+                  setFormData({
+                    name: "",
+                    birthday: "",
+                    sex: "",
+                    address: "",
+                    vaccine_status: "not_vaccinated",
+                    contact: "",
+                    barangay: selectedBarangay || "",
+                    vaccines_given: []
+                  });
                 }
               }}>
                 <DialogTrigger asChild>
@@ -445,7 +502,7 @@ export default function ResidentsPage() {
                     Add Resident
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Add New Resident</DialogTitle>
                   </DialogHeader>
@@ -524,16 +581,27 @@ export default function ResidentsPage() {
                     
                     <div>
                       <Label htmlFor="barangay">Barangay</Label>
-                      <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                        <SelectTrigger>
+                      <Select 
+                        value={formData.barangay || selectedBarangay} 
+                        onValueChange={(value) => setFormData({...formData, barangay: value})}
+                        disabled={!!selectedBarangay}
+                      >
+                        <SelectTrigger className={selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}>
                           <SelectValue placeholder="Select barangay" />
                         </SelectTrigger>
                         <SelectContent>
-                          {BARANGAYS.map((b) => (
-                            <SelectItem key={b} value={b}>{b}</SelectItem>
-                          ))}
+                          {selectedBarangay ? (
+                            <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
+                          ) : (
+                            BARANGAYS.map((b) => (
+                              <SelectItem key={b} value={b}>{b}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
+                      {selectedBarangay && (
+                        <p className="text-xs text-gray-500 mt-1">Barangay is locked to your assignment: {selectedBarangay}</p>
+                      )}
                     </div>
                     
                     <div>
@@ -609,7 +677,7 @@ export default function ResidentsPage() {
             </TabsList>
           </Tabs>
 
-          {/* Search and Filter */}
+          {/* Search */}
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -620,17 +688,15 @@ export default function ResidentsPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={selectedBarangay} onValueChange={setSelectedBarangay}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by Barangay" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Barangays</SelectItem>
-                {BARANGAYS.map((b) => (
-                  <SelectItem key={b} value={b}>{b}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Display assigned barangay (read-only) */}
+            {selectedBarangay && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-md">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-900">
+                  Assigned Barangay: <span className="font-semibold">{selectedBarangay}</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Residents Table */}
@@ -644,6 +710,7 @@ export default function ResidentsPage() {
               handleDeleteResident={handleDeleteResident}
               getVaccineStatusBadge={getVaccineStatusBadge}
               formatDate={formatDate}
+              showApproveButton={false}
             />
           ) : (
             <ApprovedResidentsTable
@@ -738,16 +805,27 @@ export default function ResidentsPage() {
                 
                 <div>
                   <Label htmlFor="edit-barangay">Barangay</Label>
-                  <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                    <SelectTrigger>
+                  <Select 
+                    value={formData.barangay || selectedBarangay} 
+                    onValueChange={(value) => setFormData({...formData, barangay: value})}
+                    disabled={!!selectedBarangay}
+                  >
+                    <SelectTrigger className={selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}>
                       <SelectValue placeholder="Select barangay" />
                     </SelectTrigger>
                     <SelectContent>
-                      {BARANGAYS.map((b) => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
+                      {selectedBarangay ? (
+                        <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
+                      ) : (
+                        BARANGAYS.map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
+                  {selectedBarangay && (
+                    <p className="text-xs text-gray-500 mt-1">Barangay is locked to your assignment: {selectedBarangay}</p>
+                  )}
                 </div>
                 
                 <div>
@@ -811,7 +889,7 @@ export default function ResidentsPage() {
               fetchCounts();
             }}
             userProfile={userProfile}
-            selectedBarangay={selectedBarangay === "all" ? "" : selectedBarangay}
+            selectedBarangay={selectedBarangay || ""}
           />
           
         </main>

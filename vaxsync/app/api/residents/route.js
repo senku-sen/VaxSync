@@ -548,3 +548,164 @@ export async function POST(request) {
     );
   }
 }
+
+// GET - Fetch residents with filters
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || 'pending';
+    const search = searchParams.get('search') || '';
+    const barangay = searchParams.get('barangay') || '';
+
+    let query = supabase
+      .from('residents')
+      .select('*')
+      .eq('status', status);
+
+    // Filter by barangay if provided
+    if (barangay) {
+      query = query.eq('barangay', barangay);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching residents:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch residents' },
+        { status: 500 }
+      );
+    }
+
+    // Filter by search term (client-side for now)
+    let filtered = data || [];
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.name?.toLowerCase().includes(searchLower) ||
+        r.address?.toLowerCase().includes(searchLower) ||
+        r.contact?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return NextResponse.json({ residents: filtered });
+  } catch (error) {
+    console.error('Error in GET /api/residents:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update resident
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Resident ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from('residents')
+      .update(updateData)
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Error updating resident:', error);
+      return NextResponse.json(
+        { error: 'Failed to update resident' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, resident: data?.[0] });
+  } catch (error) {
+    console.error('Error in PUT /api/residents:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Approve/Reject resident
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    const { id, action } = body;
+
+    if (!id || !action) {
+      return NextResponse.json(
+        { error: 'Resident ID and action are required' },
+        { status: 400 }
+      );
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+
+    const { data, error } = await supabase
+      .from('residents')
+      .update({ status: newStatus })
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Error updating resident status:', error);
+      return NextResponse.json(
+        { error: 'Failed to update resident status' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, resident: data?.[0] });
+  } catch (error) {
+    console.error('Error in PATCH /api/residents:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete resident
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Resident ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase
+      .from('residents')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting resident:', error);
+      return NextResponse.json(
+        { error: 'Failed to delete resident' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in DELETE /api/residents:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
