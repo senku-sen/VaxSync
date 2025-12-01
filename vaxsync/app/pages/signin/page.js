@@ -93,93 +93,116 @@ export default function SignIn() {
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg p-8 w-full max-w-md" style={{ border: '2px solid #3E5F44' }}>
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-6">
-          <Image
-            src="/VSyncLogo.png"
-            alt="VaxSync Logo"
-            width={240}
-            height={90}
-            className="h-24 w-auto"
-          />
-        </div>
-
-        {/* Sign In Title */}
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold mb-2" style={{ color: '#3E5F44' }}>Sign In</h2>
-          <p className="text-gray-600 text-sm">Enter your credentials to access your account</p>
-        </div>
-
-        {/* Error Banner */}
-        {error ? (
-          <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert" aria-live="assertive">
-            {error}
-          </div>
-        ) : null}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Email Field */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
-              style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
-              required
+      <div className="w-full max-w-lg bg-white rounded-2xl border-2 border-gray-300 shadow-lg overflow-hidden">
+        {/* Header */}
+        <div className="text-center mb-8 pb-8 px-8 pt-8 ">
+          <div className="flex items-center justify-center mb-4">
+            <Image
+              src="/VSyncLogo.png"
+              alt="VaxSync Logo"
+              width={240}
+              height={90}
+              className="h-16 w-auto"
             />
-            <p className="text-xs text-gray-500 mt-1">Please use the email you registered with</p>
           </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h1>
+          <p className="text-gray-600">Access your vaccine management dashboard</p>
+        </div>
 
-          {/* Password Field */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <Link href="/pages/forgot-password" className="text-sm font-medium" style={{ color: '#3E5F44' }}>
-                Forgot password?
-              </Link>
+        {/* Card Content */}
+        <div className="p-8">
+
+          {/* Error Banner */}
+          {error ? (
+            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3" role="alert" aria-live="assertive">
+              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <span>{error}</span>
             </div>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className={`w-full px-4 py-3 border ${error ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:border-transparent text-sm text-gray-900`}
-              style={{ '--tw-ring-color': error ? '#ef4444' : '#3E5F44' }}
-              required
-            />
+          ) : null}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email Field */}
+            <div>
+              <label htmlFor="email" className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">
+                Email Address
+              </label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
+                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                }`}
+                required
+              />
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Password
+                </label>
+                <Link href="/pages/forgot-password" className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors">
+                  Forgot?
+                </Link>
+              </div>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
+                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                }`}
+                required
+              />
+            </div>
+
+            {/* Sign In Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full bg-green-600 hover:bg-green-700 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm mt-6 ${
+                isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in…
+                </span>
+              ) : (
+                'Sign In'
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="my-6 flex items-center gap-3">
+            <div className="flex-1 h-px bg-gray-200"></div>
+            <span className="text-xs text-gray-500 font-medium">New user?</span>
+            <div className="flex-1 h-px bg-gray-200"></div>
           </div>
 
-          {/* Sign In Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full text-white py-3 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors font-medium ${isSubmitting ? 'opacity-60 cursor-not-allowed' : ''}`}
-            style={{ backgroundColor: '#3E5F44', '--tw-ring-color': '#3E5F44' }}
-          >
-            {isSubmitting ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-
-        {/* Sign Up Link */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link href="/pages/signup" className="font-medium" style={{ color: '#3E5F44' }}>
-              Sign up
-            </Link>
-          </p>
-          <p className="text-xs text-gray-500 mt-2">Use the email address you registered with.</p>
+          {/* Sign Up Link */}
+          <div className="text-center">
+            <p className="text-sm text-gray-700">
+              Don't have an account?{" "}
+              <Link href="/pages/signup" className="font-semibold text-green-600 hover:text-green-700 transition-colors">
+                Sign up
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
