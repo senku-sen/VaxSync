@@ -193,357 +193,114 @@ function determineVaccineStatus(vaccines) {
   return vaccines.length > 3 ? 'fully_vaccinated' : 'partially_vaccinated';
 }
 
+// POST - Create new resident (JSON only, CSV uploads go to /api/residents/upload)
 export async function POST(request) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const barangayName = formData.get('barangay') || '';
-    const submittedBy = formData.get('submitted_by');
+    const body = await request.json();
+    const { name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
 
-    if (!file) {
+    // Validate required fields
+    if (!name || !birthday || !sex || !address || !contact) {
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    if (!submittedBy) {
-      return NextResponse.json(
-        { success: false, error: 'User ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Read file content
-    const fileContent = await file.text();
-    const lines = fileContent.split('\n');
-    
-    if (lines.length < 2) {
-      return NextResponse.json(
-        { success: false, error: 'CSV file must have at least a header and one data row' },
-        { status: 400 }
-      );
-    }
-
-    // Helper function to check if a row is empty or invalid
-    const isEmptyRow = (values) => {
-      if (!values || values.length === 0) return true;
-      const nonEmpty = values.filter(v => v && v.trim() && v.trim() !== '-');
-      return nonEmpty.length === 0;
-    };
-
-    // Detect barangay name from CSV (usually in first few rows, before header)
-    const detectBarangayFromCSV = (lines, headerRowIndex) => {
-      // Known barangay names for validation
-      const knownBarangays = [
-        'mancruz', 'alawihao', 'bibirao', 'calasgasan', 'camambugan',
-        'dogongan', 'magang', 'pamorangan', 'barangay ii'
-      ];
+    // Resolve barangay_id: accept explicit barangay_id, otherwise map from barangay name (and create if missing)
+    let resolvedBarangayId = barangay_id || null;
+    if (!resolvedBarangayId && barangay) {
+      // Try get existing
+      const { data: foundBarangay, error: findBarangayError } = await supabase
+        .from('barangays')
+        .select('id')
+        .eq('name', barangay)
+        .maybeSingle();
       
-      // Check rows before the header row
-      for (let i = 0; i < headerRowIndex && i < 10; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const values = parseCSVLine(line);
-        if (isEmptyRow(values)) continue;
-        
-        // Check each cell in the row
-        for (const cell of values) {
-          const cleaned = cell.trim().toLowerCase();
-          if (!cleaned || cleaned.length < 3) continue;
-          
-          // Check if it matches a known barangay (case-insensitive)
-          const matchedBarangay = knownBarangays.find(b => cleaned.includes(b) || b.includes(cleaned));
-          if (matchedBarangay) {
-            // Return proper case version
-            const index = knownBarangays.indexOf(matchedBarangay);
-            const properCaseBarangays = [
-              'Mancruz', 'Alawihao', 'Bibirao', 'Calasgasan', 'Camambugan',
-              'Dogongan', 'Magang', 'Pamorangan', 'Barangay II'
-            ];
-            return properCaseBarangays[index];
-          }
-          
-          // Also check if it's a single word that looks like a barangay name
-          // (not a header, not a number, has proper length)
-          if (cleaned.length >= 4 && cleaned.length <= 20 && 
-              !cleaned.match(/^\d+$/) && 
-              !cleaned.includes('name') && !cleaned.includes('sex') && 
-              !cleaned.includes('birthday') && !cleaned.includes('vaccine')) {
-            // Return with proper capitalization
-            return cleaned.split(' ').map(word => 
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-            ).join(' ');
-          }
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+        // Continue to try creating if lookup fails (could be network issue)
+      }
+
+      if (foundBarangay && foundBarangay.id) {
+        resolvedBarangayId = foundBarangay.id;
+      } else {
+        // If not found, insert
+        const { data: newBarangay, error: insertBarangayError } = await supabase
+          .from('barangays')
+          .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
+          .select('id')
+          .single();
+
+        if (insertBarangayError) {
+          console.error('Supabase error (create barangay):', insertBarangayError);
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Failed to resolve barangay',
+              details: process.env.NODE_ENV === 'development' ? insertBarangayError : undefined
+            },
+            { status: 500 }
+          );
         }
-      }
-      
-      return null;
-    };
-
-    // Find header row by scanning through the file
-    let headerRowIndex = -1;
-    let headers = [];
-    let nameIndex = -1;
-    let sexIndex = -1;
-    let birthdayIndex = -1;
-    let dateOfVaccineIndex = -1;
-    let vaccineGivenIndex = -1;
-
-    // Scan up to 50 rows to find the header
-    for (let i = 0; i < Math.min(50, lines.length); i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      const rowValues = parseCSVLine(line);
-      if (isEmptyRow(rowValues)) continue;
-      
-      const normalizedHeaders = rowValues.map(h => h.toLowerCase().trim());
-      
-      // Check if this row contains the required column headers
-      const foundNameIndex = normalizedHeaders.findIndex(h => h.includes('name') && h.length > 2);
-      const foundSexIndex = normalizedHeaders.findIndex(h => h.includes('sex'));
-      const foundBirthdayIndex = normalizedHeaders.findIndex(h => (h.includes('birthday') || h.includes('birth')) && h.length > 3);
-      
-      if (foundNameIndex !== -1 && foundSexIndex !== -1 && foundBirthdayIndex !== -1) {
-        // Found the header row!
-        headerRowIndex = i;
-        headers = normalizedHeaders;
-        nameIndex = foundNameIndex;
-        sexIndex = foundSexIndex;
-        birthdayIndex = foundBirthdayIndex;
-        dateOfVaccineIndex = normalizedHeaders.findIndex(h => h.includes('date of vaccine') || h.includes('vaccine date'));
-        vaccineGivenIndex = normalizedHeaders.findIndex(h => h.includes('vaccine given') || h.includes('vaccines'));
-        break;
+        resolvedBarangayId = newBarangay.id;
       }
     }
 
-    // If header row not found, return error
-    if (headerRowIndex === -1) {
-      return NextResponse.json(
-        { success: false, error: 'Could not find required columns (NAME, SEX, BIRTHDAY) in the CSV file. Please check the file format.' },
-        { status: 400 }
-      );
-    }
+    // Create new resident in Supabase
+    const { data: newResident, error } = await supabase
+      .from('residents')
+      .insert([
+        {
+          name,
+          birthday: birthday || null,
+          sex: sex || null,
+          address,
+          contact,
+          vaccine_status: vaccine_status || 'not_vaccinated',
+          status: 'pending',
+          barangay: barangay || null,
+          barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
+          submitted_by: submitted_by || 'system',
+          vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
+          missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
+          submitted_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
 
-    // Detect barangay from CSV file (check rows before header)
-    const detectedBarangay = detectBarangayFromCSV(lines, headerRowIndex);
-    
-    // Use detected barangay from CSV, fallback to provided barangay, then 'Unknown'
-    const effectiveBarangayName = detectedBarangay || barangayName || 'Unknown';
-    
-    // Log detected barangay for debugging
-    if (detectedBarangay) {
-      console.log(`Detected barangay from CSV: ${detectedBarangay}`);
-    }
-
-    // Resolve barangay_id
-    let barangayId = null;
-    
-    const { data: foundBarangay, error: findBarangayError } = await supabase
-      .from('barangays')
-      .select('id')
-      .eq('name', effectiveBarangayName)
-      .maybeSingle();
-    
-    // Check if we got a valid barangay or if there was a connection error
-    if (findBarangayError) {
-      // If it's a fetch/network error, provide better error message
-      if (findBarangayError.message?.includes('fetch failed') || findBarangayError.message?.includes('TypeError')) {
-        console.error('Supabase connection error:', findBarangayError);
+    if (error) {
+      console.error('Supabase error (create resident):', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
+          {
+            success: false,
+            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.'
           },
           { status: 503 }
         );
       }
-      // Other errors, continue to try creating
-      console.error('Error finding barangay:', findBarangayError);
-    }
-    
-    if (foundBarangay?.id) {
-      barangayId = foundBarangay.id;
-    } else {
-      // Create new barangay if not found
-      const { data: newBarangay, error: insertBarangayError } = await supabase
-        .from('barangays')
-        .insert([{ name: effectiveBarangayName, municipality: 'Unknown' }])
-        .select('id')
-        .single();
-      
-      if (insertBarangayError) {
-        // If it's a fetch/network error, provide better error message
-        if (insertBarangayError.message?.includes('fetch failed') || insertBarangayError.message?.includes('TypeError')) {
-          console.error('Supabase connection error:', insertBarangayError);
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
-            },
-            { status: 503 }
-          );
-        }
-        console.error('Failed to create/find barangay:', insertBarangayError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to resolve barangay. Please ensure a valid barangay is selected.' },
-          { status: 400 }
-        );
-      }
-      
-      if (newBarangay?.id) {
-        barangayId = newBarangay.id;
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Failed to create barangay. Please try again.' },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Parse data rows (start after header row, skip empty rows)
-    const residents = [];
-    const errors = [];
-    
-    for (let i = headerRowIndex + 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      const values = parseCSVLine(line);
-      
-      // Skip empty rows
-      if (isEmptyRow(values)) continue;
-      
-      // Safely extract values (handle cases where row might have fewer columns)
-      const name = values[nameIndex]?.trim() || '';
-      const sex = values[sexIndex]?.trim() || '';
-      const birthday = values[birthdayIndex]?.trim() || '';
-      const dateOfVaccine = (dateOfVaccineIndex >= 0 && values[dateOfVaccineIndex]) ? values[dateOfVaccineIndex].trim() : null;
-      const vaccineGiven = (vaccineGivenIndex >= 0 && values[vaccineGivenIndex]) ? values[vaccineGivenIndex].trim() : null;
-      
-      // Skip rows with empty or invalid names (likely empty rows that weren't caught)
-      if (!name || name === '-' || name.length < 2) {
-        continue;
-      }
-      
-      // Validate required fields - be lenient with missing data
-      if (!birthday || birthday === '-') {
-        errors.push(`Row ${i + 1}: Missing birthday for ${name}`);
-        continue;
-      }
-      
-      const parsedBirthdayResult = parseDate(birthday);
-      if (!parsedBirthdayResult || parsedBirthdayResult.error) {
-        const errorMsg = parsedBirthdayResult?.error || 'Invalid format';
-        errors.push(`Row ${i + 1}: Invalid birthday format "${birthday}" for ${name} (${errorMsg})`);
-        continue;
-      }
-      
-      // Accept all dates, even future dates - keep format as is in CSV
-      const parsedBirthday = parsedBirthdayResult.date;
-      
-      const normalizedSex = normalizeSex(sex);
-      const vaccines = parseVaccines(vaccineGiven);
-      const vaccineStatus = determineVaccineStatus(vaccines);
-      
-      // Build resident object
-      // Use barangay name as default address if CSV doesn't have address field
-      const defaultAddress = effectiveBarangayName || 'Not specified';
-      
-      const resident = {
-        name: name,
-        birthday: parsedBirthday,
-        sex: normalizedSex || 'Male', // Default to 'Male' if missing (database might require it)
-        address: defaultAddress,
-        contact: 'N/A', // CSV doesn't have contact, use default
-        vaccine_status: vaccineStatus,
-        status: 'pending',
-        barangay: effectiveBarangayName || null,
-        barangay_id: barangayId,
-        submitted_by: submittedBy,
-        vaccines_given: vaccines,
-        submitted_at: new Date().toISOString()
-      };
-      
-      // Validate required fields for database
-      if (!resident.name || !resident.birthday || !resident.address || !resident.contact) {
-        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, address, contact)`);
-        continue;
-      }
-      
-      // Validate that we have a barangay_id (required by database)
-      if (!resident.barangay_id) {
-        errors.push(`Row ${i + 1}: Failed to resolve barangay`);
-        continue;
-      }
-      
-      residents.push(resident);
-    }
-
-    if (residents.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'No valid residents found in CSV file', errors },
-        { status: 400 }
+        {
+          success: false,
+          error: 'Failed to create resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
+        { status: 500 }
       );
     }
 
-    // Insert residents in batches (Supabase has a limit, typically 1000 rows)
-    const batchSize = 100;
-    let successCount = 0;
-    const batchErrors = [];
-
-    for (let i = 0; i < residents.length; i += batchSize) {
-      const batch = residents.slice(i, i + batchSize);
-      
-      const { data, error } = await supabase
-        .from('residents')
-        .insert(batch)
-        .select('id');
-
-      if (error) {
-        console.error(`Error inserting batch ${Math.floor(i / batchSize) + 1}:`, error);
-        // Check if it's a connection error
-        if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
-          // Return early if it's a connection error - can't continue
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.',
-              successCount, // Return count of successfully inserted before error
-              errors: [...errors, ...batchErrors, `Batch ${Math.floor(i / batchSize) + 1}: Connection failed`]
-            },
-            { status: 503 }
-          );
-        }
-        // Check for constraint violations (like birthday_not_future)
-        let errorMessage = error.message;
-        if (error.message?.includes('birthday_not_future') || error.code === '23514') {
-          errorMessage = `Database constraint violation: Some birthdays are in the future. Please remove the 'birthday_not_future' constraint from your database if you want to allow future dates.`;
-        }
-        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${errorMessage}`);
-        // Continue with next batch even if one fails
-      } else {
-        successCount += data?.length || 0;
-      }
-    }
-
-    // Combine parsing errors with batch errors
-    const allErrors = [...errors, ...batchErrors];
-
     return NextResponse.json({
       success: true,
-      successCount,
-      totalRows: residents.length, // Count of parsed residents, not total file rows
-      processedRows: lines.length - headerRowIndex - 1, // Rows processed after header
-      errors: allErrors.length > 0 ? allErrors : undefined
+      resident: newResident,
+      message: 'Resident created successfully'
     });
-
   } catch (error) {
-    console.error('Error processing CSV upload:', error);
+    console.error('Error creating resident:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to process CSV file: ' + error.message },
+      { success: false, error: 'Failed to create resident' },
       { status: 500 }
     );
   }

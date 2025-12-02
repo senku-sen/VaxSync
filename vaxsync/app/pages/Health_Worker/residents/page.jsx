@@ -52,7 +52,8 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     contact: "",
     barangay: "",
-    vaccines_given: []
+    vaccines_given: [],
+    missed_schedule_of_vaccine: []
   });
 
   // Available vaccine types
@@ -288,7 +289,8 @@ export default function ResidentsPage() {
           vaccine_status: "not_vaccinated",
           contact: "",
           barangay: "",
-          vaccines_given: []
+          vaccines_given: [],
+          missed_schedule_of_vaccine: []
         });
         fetchResidents(activeTab);
         fetchCounts();
@@ -395,7 +397,8 @@ export default function ResidentsPage() {
       vaccine_status: resident.vaccine_status || "not_vaccinated",
       contact: resident.contact || "",
       barangay: resident.barangay || "",
-      vaccines_given: resident.vaccines_given || []
+      vaccines_given: resident.vaccines_given || [],
+      missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
     });
     setIsEditDialogOpen(true);
   };
@@ -492,7 +495,8 @@ export default function ResidentsPage() {
                     vaccine_status: "not_vaccinated",
                     contact: "",
                     barangay: selectedBarangay || "",
-                    vaccines_given: []
+                    vaccines_given: [],
+                    missed_schedule_of_vaccine: []
                   });
                 }
               }}>
@@ -639,6 +643,46 @@ export default function ResidentsPage() {
                         {formData.vaccines_given.length > 0 && (
                           <p className="text-xs text-gray-500 mt-3">
                             Selected: {formData.vaccines_given.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label>Missed Schedule of Vaccine</Label>
+                      <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {VACCINE_TYPES.map((vaccine) => (
+                            <div key={vaccine} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`missed-vaccine-${vaccine}`}
+                                checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setFormData({
+                                      ...formData,
+                                      missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
+                                    });
+                                  } else {
+                                    setFormData({
+                                      ...formData,
+                                      missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label
+                                htmlFor={`missed-vaccine-${vaccine}`}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {vaccine.toUpperCase()}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                        {formData.missed_schedule_of_vaccine.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-3">
+                            Selected: {formData.missed_schedule_of_vaccine.join(", ")}
                           </p>
                         )}
                       </div>
@@ -863,6 +907,46 @@ export default function ResidentsPage() {
                     {formData.vaccines_given.length > 0 && (
                       <p className="text-xs text-gray-500 mt-3">
                         Selected: {formData.vaccines_given.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Missed Schedule of Vaccine</Label>
+                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {VACCINE_TYPES.map((vaccine) => (
+                        <div key={vaccine} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-missed-vaccine-${vaccine}`}
+                            checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
+                                });
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`edit-missed-vaccine-${vaccine}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {vaccine.toUpperCase()}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {formData.missed_schedule_of_vaccine.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Selected: {formData.missed_schedule_of_vaccine.join(", ")}
                       </p>
                     )}
                   </div>

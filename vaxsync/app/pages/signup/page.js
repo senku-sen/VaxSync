@@ -159,7 +159,7 @@ export default function SignUp() {
       setSuccess(true);
       localStorage.setItem('registeredEmail', formData.email);
       setTimeout(() => {
-        window.location.href = '/pages/signup-success';
+        window.location.href = '/pages/registration-success';
       }, 2000);
     } catch (err) {
       setError(err.message || 'An error occurred');

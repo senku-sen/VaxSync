@@ -49,6 +49,7 @@ export default function PendingResidentsTable({
                   <th className="text-left py-2 px-2 font-medium text-xs">Barangay</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Vaccine Status</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Missed Schedule</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Contact</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Actions</th>
@@ -87,6 +88,19 @@ export default function PendingResidentsTable({
                         {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
                           resident.vaccines_given.map((vaccine, index) => (
                             <Badge key={index} variant="outline" className="text-xs py-0 px-1">
+                              {vaccine.toUpperCase()}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">None</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 px-2">
+                      <div className="flex flex-wrap gap-0.5 max-w-xs">
+                        {resident.missed_schedule_of_vaccine && Array.isArray(resident.missed_schedule_of_vaccine) && resident.missed_schedule_of_vaccine.length > 0 ? (
+                          resident.missed_schedule_of_vaccine.map((vaccine, index) => (
+                            <Badge key={index} variant="outline" className="text-xs py-0 px-1 bg-orange-50 text-orange-700 border-orange-200">
                               {vaccine.toUpperCase()}
                             </Badge>
                           ))
