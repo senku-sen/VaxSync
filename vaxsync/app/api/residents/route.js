@@ -562,9 +562,9 @@ export async function GET(request) {
       .select('*')
       .eq('status', status);
 
-    // Filter by barangay if provided
+    // Filter by barangay if provided (case-insensitive)
     if (barangay) {
-      query = query.eq('barangay', barangay);
+      query = query.ilike('barangay', barangay);
     }
 
     const { data, error } = await query;
