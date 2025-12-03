@@ -144,19 +144,26 @@ export default function Inventory() {
 
   const confirmDelete = async () => {
     if (!toDelete || !toDelete.id) return;
-    const { error } = await supabase
-      .from("vaccines")
-      .delete()
-      .eq("id", toDelete.id);
-    if (error) {
-      console.error("Error deleting vaccine:", error);
-      alert("Failed to delete vaccine");
-    } else {
-      // refresh list
-      fetchVaccines();
+    try {
+      const { error } = await supabase
+        .from("vaccines")
+        .delete()
+        .eq("id", toDelete.id);
+      if (error) {
+        console.error("Error deleting vaccine:", error);
+        setError(`Failed to delete vaccine: ${error.message}`);
+      } else {
+        console.log("Vaccine deleted successfully");
+        // refresh list
+        await fetchVaccines();
+      }
+    } catch (err) {
+      console.error("Error during delete:", err);
+      setError(`Error deleting vaccine: ${err.message}`);
+    } finally {
+      setToDelete(null);
+      setSelectedVaccine(null);
     }
-    setToDelete(null);
-    setSelectedVaccine(null);
   };
 
   const filteredVaccines = vaccines.filter(
@@ -469,6 +476,7 @@ export default function Inventory() {
 
                 <div className="p-6 md:p-8">
                   <AddVaccineDoses
+                    selectedVaccine={selectedVaccine}
                     onSuccess={handleVaccineAdded}
                     onClose={() => {
                       setIsModalOpen(false);

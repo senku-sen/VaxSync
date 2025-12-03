@@ -9,13 +9,13 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle } from "lucide-react";
-import { createVaccine } from "@/lib/vaccine";
+import { createVaccine, updateVaccine } from "@/lib/vaccine";
 import { createVaccineDoses } from "@/lib/vaccineDosingFunctions";
 import { VACCINE_DOSING_SCHEDULE } from "@/lib/vaccineDosingSchedule";
 
-export default function AddVaccineDoses({ onSuccess, onClose }) {
+export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine }) {
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -23,6 +23,18 @@ export default function AddVaccineDoses({ onSuccess, onClose }) {
     expiry_date: "",
     notes: ""
   });
+
+  // Initialize form with selected vaccine data when editing
+  useEffect(() => {
+    if (selectedVaccine) {
+      setFormData({
+        name: selectedVaccine.name || "",
+        quantity_available: selectedVaccine.quantity_available || "",
+        expiry_date: selectedVaccine.expiry_date || "",
+        notes: selectedVaccine.notes || ""
+      });
+    }
+  }, [selectedVaccine]);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
@@ -73,59 +85,89 @@ export default function AddVaccineDoses({ onSuccess, onClose }) {
     setIsLoading(true);
 
     try {
-      // 1. Create vaccine
-      const { data: vaccine, error: vaccineError } = await createVaccine({
-        name: formData.name,
-        quantity_available: parseInt(formData.quantity_available),
-        expiry_date: formData.expiry_date,
-        notes: formData.notes || "",
-        status: "Good"
-      });
+      if (selectedVaccine) {
+        // EDIT MODE: Update existing vaccine
+        const { data: vaccine, error: vaccineError } = await updateVaccine(
+          selectedVaccine.id,
+          {
+            name: formData.name,
+            quantity_available: parseInt(formData.quantity_available),
+            expiry_date: formData.expiry_date,
+            notes: formData.notes || "",
+            status: "Good"
+          }
+        );
 
-      if (vaccineError || !vaccine) {
-        throw new Error(vaccineError?.message || "Failed to create vaccine");
+        if (vaccineError || !vaccine) {
+          throw new Error(vaccineError?.message || "Failed to update vaccine");
+        }
+
+        console.log("Vaccine updated:", vaccine);
+
+        setSuccess(true);
+        setSuccessMessage("✓ Vaccine updated successfully!");
+
+        // Close after delay
+        setTimeout(() => {
+          onSuccess?.();
+          onClose?.();
+        }, 1500);
+      } else {
+        // CREATE MODE: Add new vaccine
+        // 1. Create vaccine
+        const { data: vaccine, error: vaccineError } = await createVaccine({
+          name: formData.name,
+          quantity_available: parseInt(formData.quantity_available),
+          expiry_date: formData.expiry_date,
+          notes: formData.notes || "",
+          status: "Good"
+        });
+
+        if (vaccineError || !vaccine) {
+          throw new Error(vaccineError?.message || "Failed to create vaccine");
+        }
+
+        console.log("Vaccine created:", vaccine);
+
+        // 2. Auto-create doses
+        const { success: dosesSuccess, doses, error: dosesError } = await createVaccineDoses(
+          vaccine.id,
+          formData.name,
+          parseInt(formData.quantity_available)
+        );
+
+        if (!dosesSuccess) {
+          console.error("❌ Error creating doses:", dosesError);
+          const errorMsg = dosesError?.message || "Failed to create doses";
+          setError(`Vaccine created but failed to create doses: ${errorMsg}`);
+          return;
+        }
+
+        console.log("✅ Doses created:", doses?.length || 0, "doses");
+
+        // Success (keep dose records attached to this vaccine_id)
+        setSuccess(true);
+        setSuccessMessage(
+          `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).`
+        );
+
+        // Reset form
+        setFormData({
+          name: "",
+          quantity_available: "",
+          expiry_date: "",
+          notes: ""
+        });
+
+        // Close after delay
+        setTimeout(() => {
+          onSuccess?.();
+          onClose?.();
+        }, 2000);
       }
-
-      console.log("Vaccine created:", vaccine);
-
-      // 2. Auto-create doses
-      const { success: dosesSuccess, doses, error: dosesError } = await createVaccineDoses(
-        vaccine.id,
-        formData.name,
-        parseInt(formData.quantity_available)
-      );
-
-      if (!dosesSuccess) {
-        console.error("❌ Error creating doses:", dosesError);
-        const errorMsg = dosesError?.message || "Failed to create doses";
-        setError(`Vaccine created but failed to create doses: ${errorMsg}`);
-        return;
-      }
-
-      console.log("✅ Doses created:", doses?.length || 0, "doses");
-
-      // Success (keep dose records attached to this vaccine_id)
-      setSuccess(true);
-      setSuccessMessage(
-        `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).`
-      );
-
-      // Reset form
-      setFormData({
-        name: "",
-        quantity_available: "",
-        expiry_date: "",
-        notes: ""
-      });
-
-      // Close after delay
-      setTimeout(() => {
-        onSuccess?.();
-        onClose?.();
-      }, 2000);
     } catch (err) {
-      console.error("Error adding vaccine:", err);
-      setError(err.message || "Failed to add vaccine");
+      console.error("Error submitting vaccine:", err);
+      setError(err.message || "Failed to submit vaccine");
     } finally {
       setIsLoading(false);
     }
@@ -255,10 +297,10 @@ export default function AddVaccineDoses({ onSuccess, onClose }) {
           {isLoading ? (
             <>
               <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-              Adding...
+              {selectedVaccine ? "Updating..." : "Adding..."}
             </>
           ) : (
-            "Add Vaccine"
+            selectedVaccine ? "Update Vaccine" : "Add Vaccine"
           )}
         </button>
       </div>

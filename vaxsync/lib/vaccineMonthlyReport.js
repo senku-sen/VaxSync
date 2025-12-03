@@ -1,6 +1,12 @@
 import { supabase } from "./supabase";
 
 /**
+ * Cache for monthly reports to avoid recalculation
+ * Structure: { "2025-12-01": { vaccine_id: { ending_inventory: 1200, ... } } }
+ */
+const monthlyReportCache = {};
+
+/**
  * NIP Monthly Vials Needed Reference Table
  * Fixed values based on National Immunization Program
  */
@@ -148,15 +154,19 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
     
     console.log(`📅 Date range: ${startDateStr} to ${endDateStr}`);
 
-    // Get all vaccines
+    // Get all vaccines that existed BEFORE or DURING this month
+    // Only include vaccines created on or before the end of this month
     const { data: vaccines, error: vaccineError } = await supabase
       .from('vaccines')
-      .select('id, name, batch_number');
+      .select('id, name, batch_number, created_at')
+      .lte('created_at', endDateStr);
 
     if (vaccineError) {
       console.error('Error fetching vaccines:', vaccineError);
       return { data: [], error: vaccineError };
     }
+    
+    console.log(`📦 Found ${vaccines?.length || 0} vaccines created by ${endDateStr}`);
 
     const reportMap = new Map(); // Use Map to merge duplicates by vaccine name
 
@@ -190,38 +200,43 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       previousMonth.setMonth(previousMonth.getMonth() - 1);
       const previousMonthStr = previousMonth.toISOString().split('T')[0].substring(0, 7) + '-01';
       
-      // Try to get previous month's report from database
       let initialVials = 0;
-      const { data: prevMonthReport, error: prevMonthError } = await supabase
-        .from('vaccine_monthly_report')
-        .select('ending_inventory')
-        .eq('vaccine_id', vaccine.id)
-        .eq('month', previousMonthStr)
-        .single();
       
-      if (!prevMonthError && prevMonthReport) {
-        // Use previous month's ending as this month's initial
-        initialVials = prevMonthReport.ending_inventory || 0;
-        console.log(`  Initial inventory (from previous month ending): ${initialVials} vials`);
-      } else {
-        // Fallback: Get initial inventory from vaccines created BEFORE this month
-        const { data: vaccinesBeforeMonth, error: vaccineDetailError } = await supabase
-          .from('vaccines')
-          .select('quantity_available, created_at')
-          .eq('id', vaccine.id)
-          .lt('created_at', startDateStr);
-
-        if (vaccineDetailError) {
-          console.error(`Error fetching vaccine details:`, vaccineDetailError);
-          continue;
+      // Step 1: Try cache first (fastest)
+      if (monthlyReportCache[previousMonthStr] && monthlyReportCache[previousMonthStr][vaccine.id]) {
+        initialVials = monthlyReportCache[previousMonthStr][vaccine.id].ending_inventory || 0;
+        console.log(`  ✅ Initial inventory (from cache): ${initialVials} vials`);
+      } 
+      // Step 2: Try database (fast) - with error suppression
+      else {
+        try {
+          // Query for previous month's report
+          console.log(`  🔍 Looking for previous month (${previousMonthStr}) in database...`);
+          const { data: prevMonthReport, error: prevMonthError } = await supabase
+            .from('vaccine_monthly_report')
+            .select('ending_inventory, vaccine_id, month')
+            .eq('vaccine_id', vaccine.id)
+            .eq('month', previousMonthStr)
+            .maybeSingle();
+          
+          // Only use if we got data and no error
+          if (!prevMonthError && prevMonthReport && prevMonthReport.ending_inventory !== null) {
+            initialVials = prevMonthReport.ending_inventory || 0;
+            console.log(`  ✅ Initial inventory (from database): ${initialVials} vials for ${vaccine.name}`);
+            // Cache it for next month
+            if (!monthlyReportCache[previousMonthStr]) {
+              monthlyReportCache[previousMonthStr] = {};
+            }
+            monthlyReportCache[previousMonthStr][vaccine.id] = { ending_inventory: initialVials };
+          } else {
+            console.log(`  ⚠️ No previous month data found for ${vaccine.name} in ${previousMonthStr}`);
+          }
+        } catch (err) {
+          console.warn(`  ⚠️ Database query error: ${err.message}`);
+          // If error, keep initialVials = 0 and continue
         }
-
-        // Sum up all quantities from vaccines created BEFORE this month
-        if (vaccinesBeforeMonth && vaccinesBeforeMonth.length > 0) {
-          initialVials = vaccinesBeforeMonth.reduce((sum, v) => sum + (v.quantity_available || 0), 0);
-        }
-        
-        console.log(`  Initial inventory (vaccines created before ${month}): ${initialVials} vials`);
+        // IMPORTANT: No fallback from vaccines table.
+        // If there is no previous month report, initial inventory stays 0.
       }
       
       // Get current month's sessions to calculate how much was administered this month
@@ -239,9 +254,8 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       }
 
       // Calculate total quantity supplied (IN) during the month
-      // This represents NEW stock that was added/received during the month
-      // Check vaccines table for items created during this month
-      const { data: newVaccines, error: newVaccineError } = await supabase
+      // IN = Sum of vaccines created DURING this month
+      const { data: newVaccinesThisMonth, error: newVaccineError } = await supabase
         .from('vaccines')
         .select('quantity_available, created_at')
         .eq('id', vaccine.id)
@@ -249,9 +263,9 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
         .lte('created_at', endDateStr);
 
       let quantitySupplied = 0;
-      if (!newVaccineError && newVaccines && newVaccines.length > 0) {
-        // Sum up all quantities from vaccines created during this month
-        quantitySupplied = newVaccines.reduce((sum, v) => sum + (v.quantity_available || 0), 0);
+      if (!newVaccineError && newVaccinesThisMonth && newVaccinesThisMonth.length > 0) {
+        // Sum all quantities from vaccines created DURING this month
+        quantitySupplied = newVaccinesThisMonth.reduce((sum, v) => sum + (v.quantity_available || 0), 0);
       }
       console.log(`  Quantity Supplied (IN): ${quantitySupplied} vials (from vaccines created this month)`);
 
@@ -261,13 +275,12 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
         .select('quantity_vial, quantity_dose')
         .eq('vaccine_id', vaccine.id);
 
-      if (inventoryError) {
-        console.error(`Error fetching inventory:`, inventoryError);
-        continue;
+      let currentVials = 0;
+      let currentDoses = 0;
+      if (!inventoryError && inventory) {
+        currentVials = inventory.reduce((sum, i) => sum + (i.quantity_vial || 0), 0) || 0;
+        currentDoses = inventory.reduce((sum, i) => sum + (i.quantity_dose || 0), 0) || 0;
       }
-
-      const currentVials = inventory?.reduce((sum, i) => sum + (i.quantity_vial || 0), 0) || 0;
-      const currentDoses = inventory?.reduce((sum, i) => sum + (i.quantity_dose || 0), 0) || 0;
 
       console.log(`  Current inventory: ${currentVials} vials, ${currentDoses} doses`);
 
@@ -350,8 +363,21 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 
     console.log(`✅ Monthly report calculated: ${reports.length} unique vaccines (duplicates merged)`);
     
-    // Save reports to Supabase (disabled)
-    // await saveMonthlyReportsToSupabase(reports, month);
+    // Cache the results for fast access on next month switch
+    monthlyReportCache[month] = {};
+    reports.forEach(report => {
+      monthlyReportCache[month][report.vaccine_id] = {
+        ending_inventory: report.ending_inventory,
+        initial_inventory: report.initial_inventory,
+        quantity_supplied: report.quantity_supplied,
+        quantity_used: report.quantity_used,
+        quantity_wastage: report.quantity_wastage
+      };
+    });
+    console.log(`💾 Cached ${reports.length} reports for ${month}`);
+    
+    // Save reports to Supabase automatically
+    await saveMonthlyReportsToSupabase(reports, month);
     
     return { data: reports, error: null };
   } catch (err) {
@@ -361,7 +387,8 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 }
 
 /**
- * Save monthly reports to Supabase database
+ * Save monthly reports to Supabase database (Strategy 1: Batch UPSERT)
+ * Single efficient batch operation for all reports
  * @param {Array} reports - Array of monthly report records
  * @param {string} month - Month in YYYY-MM-01 format
  */
@@ -372,57 +399,93 @@ async function saveMonthlyReportsToSupabase(reports, month) {
       return;
     }
 
-    // Prepare data for insertion
-    const reportsToSave = reports.map(report => ({
-      vaccine_id: report.vaccine_id,
-      month: month,
-      initial_inventory: report.initial_inventory,
-      quantity_supplied: report.quantity_supplied,
-      quantity_used: report.quantity_used,
-      quantity_wastage: report.quantity_wastage,
-      ending_inventory: report.ending_inventory,
-      vials_needed: report.vials_needed,
-      max_allocation: report.max_allocation,
-      stock_level_percentage: report.stock_level_percentage,
-      status: report.status
-    }));
+    console.log(`💾 Saving ${reports.length} monthly reports for ${month} (Batch UPSERT)...`);
 
-    try {
-      // Delete existing records for this month first
-      const { error: deleteError } = await supabase
-        .from('vaccine_monthly_report')
-        .delete()
-        .eq('month', month);
-
-      if (deleteError) {
-        console.warn('⚠️ Could not delete existing records:', deleteError.message);
+    // Prepare data for batch upsert with validation
+    const reportsToSave = reports.map(report => {
+      // Ensure ending_inventory is never negative
+      const endingInventory = Math.max(0, report.ending_inventory || 0);
+      
+      const recordToSave = {
+        vaccine_id: report.vaccine_id,
+        month: month,
+        initial_inventory: Math.max(0, report.initial_inventory || 0),
+        quantity_supplied: Math.max(0, report.quantity_supplied || 0),
+        quantity_used: Math.max(0, report.quantity_used || 0),
+        quantity_wastage: Math.max(0, report.quantity_wastage || 0),
+        ending_inventory: endingInventory,
+        vials_needed: Math.max(0, report.vials_needed || 0),
+        max_allocation: Math.max(0, report.max_allocation || 0),
+        stock_level_percentage: Math.max(0, report.stock_level_percentage || 0),
+        status: report.status || 'GOOD'
+      };
+      
+      // Debug log for first few records
+      if (reports.indexOf(report) < 2) {
+        console.log(`  📝 Saving: ${report.vaccine?.name || 'Unknown'} - Initial: ${recordToSave.initial_inventory}, IN: ${recordToSave.quantity_supplied}, OUT: ${recordToSave.quantity_used}, Ending: ${recordToSave.ending_inventory}`);
       }
+      
+      return recordToSave;
+    });
 
-      // Insert new records
-      const { data, error } = await supabase
-        .from('vaccine_monthly_report')
-        .insert(reportsToSave)
-        .select();
+    // Strategy 1: Batch UPSERT (single call, most efficient)
+    const { data, error } = await supabase
+      .from('vaccine_monthly_report')
+      .upsert(reportsToSave, { onConflict: 'vaccine_id,month' })
+      .select();
 
-      if (error) {
-        console.error('❌ Error saving monthly reports to Supabase:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-          status: error.status
-        });
-        
-        // Log the data being sent for debugging
-        console.log('📝 Data being saved:', JSON.stringify(reportsToSave, null, 2));
-      } else {
-        console.log(`✅ Saved ${reportsToSave.length} monthly reports to Supabase for month ${month}`);
-      }
-    } catch (insertErr) {
-      console.error('❌ Exception during save:', insertErr);
+    if (error) {
+      console.error('❌ Batch UPSERT failed:', error.message);
+      // Fallback: Try delete + insert
+      console.log('🔄 Fallback: Trying delete + insert method...');
+      await saveMonthlyReportsAlternative(reportsToSave, month);
+    } else {
+      console.log(`✅ Successfully saved ${data?.length || reportsToSave.length} monthly reports for ${month}`);
     }
   } catch (err) {
     console.error('Error in saveMonthlyReportsToSupabase:', err);
+  }
+}
+
+/**
+ * Alternative save method: Delete existing records and insert new ones
+ * @param {Array} reportsToSave - Array of report records to save
+ * @param {string} month - Month in YYYY-MM-01 format
+ */
+async function saveMonthlyReportsAlternative(reportsToSave, month) {
+  try {
+    console.log('🗑️ Deleting existing records for month:', month);
+    
+    // Delete existing records for this month
+    const { error: deleteError } = await supabase
+      .from('vaccine_monthly_report')
+      .delete()
+      .eq('month', month);
+
+    if (deleteError) {
+      console.warn('⚠️ Delete error (continuing anyway):', deleteError.message);
+    } else {
+      console.log('✅ Deleted existing records');
+    }
+
+    // Insert new records
+    console.log('📝 Inserting new records...');
+    const { data, error: insertError } = await supabase
+      .from('vaccine_monthly_report')
+      .insert(reportsToSave)
+      .select();
+
+    if (insertError) {
+      console.error('❌ Insert error:', {
+        message: insertError.message,
+        code: insertError.code,
+        status: insertError.status
+      });
+    } else {
+      console.log(`✅ Successfully inserted ${data?.length || reportsToSave.length} records`);
+    }
+  } catch (err) {
+    console.error('❌ Error in alternative save method:', err);
   }
 }
 
