@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "../../../lib/supabase";
@@ -10,6 +10,98 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Check for verification success or errors from URL parameters (both query and hash)
+  useEffect(() => {
+    // Check hash parameters first (Supabase often uses hash for tokens and errors)
+    const hash = window.location.hash.substring(1); // Remove the #
+    const hashParams = hash ? new URLSearchParams(hash) : null;
+    
+    // Check if there's an access_token in the hash (Supabase direct redirect)
+    const accessToken = hashParams?.get('access_token');
+    const hashError = hashParams?.get('error');
+    const hashErrorCode = hashParams?.get('error_code');
+    const hashErrorDescription = hashParams?.get('error_description');
+    const hashType = hashParams?.get('type');
+
+    // If Supabase redirected directly with access_token after signup, handle it
+    // This happens when Supabase's emailRedirectTo is not properly configured or is overridden
+    if (accessToken && (hashType === 'signup' || hashType === 'email')) {
+      console.log('⚠️ Supabase redirected directly to signin with access_token - redirecting to callback route');
+      
+      // Decode the JWT token to get user info
+      try {
+        const tokenParts = accessToken.split('.');
+        if (tokenParts.length === 3) {
+          const payload = JSON.parse(atob(tokenParts[1]));
+          const userId = payload.sub;
+          const email = payload.email;
+          
+          console.log('Token payload:', { userId, email, type: hashType, hasUserMetadata: !!payload.user_metadata });
+          
+          // If we have userId and email, redirect to our callback route immediately
+          // This ensures profile creation happens through our controlled flow
+          if (userId && email) {
+            // Redirect to callback route which will handle profile creation and then redirect back
+            window.location.href = `/api/auth/callback?user_id=${encodeURIComponent(userId)}&email=${encodeURIComponent(email)}&type=${hashType}&redirect=/pages/signin`;
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error decoding token:', e);
+      }
+      
+      // Fallback: try to extract token_hash if present
+      const tokenHash = hashParams?.get('token_hash');
+      if (tokenHash) {
+        // Redirect to our callback route to handle verification properly
+        window.location.href = `/api/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=email&redirect=/pages/signin`;
+        return;
+      }
+      
+      // If we can't extract user info, clear the hash and show error
+      console.error('Could not extract user info from access_token');
+      window.history.replaceState({}, '', window.location.pathname);
+      setError('Unable to process email verification. Please try signing in.');
+    }
+
+    // Check query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const verified = urlParams.get('verified');
+    const verifiedEmail = urlParams.get('email');
+    const errorParam = urlParams.get('error');
+    const errorCode = urlParams.get('error_code');
+    const errorDescription = urlParams.get('error_description');
+
+    if (verified === 'true' && verifiedEmail) {
+      setError("");
+      // Show success message
+      console.log('Email verified successfully for:', verifiedEmail);
+      // Clear the URL parameters but keep the page state
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+      
+      // Show a temporary success message (optional - you can add a success banner)
+      // For now, just clear any errors
+    } else if (errorParam || errorCode || hashError || hashErrorCode) {
+      // Handle errors from email verification (check both query and hash)
+      let errorMessage = 'Email verification failed. ';
+      const finalErrorCode = errorCode || hashErrorCode;
+      const finalErrorDescription = errorDescription || hashErrorDescription;
+      const finalError = errorParam || hashError;
+      
+      if (finalErrorCode === 'otp_expired') {
+        errorMessage = 'The verification link has expired. Please request a new verification email.';
+      } else if (finalErrorDescription) {
+        errorMessage = decodeURIComponent(finalErrorDescription.replace(/\+/g, ' '));
+      } else if (finalError) {
+        errorMessage = decodeURIComponent(finalError.replace(/\+/g, ' '));
+      }
+      setError(errorMessage);
+      // Clear the URL parameters and hash
+      window.history.replaceState({}, '', '/pages/signin');
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,9 +192,9 @@ export default function SignIn() {
             <Image
               src="/VSyncLogo.png"
               alt="VaxSync Logo"
-              width={240}
-              height={90}
-              className="h-16 w-auto"
+              width={300}
+              height={112}
+              className="h-24 w-auto"
             />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h1>
@@ -136,7 +228,7 @@ export default function SignIn() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your.email@example.com"
                 className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                 }`}
                 required
               />
@@ -148,8 +240,8 @@ export default function SignIn() {
                 <label htmlFor="password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
                   Password
                 </label>
-                <Link href="/pages/forgot-password" className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors">
-                  Forgot?
+                <Link href="/pages/forgot-password" className="text-xs font-medium transition-colors" style={{ color: '#3E5F44' }}>
+                  Forgot password?
                 </Link>
               </div>
               <input
@@ -159,7 +251,7 @@ export default function SignIn() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                  error ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                 }`}
                 required
               />
@@ -169,9 +261,12 @@ export default function SignIn() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full bg-green-600 hover:bg-green-700 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm mt-6 ${
+              className={`w-full text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 text-sm mt-6 ${
                 isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
               }`}
+              style={{ backgroundColor: '#3E5F44', '--tw-ring-color': '#3E5F44' }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#2d4a33'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#3E5F44'}
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-2">
@@ -198,7 +293,7 @@ export default function SignIn() {
           <div className="text-center">
             <p className="text-sm text-gray-700">
               Don't have an account?{" "}
-              <Link href="/pages/signup" className="font-semibold text-green-600 hover:text-green-700 transition-colors">
+              <Link href="/pages/signup" className="font-semibold transition-colors" style={{ color: '#3E5F44' }}>
                 Sign up
               </Link>
             </p>

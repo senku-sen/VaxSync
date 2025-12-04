@@ -68,6 +68,7 @@ export default function HeadNurseUserManagement() {
     assigned_barangay_id: "",
   });
   const [barangayOptions, setBarangayOptions] = useState([]);
+  const [rhuBarangayId, setRhuBarangayId] = useState(null);
   // Legacy permission state removed; permissions remain read-only in this view.
   const [modalError, setModalError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -129,7 +130,53 @@ export default function HeadNurseUserManagement() {
       }
     };
 
+    const getOrCreateRHUBarangay = async () => {
+      try {
+        // First, try to find existing RHU barangay
+        const { data: existingRHU, error: fetchError } = await supabase
+          .from("barangays")
+          .select("id, name")
+          .eq("name", "RHU")
+          .maybeSingle();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error("Error fetching RHU barangay:", fetchError);
+        }
+
+        if (existingRHU) {
+          if (isMounted) {
+            setRhuBarangayId(existingRHU.id);
+          }
+          return existingRHU.id;
+        }
+
+        // If RHU doesn't exist, create it
+        const { data: newRHU, error: insertError } = await supabase
+          .from("barangays")
+          .insert({
+            name: "RHU",
+            municipality: "DAET"
+          })
+          .select("id, name")
+          .single();
+
+        if (insertError) {
+          console.error("Error creating RHU barangay:", insertError);
+          return null;
+        }
+
+        if (isMounted && newRHU) {
+          setRhuBarangayId(newRHU.id);
+        }
+        return newRHU?.id || null;
+      } catch (err) {
+        console.error("Error in getOrCreateRHUBarangay:", err);
+        return null;
+      }
+    };
+
     fetchBarangays();
+    getOrCreateRHUBarangay();
     return () => {
       isMounted = false;
     };
@@ -147,7 +194,25 @@ export default function HeadNurseUserManagement() {
   const displayUsers = useMemo(() => {
     return users.map((user) => {
       const roleLabel = normalizeRole(user.user_role);
-      // Only show barangay if it's in our predefined list and matches
+      const isHeadNurse = roleLabel === "Head Nurse";
+      
+      // For Head Nurse, always show "RHU"
+      if (isHeadNurse) {
+        return {
+          ...user,
+          assigned_barangay_id: rhuBarangayId,
+          name:
+            [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+            user.email ||
+            "Unknown user",
+          email: user.email || "—",
+          role: roleLabel,
+          assignedBarangayLabel: "RHU",
+          status: user.status || "Active",
+        };
+      }
+      
+      // For other users, show barangay if it's in our predefined list and matches
       const hasValidBarangayId =
         !!user.assigned_barangay_id &&
         !!barangayLabelMap[user.assigned_barangay_id];
@@ -172,7 +237,7 @@ export default function HeadNurseUserManagement() {
         status: user.status || "Active",
       };
     });
-  }, [users, barangayLabelMap]);
+  }, [users, barangayLabelMap, rhuBarangayId]);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return displayUsers;
@@ -274,6 +339,8 @@ export default function HeadNurseUserManagement() {
     console.log('User assigned_barangay_id:', user.assigned_barangay_id);
     console.log('Available barangay options:', barangayOptions);
     
+    const isHeadNurse = normalizeRole(user.user_role) === "Head Nurse";
+    
     setActiveUser(user);
     setFormState({
       first_name: user.first_name || "",
@@ -281,7 +348,8 @@ export default function HeadNurseUserManagement() {
       email: user.email || "",
       user_role: normalizeRole(user.user_role),
       address: user.address || "",
-      assigned_barangay_id: user.assigned_barangay_id || "",
+      // For Head Nurse, always use RHU barangay ID; for others, use their assigned barangay
+      assigned_barangay_id: isHeadNurse ? (rhuBarangayId || "") : (user.assigned_barangay_id || ""),
     });
     setModalError("");
     setIsModalOpen(true);
@@ -312,14 +380,47 @@ export default function HeadNurseUserManagement() {
         ? toDatabaseRole(normalizeRole(activeUser.user_role))
         : toDatabaseRole(normalizeRole(formState.user_role));
       
-      // Only set assigned_barangay_id if a valid selection was made
-      // Convert empty string to null to ensure no unwanted assignments
-      const selectedBarangayId = formState.assigned_barangay_id?.trim() || "";
-      const allowedBarangayId = 
-        selectedBarangayId !== "" && 
-        barangayOptions.some(opt => opt.value === selectedBarangayId)
-          ? selectedBarangayId
-          : null;
+      // For Head Nurse, always assign to RHU barangay
+      // For other users, only set assigned_barangay_id if a valid selection was made
+      let allowedBarangayId = null;
+      if (isHeadNurse) {
+        // Ensure RHU barangay exists
+        if (!rhuBarangayId) {
+          // Try to get or create RHU barangay
+          const { data: existingRHU } = await supabase
+            .from("barangays")
+            .select("id")
+            .eq("name", "RHU")
+            .maybeSingle();
+          
+          if (existingRHU) {
+            setRhuBarangayId(existingRHU.id);
+            allowedBarangayId = existingRHU.id;
+          } else {
+            const { data: newRHU } = await supabase
+              .from("barangays")
+              .insert({ name: "RHU", municipality: "DAET" })
+              .select("id")
+              .single();
+            
+            if (newRHU) {
+              setRhuBarangayId(newRHU.id);
+              allowedBarangayId = newRHU.id;
+            }
+          }
+        } else {
+          allowedBarangayId = rhuBarangayId;
+        }
+      } else {
+        // For non-Head Nurse users, validate the selected barangay
+        const selectedBarangayId = formState.assigned_barangay_id?.trim() || "";
+        allowedBarangayId = 
+          selectedBarangayId !== "" && 
+          barangayOptions.some(opt => opt.value === selectedBarangayId)
+            ? selectedBarangayId
+            : null;
+      }
+      
       const payload = {
         first_name: formState.first_name,
         last_name: formState.last_name,
@@ -520,7 +621,7 @@ export default function HeadNurseUserManagement() {
               </h2>
               <p className="text-sm text-gray-500">
                 {normalizeRole(activeUser.user_role) === "Head Nurse"
-                  ? "Update user details. Role cannot be changed for Head Nurse accounts."
+                  ? "Update user details. Role and barangay assignment cannot be changed for Head Nurse accounts (defaults to RHU)."
                   : "Update user details and access permissions."}
               </p>
             </div>
@@ -604,21 +705,30 @@ export default function HeadNurseUserManagement() {
               <label className="text-xs font-semibold uppercase text-gray-500">
                 Assigned Barangay
               </label>
-              <select
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
-                value={formState.assigned_barangay_id || ""}
-                onChange={(e) =>
-                  handleFormChange("assigned_barangay_id", e.target.value)
-                }
-                disabled={barangayOptions.length === 0}
-              >
-                <option value="">Select barangay</option>
-                {barangayOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              {normalizeRole(activeUser.user_role) === "Head Nurse" ? (
+                <input
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
+                  value="RHU"
+                  disabled
+                  readOnly
+                />
+              ) : (
+                <select
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30 disabled:bg-gray-100"
+                  value={formState.assigned_barangay_id || ""}
+                  onChange={(e) =>
+                    handleFormChange("assigned_barangay_id", e.target.value)
+                  }
+                  disabled={barangayOptions.length === 0}
+                >
+                  <option value="">Select barangay</option>
+                  {barangayOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
