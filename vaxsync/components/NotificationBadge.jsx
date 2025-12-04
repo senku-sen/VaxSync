@@ -16,6 +16,9 @@ export default function NotificationBadge() {
   const [userId, setUserId] = useState(null);
   const [barangayId, setBarangayId] = useState(null);
 
+  // Check if online
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
   // Initialize user info and fetch notifications
   useEffect(() => {
     const initializeUser = async () => {
@@ -36,7 +39,7 @@ export default function NotificationBadge() {
 
   // Fetch notifications based on user role
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isOnline) return; // Don't fetch when offline
 
     const fetchNotifications = async () => {
       try {
@@ -46,9 +49,9 @@ export default function NotificationBadge() {
         if (userRole === 'Health Worker') {
           // Health Worker: Resident Approvals + Vaccine Requests + Sessions
           const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
-            fetchResidentApprovalNotifications(userId),
-            fetchVaccineRequestNotifications(userId),
-            fetchVaccinationSessionNotifications(userId, barangayId, false),
+            fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
+            fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
+            fetchVaccinationSessionNotifications(userId, barangayId, false).catch(() => ({ data: [] })),
           ]);
 
           // Count unread notifications
@@ -63,8 +66,8 @@ export default function NotificationBadge() {
         } else if (userRole === 'Head Nurse') {
           // Head Nurse: Vaccine Requests + All Sessions
           const [vaccineNotifs, sessionNotifs] = await Promise.all([
-            fetchVaccineRequestNotifications(userId),
-            fetchVaccinationSessionNotifications(userId, null, true),
+            fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
+            fetchVaccinationSessionNotifications(userId, null, true).catch(() => ({ data: [] })),
           ]);
 
           const vaccineUnread = vaccineNotifs.data?.filter(n => !n.read && n.status === 'pending').length || 0;
@@ -77,17 +80,21 @@ export default function NotificationBadge() {
         setUnreadCount(totalUnread);
         setBadgeColor(hasUrgent ? 'bg-red-500' : 'bg-gray-400');
       } catch (err) {
-        console.error('Error fetching notifications:', err);
+        // Silently fail when offline - don't log errors
+        if (isOnline) {
+          console.error('Error fetching notifications:', err);
+        }
       }
     };
 
     fetchNotifications();
 
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-
-    return () => clearInterval(interval);
-  }, [userId, userRole, barangayId]);
+    // Poll for new notifications every 30 seconds (only when online)
+    if (isOnline) {
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [userId, userRole, barangayId, isOnline]);
 
   // Don't show badge if no unread notifications
   if (unreadCount === 0) {

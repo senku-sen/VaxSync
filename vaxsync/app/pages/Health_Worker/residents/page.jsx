@@ -27,6 +27,9 @@ import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
+import { useOffline } from "@/components/OfflineProvider";
+import { cacheData, getCachedData, generateTempId } from "@/lib/offlineStorage";
+import { queueOperation } from "@/lib/syncManager";
 
 export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
@@ -44,6 +47,7 @@ export default function ResidentsPage() {
   const [userProfile, setUserProfile] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isFromCache, setIsFromCache] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     birthday: "",
@@ -54,6 +58,9 @@ export default function ResidentsPage() {
     barangay: "",
     vaccines_given: []
   });
+
+  // Get offline status
+  const { isOnline, showNotification } = useOffline();
 
   // Available vaccine types
   const VACCINE_TYPES = [
@@ -183,8 +190,10 @@ export default function ResidentsPage() {
     }
   };
 
-  // Fetch residents from API
+  // Fetch residents from API with offline support
   const fetchResidents = async (status = "pending") => {
+    const cacheKey = `hw_residents_${status}_${selectedBarangay || 'all'}`;
+    
     try {
       setLoading(true);
       // Always filter by assigned barangay for health workers
@@ -194,22 +203,44 @@ export default function ResidentsPage() {
       });
 
       // For Health Workers, filter primarily by their assigned barangay name.
-      // The API uses a case-insensitive match so 'MAGANG' and 'Magang' both work.
       if (selectedBarangay) {
         params.set("barangay", selectedBarangay);
       }
-      
-      const response = await fetch(`/api/residents?${params}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setResidents(data.residents || []);
+
+      if (isOnline) {
+        const response = await fetch(`/api/residents?${params}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          // Cache the data
+          await cacheData(cacheKey, data.residents || [], 'residents');
+          setResidents(data.residents || []);
+          setIsFromCache(false);
+        } else {
+          throw new Error("Failed to fetch residents");
+        }
       } else {
-        toast.error("Failed to fetch residents");
+        // Offline - try cache
+        const cached = await getCachedData(cacheKey);
+        if (cached) {
+          setResidents(cached);
+          setIsFromCache(true);
+        } else {
+          toast.info("No cached data available while offline");
+          setResidents([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching residents:", error);
-      toast.error("Error fetching residents");
+      // Try cache on error
+      const cacheKey = `hw_residents_${status}_${selectedBarangay || 'all'}`;
+      const cached = await getCachedData(cacheKey);
+      if (cached) {
+        setResidents(cached);
+        setIsFromCache(true);
+      } else {
+        toast.error("Error fetching residents");
+      }
     } finally {
       setLoading(false);
     }
@@ -289,28 +320,70 @@ export default function ResidentsPage() {
       return;
     }
     
-    try {
-      const payload = {
-        ...formData,
-        barangay_id: selectedBarangayId,
-        submitted_by: userProfile.id
-      };
+    const payload = {
+      ...formData,
+      barangay_id: selectedBarangayId,
+      submitted_by: userProfile.id
+    };
 
-      console.log("Sending payload:", payload);
+    console.log("Sending payload:", payload);
 
-      const response = await fetch("/api/residents", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+    if (isOnline) {
+      try {
+        const response = await fetch("/api/residents", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
 
-      const data = await response.json();
-      console.log("API Response:", data);
+        const data = await response.json();
+        console.log("API Response:", data);
 
-      if (response.ok) {
-        toast.success("Resident created successfully");
+        if (response.ok) {
+          toast.success("Resident created successfully");
+          setIsAddDialogOpen(false);
+          setFormData({
+            name: "",
+            birthday: "",
+            sex: "",
+            address: "",
+            vaccine_status: "not_vaccinated",
+            contact: "",
+            barangay: "",
+            vaccines_given: []
+          });
+          fetchResidents(activeTab);
+          fetchCounts();
+        } else {
+          console.error("API Error:", data);
+          toast.error(data.error || "Failed to create resident");
+        }
+      } catch (error) {
+        console.error("Error creating resident:", error);
+        toast.error("Error creating resident: " + error.message);
+      }
+    } else {
+      // Offline - queue for later sync
+      try {
+        const tempId = generateTempId();
+        const cacheKey = `hw_residents_${activeTab}_${selectedBarangay || 'all'}`;
+
+        await queueOperation({
+          endpoint: '/api/residents',
+          method: 'POST',
+          body: payload,
+          type: 'create',
+          description: `Create resident: ${formData.name}`,
+          cacheKey,
+          tempId
+        });
+
+        // Optimistic update
+        setResidents(prev => [...prev, { ...payload, id: tempId, _pending: true }]);
+
+        toast.success("Resident saved locally. Will sync when online.");
         setIsAddDialogOpen(false);
         setFormData({
           name: "",
@@ -322,48 +395,75 @@ export default function ResidentsPage() {
           barangay: "",
           vaccines_given: []
         });
-        fetchResidents(activeTab);
-        fetchCounts();
-      } else {
-        console.error("API Error:", data);
-        toast.error(data.error || "Failed to create resident");
+      } catch (error) {
+        console.error("Error saving offline:", error);
+        toast.error("Error saving resident offline");
       }
-    } catch (error) {
-      console.error("Error creating resident:", error);
-      toast.error("Error creating resident: " + error.message);
     }
   };
 
   // Update resident
   const handleUpdateResident = async (e) => {
-    e.preventDefault(); // fixed bug
-    try {
-      const response = await fetch("/api/residents", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          id: selectedResident.id, 
-          ...formData,
-          barangay_id: selectedBarangayId || null
-        }),
+    e.preventDefault();
+    if (!selectedResident) return;
+
+    const payload = { 
+      id: selectedResident.id, 
+      ...formData,
+      barangay_id: selectedBarangayId || null
+    };
+
+    // Optimistic update
+    const originalResidents = [...residents];
+    setResidents(prev => prev.map(r => 
+      r.id === selectedResident.id ? { ...r, ...formData, _pending: true } : r
+    ));
+
+    if (isOnline) {
+      try {
+        const response = await fetch("/api/residents", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast.success("Resident updated successfully");
+          setIsEditDialogOpen(false);
+          setSelectedResident(null);
+          fetchResidents(activeTab);
+          fetchCounts();
+        } else {
+          // Revert optimistic update
+          setResidents(originalResidents);
+          toast.error(data.error || "Failed to update resident");
+        }
+      } catch (error) {
+        // Revert optimistic update
+        setResidents(originalResidents);
+        console.error("Error updating resident:", error);
+        toast.error("Error updating resident");
+      }
+    } else {
+      // Offline - queue for later sync
+      const cacheKey = `hw_residents_${activeTab}_${selectedBarangay || 'all'}`;
+
+      await queueOperation({
+        endpoint: '/api/residents',
+        method: 'PUT',
+        body: payload,
+        type: 'update',
+        description: `Update resident ID: ${selectedResident.id}`,
+        cacheKey
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Resident updated successfully");
-        setIsEditDialogOpen(false);
-        setSelectedResident(null);
-        fetchResidents(activeTab);
-        fetchCounts();
-      } else {
-        toast.error(data.error || "Failed to update resident");
-      }
-    } catch (error) {
-      console.error("Error updating resident:", error);
-      toast.error("Error updating resident");
+      toast.success("Changes saved locally. Will sync when online.");
+      setIsEditDialogOpen(false);
+      setSelectedResident(null);
     }
   };
 
@@ -371,49 +471,97 @@ export default function ResidentsPage() {
   const handleDeleteResident = async (id) => {
     if (!confirm("Are you sure you want to delete this resident?")) return;
     
-    try {
-      const response = await fetch(`/api/residents?id=${id}`, {
-        method: "DELETE",
+    const originalResidents = [...residents];
+    
+    // Optimistic update
+    setResidents(prev => prev.filter(r => r.id !== id));
+
+    if (isOnline) {
+      try {
+        const response = await fetch(`/api/residents?id=${id}`, {
+          method: "DELETE",
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast.success("Resident deleted successfully");
+          fetchCounts();
+        } else {
+          // Revert optimistic update
+          setResidents(originalResidents);
+          toast.error(data.error || "Failed to delete resident");
+        }
+      } catch (error) {
+        // Revert optimistic update
+        setResidents(originalResidents);
+        console.error("Error deleting resident:", error);
+        toast.error("Error deleting resident");
+      }
+    } else {
+      // Offline - queue for later sync
+      const cacheKey = `hw_residents_${activeTab}_${selectedBarangay || 'all'}`;
+
+      await queueOperation({
+        endpoint: '/api/residents',
+        method: 'DELETE',
+        params: { id },
+        type: 'delete',
+        description: `Delete resident ID: ${id}`,
+        cacheKey
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Resident deleted successfully");
-        fetchResidents(activeTab);
-        fetchCounts();
-      } else {
-        toast.error(data.error || "Failed to delete resident");
-      }
-    } catch (error) {
-      console.error("Error deleting resident:", error);
-      toast.error("Error deleting resident");
+      toast.success("Delete queued. Will sync when online.");
     }
   };
 
   // Approve/Reject resident
   const handleStatusChange = async (id, action) => {
-    try {
-      const response = await fetch("/api/residents", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id, action }),
+    const originalResidents = [...residents];
+    
+    // Optimistic update - remove from current list
+    setResidents(prev => prev.filter(r => r.id !== id));
+
+    if (isOnline) {
+      try {
+        const response = await fetch("/api/residents", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ id, action }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          toast.success(`Resident ${action}d successfully`);
+          fetchCounts();
+        } else {
+          // Revert
+          setResidents(originalResidents);
+          toast.error(data.error || `Failed to ${action} resident`);
+        }
+      } catch (error) {
+        // Revert
+        setResidents(originalResidents);
+        console.error(`Error ${action}ing resident:`, error);
+        toast.error(`Error ${action}ing resident`);
+      }
+    } else {
+      // Offline - queue for later sync
+      const cacheKey = `hw_residents_${activeTab}_${selectedBarangay || 'all'}`;
+
+      await queueOperation({
+        endpoint: '/api/residents',
+        method: 'PATCH',
+        body: { id, action },
+        type: 'status_change',
+        description: `${action} resident ID: ${id}`,
+        cacheKey
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success(`Resident ${action}d successfully`);
-        fetchResidents(activeTab);
-        fetchCounts();
-      } else {
-        toast.error(data.error || `Failed to ${action} resident`);
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing resident:`, error);
-      toast.error(`Error ${action}ing resident`);
+      toast.success(`${action} queued. Will sync when online.`);
     }
   };
 
@@ -482,6 +630,15 @@ export default function ResidentsPage() {
             <div className="mb-2 p-1 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-900">
                 <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
+              </p>
+            </div>
+          )}
+
+          {/* Offline Cache Indicator */}
+          {isFromCache && (
+            <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-900">
+                <span className="font-semibold">Offline Mode:</span> Showing cached data. Changes will sync when online.
               </p>
             </div>
           )}

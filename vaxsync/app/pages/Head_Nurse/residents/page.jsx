@@ -27,10 +27,10 @@ import { loadUserProfile } from "@/lib/vaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
+import { useOfflineResidents } from "@/hooks/useOfflineResidents";
+import { useOffline } from "@/components/OfflineProvider";
 
 export default function ResidentsPage() {
-  const [residents, setResidents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedBarangay, setSelectedBarangay] = useState("all");
@@ -38,8 +38,6 @@ export default function ResidentsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [approvedCount, setApprovedCount] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -53,6 +51,28 @@ export default function ResidentsPage() {
     barangay: "",
     vaccines_given: []
   });
+  
+  // Use offline hooks for residents data
+  const { isOnline } = useOffline();
+  const {
+    residents,
+    loading,
+    error: residentsError,
+    isFromCache,
+    createResident,
+    updateResident,
+    deleteResident,
+    changeResidentStatus,
+    refresh: refreshResidents
+  } = useOfflineResidents({
+    status: activeTab,
+    search: searchTerm,
+    barangay: selectedBarangay === "all" ? "" : selectedBarangay
+  });
+  
+  // Calculate counts from residents
+  const [pendingCount, setPendingCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
   
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
@@ -149,62 +169,50 @@ export default function ResidentsPage() {
     }
   };
 
-  // Fetch residents from API
-  const fetchResidents = async (status = "pending") => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams({
-        status,
-        search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
-      });
-      
-      const response = await fetch(`/api/residents?${params}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setResidents(data.residents || []);
-      } else {
-        toast.error("Failed to fetch residents");
-      }
-    } catch (error) {
-      console.error("Error fetching residents:", error);
-      toast.error("Error fetching residents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Fetch counts for both pending and approved residents
   const fetchCounts = async () => {
     try {
-      // Fetch pending count
-      const pendingParams = new URLSearchParams({
-        status: "pending",
-        search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
-      });
-      const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
-      const pendingData = await pendingResponse.json();
-      
-      // Fetch approved count
-      const approvedParams = new URLSearchParams({
-        status: "approved",
-        search: searchTerm,
-        barangay: selectedBarangay === "all" ? "" : selectedBarangay
-      });
-      const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
-      const approvedData = await approvedResponse.json();
-      
-      if (pendingResponse.ok) {
-        setPendingCount(pendingData.residents?.length || 0);
-      }
-      
-      if (approvedResponse.ok) {
-        setApprovedCount(approvedData.residents?.length || 0);
+      if (isOnline) {
+        // Fetch pending count
+        const pendingParams = new URLSearchParams({
+          status: "pending",
+          search: searchTerm,
+          barangay: selectedBarangay === "all" ? "" : selectedBarangay
+        });
+        const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
+        const pendingData = await pendingResponse.json();
+        
+        // Fetch approved count
+        const approvedParams = new URLSearchParams({
+          status: "approved",
+          search: searchTerm,
+          barangay: selectedBarangay === "all" ? "" : selectedBarangay
+        });
+        const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
+        const approvedData = await approvedResponse.json();
+        
+        if (pendingResponse.ok) {
+          setPendingCount(pendingData.residents?.length || 0);
+        }
+        
+        if (approvedResponse.ok) {
+          setApprovedCount(approvedData.residents?.length || 0);
+        }
+      } else {
+        // When offline, use cached data to estimate counts
+        // This is approximate but better than nothing
+        const pendingResidents = residents.filter(r => r.status === 'pending' || !r.status);
+        const approvedResidents = residents.filter(r => r.status === 'approved');
+        setPendingCount(pendingResidents.length);
+        setApprovedCount(approvedResidents.length);
       }
     } catch (error) {
       console.error("Error fetching counts:", error);
+      // Fallback to using current residents array
+      const pendingResidents = residents.filter(r => r.status === 'pending' || !r.status);
+      const approvedResidents = residents.filter(r => r.status === 'approved');
+      setPendingCount(pendingResidents.length);
+      setApprovedCount(approvedResidents.length);
     }
   };
 
@@ -219,35 +227,27 @@ export default function ResidentsPage() {
     }
     
     try {
-      const response = await fetch("/api/residents", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...formData,
-          submitted_by: userProfile.id
-        }),
-      });
+      const result = await createResident({
+        ...formData,
+        submitted_by: userProfile.id
+      }, userProfile.id);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Resident created successfully");
+      if (result.success) {
         setIsAddDialogOpen(false);
         setFormData({
           name: "",
-          age: "",
+          birthday: "",
+          sex: "",
           address: "",
           vaccine_status: "not_vaccinated",
           contact: "",
           barangay: "",
           vaccines_given: []
         });
-        fetchResidents(activeTab);
+        // Refresh will happen automatically via the hook
         fetchCounts();
       } else {
-        toast.error(data.error || "Failed to create resident");
+        toast.error(result.error || "Failed to create resident");
       }
     } catch (error) {
       console.error("Error creating resident:", error);
@@ -258,25 +258,17 @@ export default function ResidentsPage() {
   // Update resident
   const handleUpdateResident = async (e) => {
     e.preventDefault();
+    if (!selectedResident) return;
+    
     try {
-      const response = await fetch("/api/residents", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: selectedResident.id, ...formData }),
-      });
+      const result = await updateResident(selectedResident.id, formData);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Resident updated successfully");
+      if (result.success) {
         setIsEditDialogOpen(false);
         setSelectedResident(null);
-        fetchResidents(activeTab);
         fetchCounts();
       } else {
-        toast.error(data.error || "Failed to update resident");
+        toast.error(result.error || "Failed to update resident");
       }
     } catch (error) {
       console.error("Error updating resident:", error);
@@ -289,18 +281,12 @@ export default function ResidentsPage() {
     if (!confirm("Are you sure you want to delete this resident?")) return;
     
     try {
-      const response = await fetch(`/api/residents?id=${id}`, {
-        method: "DELETE",
-      });
+      const result = await deleteResident(id);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("Resident deleted successfully");
-        fetchResidents(activeTab);
+      if (result.success) {
         fetchCounts();
       } else {
-        toast.error(data.error || "Failed to delete resident");
+        toast.error(result.error || "Failed to delete resident");
       }
     } catch (error) {
       console.error("Error deleting resident:", error);
@@ -311,22 +297,12 @@ export default function ResidentsPage() {
   // Approve/Reject resident
   const handleStatusChange = async (id, action) => {
     try {
-      const response = await fetch("/api/residents", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id, action }),
-      });
+      const result = await changeResidentStatus(id, action);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success(`Resident ${action}d successfully`);
-        fetchResidents(activeTab);
+      if (result.success) {
         fetchCounts();
       } else {
-        toast.error(data.error || `Failed to ${action} resident`);
+        toast.error(result.error || `Failed to ${action} resident`);
       }
     } catch (error) {
       console.error(`Error ${action}ing resident:`, error);
@@ -338,14 +314,14 @@ export default function ResidentsPage() {
   const openEditDialog = (resident) => {
     setSelectedResident(resident);
     setFormData({
-      name: resident.name || "",
-      birthday: resident.birthday || "",
-      sex: resident.sex || "",
-      address: resident.address || "",
-      vaccine_status: resident.vaccine_status || "not_vaccinated",
-      contact: resident.contact || "",
-      barangay: resident.barangay || "",
-      vaccines_given: resident.vaccines_given || []
+      name: resident.name ?? "",
+      birthday: resident.birthday ?? "",
+      sex: resident.sex ?? "",
+      address: resident.address ?? "",
+      vaccine_status: resident.vaccine_status ?? "not_vaccinated",
+      contact: resident.contact ?? "",
+      barangay: resident.barangay ?? "",
+      vaccines_given: Array.isArray(resident.vaccines_given) ? resident.vaccines_given : []
     });
     setIsEditDialogOpen(true);
   };
@@ -408,19 +384,17 @@ export default function ResidentsPage() {
     try {
       let successCount = 0;
       let failCount = 0;
+      let pendingCount = 0;
 
       for (const residentId of selectedResidents) {
         try {
-          const response = await fetch("/api/residents", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ id: residentId, action: "approve" }),
-          });
-
-          if (response.ok) {
-            successCount++;
+          const result = await changeResidentStatus(residentId, "approve");
+          if (result.success) {
+            if (result.pending) {
+              pendingCount++;
+            } else {
+              successCount++;
+            }
           } else {
             failCount++;
           }
@@ -432,12 +406,14 @@ export default function ResidentsPage() {
       if (successCount > 0) {
         toast.success(`Approved ${successCount} resident(s)`);
       }
+      if (pendingCount > 0) {
+        toast.info(`${pendingCount} approval(s) queued for sync`);
+      }
       if (failCount > 0) {
         toast.error(`Failed to approve ${failCount} resident(s)`);
       }
 
       setSelectedResidents(new Set());
-      fetchResidents(activeTab);
       fetchCounts();
     } finally {
       setIsBatchProcessing(false);
@@ -457,19 +433,17 @@ export default function ResidentsPage() {
     try {
       let successCount = 0;
       let failCount = 0;
+      let pendingCount = 0;
 
       for (const residentId of selectedResidents) {
         try {
-          const response = await fetch("/api/residents", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ id: residentId, action: "reject" }),
-          });
-
-          if (response.ok) {
-            successCount++;
+          const result = await changeResidentStatus(residentId, "reject");
+          if (result.success) {
+            if (result.pending) {
+              pendingCount++;
+            } else {
+              successCount++;
+            }
           } else {
             failCount++;
           }
@@ -481,12 +455,14 @@ export default function ResidentsPage() {
       if (successCount > 0) {
         toast.success(`Rejected ${successCount} resident(s)`);
       }
+      if (pendingCount > 0) {
+        toast.info(`${pendingCount} rejection(s) queued for sync`);
+      }
       if (failCount > 0) {
         toast.error(`Failed to reject ${failCount} resident(s)`);
       }
 
       setSelectedResidents(new Set());
-      fetchResidents(activeTab);
       fetchCounts();
     } finally {
       setIsBatchProcessing(false);
@@ -499,10 +475,9 @@ export default function ResidentsPage() {
 
   useEffect(() => {
     if (!isAuthLoading && userProfile) {
-      fetchResidents(activeTab);
       fetchCounts();
     }
-  }, [activeTab, searchTerm, selectedBarangay, isAuthLoading, userProfile]);
+  }, [activeTab, searchTerm, selectedBarangay, isAuthLoading, userProfile, residents]);
 
   return (
     <div className="flex h-screen flex-col lg:flex-row">
@@ -520,6 +495,15 @@ export default function ResidentsPage() {
             <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-xs text-blue-900">
                 <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
+              </p>
+            </div>
+          )}
+
+          {/* Offline Cache Indicator */}
+          {isFromCache && (
+            <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-900">
+                <span className="font-semibold">Offline Mode:</span> Showing cached data. Changes will sync when online.
               </p>
             </div>
           )}
@@ -984,7 +968,7 @@ export default function ResidentsPage() {
             isOpen={isUploadModalOpen}
             onClose={() => setIsUploadModalOpen(false)}
             onUploadSuccess={() => {
-              fetchResidents(activeTab);
+              refreshResidents();
               fetchCounts();
             }}
             userProfile={userProfile}
