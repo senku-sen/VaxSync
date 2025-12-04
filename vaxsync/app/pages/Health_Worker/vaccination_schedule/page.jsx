@@ -772,7 +772,20 @@ export default function VaccinationSchedule() {
                   <SessionParticipantsMonitor
                     sessionId={selectedSessionForParticipants.id}
                     barangayName={selectedSessionForParticipants.barangays?.name}
+                    barangayId={selectedSessionForParticipants.barangay_id}
                     vaccineName={selectedSessionForParticipants.vaccines?.name}
+                    vaccineId={selectedSessionForParticipants.vaccine_id}
+                    sessionDate={selectedSessionForParticipants.session_date}
+                    target={selectedSessionForParticipants.target}
+                    sessionStatus={selectedSessionForParticipants.status}
+                    onAdministeredCountChange={(newCount) => {
+                      // Update the session's administered count
+                      setSessions(sessions.map(s => 
+                        s.id === selectedSessionForParticipants.id 
+                          ? { ...s, administered: newCount }
+                          : s
+                      ));
+                    }}
                   />
                 </div>
               </div>

@@ -12,14 +12,24 @@ import {
   fetchSessionBeneficiaries,
   updateBeneficiaryStatus,
   removeBeneficiaryFromSession,
-  getSessionStatistics
+  getSessionStatistics,
+  updateResidentVaccineStatus,
+  removeVaccineFromResident
 } from "@/lib/sessionBeneficiaries";
+import { updateSessionAdministered } from "@/lib/vaccinationSession";
+import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, deductMainVaccineInventory, addMainVaccineInventory } from "@/lib/barangayVaccineInventory";
+import { updateMonthlyReportOutCount } from "@/lib/vaccineMonthlyReport";
 import AddParticipantsModal from "./AddParticipantsModal";
 
 export default function SessionParticipantsMonitor({
   sessionId,
   barangayName,
-  vaccineName
+  barangayId,
+  vaccineName,
+  vaccineId,
+  target = 0,
+  sessionStatus = "Scheduled",
+  onAdministeredCountChange = null
 }) {
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [statistics, setStatistics] = useState(null);
@@ -132,15 +142,77 @@ export default function SessionParticipantsMonitor({
     return "pending";
   };
 
+  // Check if actions should be enabled
+  const areActionsEnabled = () => {
+    return sessionStatus === "In progress" || sessionStatus === "Completed";
+  };
+
   // Approve both attended and vaccinated
   const handleApprove = async (beneficiary) => {
     try {
+      // Update beneficiary status
       const result = await updateBeneficiaryStatus(beneficiary.id, {
         attended: true,
         vaccinated: true
       });
 
       if (result.success) {
+        // Also update resident's vaccine status and add vaccine to vaccines_given
+        if (beneficiary.resident_id && vaccineName) {
+          const residentUpdateResult = await updateResidentVaccineStatus(
+            beneficiary.resident_id,
+            vaccineName
+          );
+
+          if (!residentUpdateResult.success) {
+            console.warn('Warning: Failed to update resident vaccine status:', residentUpdateResult.error);
+            // Don't fail the approval if resident update fails - just warn
+          }
+        }
+
+        // Increment administered count and update database
+        if (statistics) {
+          const newAdministeredCount = statistics.vaccinated + 1;
+          
+          // Update session administered count in database
+          const updateResult = await updateSessionAdministered(sessionId, newAdministeredCount);
+          
+          if (updateResult.success) {
+            console.log('✅ Session administered count updated');
+            
+            // Deduct from inventory
+            if (barangayId && vaccineId) {
+              const deductResult = await deductBarangayVaccineInventory(
+                barangayId,
+                vaccineId,
+                1
+              );
+              
+              if (deductResult.success) {
+                console.log('✅ Barangay inventory deducted');
+              } else {
+                console.warn('⚠️ Warning: Failed to deduct from barangay inventory:', deductResult.error);
+              }
+              
+              // Also deduct from main vaccine inventory
+              const mainDeductResult = await deductMainVaccineInventory(vaccineId, 1);
+              
+              if (mainDeductResult.success) {
+                console.log('✅ Main vaccine inventory deducted');
+              } else {
+                console.warn('⚠️ Warning: Failed to deduct from main vaccine inventory:', mainDeductResult.error);
+              }
+            }
+          } else {
+            console.error('Failed to update session administered count:', updateResult.error);
+          }
+          
+          // Notify parent component
+          if (onAdministeredCountChange) {
+            onAdministeredCountChange(newAdministeredCount);
+          }
+        }
+
         await loadData();
       } else {
         setError(result.error);
@@ -159,6 +231,62 @@ export default function SessionParticipantsMonitor({
       });
 
       if (result.success) {
+        // Also remove vaccine from resident if it was previously approved
+        if (beneficiary.resident_id && vaccineName && beneficiary.vaccinated === true) {
+          const residentUpdateResult = await removeVaccineFromResident(
+            beneficiary.resident_id,
+            vaccineName
+          );
+
+          if (!residentUpdateResult.success) {
+            console.warn('Warning: Failed to remove vaccine from resident:', residentUpdateResult.error);
+            // Don't fail the rejection if resident update fails - just warn
+          }
+        }
+
+        // Decrement administered count if was previously approved
+        if (statistics && beneficiary.vaccinated === true) {
+          const newAdministeredCount = Math.max(0, statistics.vaccinated - 1);
+          
+          // Update session administered count in database
+          const updateResult = await updateSessionAdministered(sessionId, newAdministeredCount);
+          
+          if (updateResult.success) {
+            console.log('✅ Session administered count updated');
+            
+            // Add back to inventory
+            if (barangayId && vaccineId) {
+              const addBackResult = await addBackBarangayVaccineInventory(
+                barangayId,
+                vaccineId,
+                1
+              );
+              
+              if (addBackResult.success) {
+                console.log('✅ Barangay inventory added back');
+              } else {
+                console.warn('⚠️ Warning: Failed to add back to barangay inventory:', addBackResult.error);
+              }
+              
+              // Also add back to main vaccine inventory
+              const mainAddBackResult = await addMainVaccineInventory(vaccineId, 1);
+              
+              if (mainAddBackResult.success) {
+                console.log('✅ Main vaccine inventory added back');
+              } else {
+                console.warn('⚠️ Warning: Failed to add back to main vaccine inventory:', mainAddBackResult.error);
+              }
+            }
+          } else {
+            console.error('Failed to update session administered count:', updateResult.error);
+          }
+          
+          // Notify parent component
+          if (onAdministeredCountChange) {
+            onAdministeredCountChange(newAdministeredCount);
+          }
+        }
+
         await loadData();
       } else {
         setError(result.error);
@@ -172,9 +300,68 @@ export default function SessionParticipantsMonitor({
     if (!confirm("Are you sure you want to remove this participant?")) return;
 
     try {
+      // Find the beneficiary to get resident_id and vaccination status
+      const beneficiary = beneficiaries.find(b => b.id === beneficiaryId);
+
       const result = await removeBeneficiaryFromSession(beneficiaryId);
 
       if (result.success) {
+        // Also remove vaccine from resident if it was approved
+        if (beneficiary && beneficiary.resident_id && vaccineName && beneficiary.vaccinated === true) {
+          const residentUpdateResult = await removeVaccineFromResident(
+            beneficiary.resident_id,
+            vaccineName
+          );
+
+          if (!residentUpdateResult.success) {
+            console.warn('Warning: Failed to remove vaccine from resident:', residentUpdateResult.error);
+            // Don't fail the removal if resident update fails - just warn
+          }
+        }
+
+        // Decrement administered count if was approved
+        if (statistics && beneficiary && beneficiary.vaccinated === true) {
+          const newAdministeredCount = Math.max(0, statistics.vaccinated - 1);
+          
+          // Update session administered count in database
+          const updateResult = await updateSessionAdministered(sessionId, newAdministeredCount);
+          
+          if (updateResult.success) {
+            console.log('✅ Session administered count updated');
+            
+            // Add back to inventory
+            if (barangayId && vaccineId) {
+              const addBackResult = await addBackBarangayVaccineInventory(
+                barangayId,
+                vaccineId,
+                1
+              );
+              
+              if (addBackResult.success) {
+                console.log('✅ Barangay inventory added back');
+              } else {
+                console.warn('⚠️ Warning: Failed to add back to barangay inventory:', addBackResult.error);
+              }
+              
+              // Also add back to main vaccine inventory
+              const mainAddBackResult = await addMainVaccineInventory(vaccineId, 1);
+              
+              if (mainAddBackResult.success) {
+                console.log('✅ Main vaccine inventory added back');
+              } else {
+                console.warn('⚠️ Warning: Failed to add back to main vaccine inventory:', mainAddBackResult.error);
+              }
+            }
+          } else {
+            console.error('Failed to update session administered count:', updateResult.error);
+          }
+          
+          // Notify parent component
+          if (onAdministeredCountChange) {
+            onAdministeredCountChange(newAdministeredCount);
+          }
+        }
+
         await loadData();
       } else {
         setError(result.error);
@@ -217,8 +404,8 @@ export default function SessionParticipantsMonitor({
       {statistics && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 bg-gray-50 border-b border-gray-200">
           <div className="text-center">
-            <p className="text-2xl font-bold text-gray-900">{statistics.total}</p>
-            <p className="text-sm text-gray-600">Total</p>
+            <p className="text-2xl font-bold text-gray-900">{target}</p>
+            <p className="text-sm text-gray-600">Target</p>
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-blue-600">{statistics.attended}</p>
@@ -293,22 +480,37 @@ export default function SessionParticipantsMonitor({
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleApprove(beneficiary)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
-                        title="Approve (Attended & Vaccinated)"
+                        disabled={!areActionsEnabled()}
+                        className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                          areActionsEnabled()
+                            ? "bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                        }`}
+                        title={areActionsEnabled() ? "Approve (Attended & Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <Check size={18} />
                       </button>
                       <button
                         onClick={() => handleReject(beneficiary)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
-                        title="Reject (Not Attended & Not Vaccinated)"
+                        disabled={!areActionsEnabled()}
+                        className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                          areActionsEnabled()
+                            ? "bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                        }`}
+                        title={areActionsEnabled() ? "Reject (Not Attended & Not Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <X size={18} />
                       </button>
                       <button
                         onClick={() => handleRemove(beneficiary.id)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                        title="Remove participant"
+                        disabled={!areActionsEnabled()}
+                        className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                          areActionsEnabled()
+                            ? "bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
+                        }`}
+                        title={areActionsEnabled() ? "Remove participant" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <Trash2 size={18} />
                       </button>

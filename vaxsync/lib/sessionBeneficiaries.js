@@ -396,11 +396,223 @@ export const getAvailableResidentsForSession = async (sessionId, barangayName) =
   }
 };
 
+/**
+ * Update resident vaccine status and add vaccine to vaccines_given
+ * @param {string} residentId - Resident ID
+ * @param {string} vaccineName - Name of vaccine given
+ * @returns {Promise<Object>} - { success: boolean, error: string }
+ */
+export const updateResidentVaccineStatus = async (residentId, vaccineName) => {
+  try {
+    console.log('Updating resident vaccine status:', { residentId, vaccineName });
+
+    // Fetch current resident data
+    const { data: resident, error: fetchError } = await supabase
+      .from('residents')
+      .select('id, vaccines_given, vaccine_status')
+      .eq('id', residentId)
+      .single();
+
+    if (fetchError || !resident) {
+      console.error('Error fetching resident:', fetchError);
+      return {
+        success: false,
+        error: fetchError?.message || 'Resident not found'
+      };
+    }
+
+    // Add vaccine to vaccines_given if not already present
+    const currentVaccines = resident.vaccines_given || [];
+    const updatedVaccines = Array.isArray(currentVaccines) ? [...currentVaccines] : [];
+    
+    if (!updatedVaccines.includes(vaccineName)) {
+      updatedVaccines.push(vaccineName);
+    }
+
+    // Update resident with new vaccines_given and set status to partially_vaccinated
+    const { error: updateError } = await supabase
+      .from('residents')
+      .update({
+        vaccines_given: updatedVaccines,
+        vaccine_status: 'partially_vaccinated',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', residentId);
+
+    if (updateError) {
+      console.error('Error updating resident:', updateError);
+      return {
+        success: false,
+        error: updateError.message || 'Failed to update resident'
+      };
+    }
+
+    console.log('✅ Resident vaccine status updated successfully');
+    return {
+      success: true,
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in updateResidentVaccineStatus:', err);
+    return {
+      success: false,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
+ * Remove vaccine from resident's vaccines_given
+ * @param {string} residentId - Resident ID
+ * @param {string} vaccineName - Name of vaccine to remove
+ * @returns {Promise<Object>} - { success: boolean, error: string }
+ */
+export const removeVaccineFromResident = async (residentId, vaccineName) => {
+  try {
+    console.log('Removing vaccine from resident:', { residentId, vaccineName });
+
+    // Fetch current resident data
+    const { data: resident, error: fetchError } = await supabase
+      .from('residents')
+      .select('id, vaccines_given, vaccine_status')
+      .eq('id', residentId)
+      .single();
+
+    if (fetchError || !resident) {
+      console.error('Error fetching resident:', fetchError);
+      return {
+        success: false,
+        error: fetchError?.message || 'Resident not found'
+      };
+    }
+
+    // Remove vaccine from vaccines_given
+    const currentVaccines = resident.vaccines_given || [];
+    const updatedVaccines = Array.isArray(currentVaccines) 
+      ? currentVaccines.filter(v => v !== vaccineName)
+      : [];
+
+    // Determine new vaccine status based on remaining vaccines
+    let newStatus = 'not_vaccinated';
+    if (updatedVaccines.length > 0) {
+      newStatus = 'partially_vaccinated';
+    }
+
+    // Update resident with new vaccines_given and updated status
+    const { error: updateError } = await supabase
+      .from('residents')
+      .update({
+        vaccines_given: updatedVaccines,
+        vaccine_status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', residentId);
+
+    if (updateError) {
+      console.error('Error updating resident:', updateError);
+      return {
+        success: false,
+        error: updateError.message || 'Failed to update resident'
+      };
+    }
+
+    console.log('✅ Vaccine removed from resident successfully');
+    return {
+      success: true,
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in removeVaccineFromResident:', err);
+    return {
+      success: false,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
+ * Reset all resident vaccine data for a session (when session is deleted)
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<Object>} - { success: boolean, error: string }
+ */
+export const resetSessionResidentVaccineData = async (sessionId) => {
+  try {
+    console.log('Resetting resident vaccine data for session:', sessionId);
+
+    // Get all beneficiaries for this session that were vaccinated
+    const { data: beneficiaries, error: fetchError } = await supabase
+      .from('session_beneficiaries')
+      .select('id, resident_id, vaccinated')
+      .eq('session_id', sessionId)
+      .eq('vaccinated', true);
+
+    if (fetchError) {
+      console.error('Error fetching beneficiaries:', fetchError);
+      return {
+        success: false,
+        error: fetchError.message || 'Failed to fetch beneficiaries'
+      };
+    }
+
+    if (!beneficiaries || beneficiaries.length === 0) {
+      console.log('No vaccinated beneficiaries to reset');
+      return { success: true, error: null };
+    }
+
+    console.log(`Found ${beneficiaries.length} vaccinated beneficiaries to reset`);
+
+    // For each vaccinated beneficiary, reset their vaccine data
+    for (const beneficiary of beneficiaries) {
+      if (beneficiary.resident_id) {
+        // Fetch current resident data
+        const { data: resident, error: residentFetchError } = await supabase
+          .from('residents')
+          .select('id, vaccines_given')
+          .eq('id', beneficiary.resident_id)
+          .single();
+
+        if (residentFetchError || !resident) {
+          console.warn('Could not fetch resident:', beneficiary.resident_id);
+          continue;
+        }
+
+        // Reset vaccines_given to empty array and vaccine_status to not_vaccinated
+        const { error: updateError } = await supabase
+          .from('residents')
+          .update({
+            vaccines_given: [],
+            vaccine_status: 'not_vaccinated',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', beneficiary.resident_id);
+
+        if (updateError) {
+          console.warn('Failed to reset vaccine data for resident:', beneficiary.resident_id, updateError);
+        } else {
+          console.log('✅ Reset vaccine data for resident:', beneficiary.resident_id);
+        }
+      }
+    }
+
+    console.log('✅ All resident vaccine data reset successfully');
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Unexpected error in resetSessionResidentVaccineData:', err);
+    return {
+      success: false,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
 export default {
   addBeneficiariesToSession,
   fetchSessionBeneficiaries,
   updateBeneficiaryStatus,
   removeBeneficiaryFromSession,
   getSessionStatistics,
-  getAvailableResidentsForSession
+  getAvailableResidentsForSession,
+  updateResidentVaccineStatus,
+  removeVaccineFromResident,
+  resetSessionResidentVaccineData
 };

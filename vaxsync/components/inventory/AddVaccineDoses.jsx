@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { createVaccine, updateVaccine } from "@/lib/vaccine";
 import { createVaccineDoses } from "@/lib/vaccineDosingFunctions";
+import { createMonthlyReportEntryForVaccine } from "@/lib/vaccineMonthlyReport";
 import { VACCINE_DOSING_SCHEDULE } from "@/lib/vaccineDosingSchedule";
 
 export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine }) {
@@ -145,10 +146,25 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
 
         console.log("✅ Doses created:", doses?.length || 0, "doses");
 
+        // 3. Auto-create monthly report entry
+        console.log("📊 Creating monthly report entry...");
+        const { success: reportSuccess, error: reportError } = await createMonthlyReportEntryForVaccine(
+          vaccine.id,
+          formData.name,
+          parseInt(formData.quantity_available)
+        );
+
+        if (reportSuccess) {
+          console.log("✅ Monthly report entry created");
+        } else {
+          console.warn("⚠️ Warning: Failed to create monthly report entry:", reportError);
+          // Don't fail the vaccine creation if monthly report fails
+        }
+
         // Success (keep dose records attached to this vaccine_id)
         setSuccess(true);
         setSuccessMessage(
-          `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).`
+          `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).\n📊 Monthly report updated.`
         );
 
         // Reset form
