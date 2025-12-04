@@ -573,7 +573,51 @@ export default function ResidentsPage() {
                               </Label>
                             </div>
                           ))}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="vaccine-other"
+                              checked={formData.vaccines_given.includes("other")}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: [...formData.vaccines_given, "other"]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: formData.vaccines_given.filter(v => v !== "other")
+                                  });
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor="vaccine-other"
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              Other
+                            </Label>
+                          </div>
                         </div>
+                        {formData.vaccines_given.includes("other") && (
+                          <Input
+                            type="text"
+                            placeholder="Specify other"
+                            className="mt-3"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const otherVaccine = e.target.value;
+                                if (otherVaccine.trim()) {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: formData.vaccines_given.map(v => v === "other" ? otherVaccine : v)
+                                  });
+                                  e.target.value = "";
+                                }
+                              }
+                            }}
+                          />
+                        )}
                         {formData.vaccines_given.length > 0 && (
                           <p className="text-xs text-gray-500 mt-3">
                             Selected: {formData.vaccines_given.join(", ")}
@@ -613,7 +657,51 @@ export default function ResidentsPage() {
                               </Label>
                             </div>
                           ))}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="missed-vaccine-other"
+                              checked={formData.missed_schedule_of_vaccine.includes("other")}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, "other"]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== "other")
+                                  });
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor="missed-vaccine-other"
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              Other
+                            </Label>
+                          </div>
                         </div>
+                        {formData.missed_schedule_of_vaccine.includes("other") && (
+                          <Input
+                            type="text"
+                            placeholder="Specify other"
+                            className="mt-3"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const otherVaccine = e.target.value;
+                                if (otherVaccine.trim()) {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.map(v => v === "other" ? otherVaccine : v)
+                                  });
+                                  e.target.value = "";
+                                }
+                              }
+                            }}
+                          />
+                        )}
                         {formData.missed_schedule_of_vaccine.length > 0 && (
                           <p className="text-xs text-gray-500 mt-3">
                             Selected: {formData.missed_schedule_of_vaccine.join(", ")}

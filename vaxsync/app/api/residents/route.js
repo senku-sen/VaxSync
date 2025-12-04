@@ -252,7 +252,7 @@ export async function POST(request) {
       .from('residents')
       .insert([
         {
-          name,
+          name: name.toUpperCase(),
           birthday: birthday || null,
           sex: sex || null,
           address,
@@ -366,6 +366,11 @@ export async function PUT(request) {
         { error: 'Resident ID is required' },
         { status: 400 }
       );
+    }
+
+    // Convert name to uppercase if it's being updated
+    if (updateData.name) {
+      updateData.name = updateData.name.toUpperCase();
     }
 
     const { data, error } = await supabase
