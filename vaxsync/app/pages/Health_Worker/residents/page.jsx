@@ -131,12 +131,35 @@ export default function ResidentsPage() {
     }
   };
 
-  // Export currently visible residents to CSV
+  // Calculate age from birthday
+  const calculateAge = (birthday) => {
+    if (!birthday) return "";
+    try {
+      const birthDate = new Date(birthday);
+      if (isNaN(birthDate.getTime())) return "";
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age.toString();
+    } catch (err) {
+      return "";
+    }
+  };
+
+  // Export currently visible residents to CSV (works offline using cached data)
   const handleExport = () => {
     try {
       if (!residents || residents.length === 0) {
         toast.info("No data to export for current view");
         return;
+      }
+
+      // Show notification if exporting from cache (offline mode)
+      if (isFromCache) {
+        toast.info("Exporting from cached data (offline mode)");
       }
 
       const escapeCell = (value) => {
@@ -148,21 +171,27 @@ export default function ResidentsPage() {
 
       const headers = [
         "Name",
+        "Birthday",
         "Age",
+        "Sex",
         "Address",
         "Barangay",
-        "Vaccine Status",
         "Contact",
-        "Submitted"
+        "Vaccine Status",
+        "Status",
+        "Submitted At"
       ];
 
       const rows = residents.map((r) => [
-        r.name,
-        r.age,
-        r.address,
+        r.name || "",
+        r.birthday || "",
+        calculateAge(r.birthday),
+        r.sex || "",
+        r.address || "",
         r.barangay || "",
-        r.vaccine_status,
-        r.contact,
+        r.contact || "",
+        r.vaccine_status || "not_vaccinated",
+        r.status || "pending",
         r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : ""
       ]);
 
@@ -172,9 +201,8 @@ export default function ResidentsPage() {
 
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`;
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${timestamp}${isFromCache ? "_OFFLINE" : ""}.csv`;
 
       const a = document.createElement("a");
       a.href = url;
@@ -183,7 +211,7 @@ export default function ResidentsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Export started");
+      toast.success(`Exported ${residents.length} resident(s)${isFromCache ? " (from cache)" : ""}`);
     } catch (err) {
       console.error("Error exporting data:", err);
       toast.error("Failed to export data");

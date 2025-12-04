@@ -11,11 +11,15 @@
 
 import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle } from "lucide-react";
-import { createVaccine, updateVaccine } from "@/lib/vaccine";
-import { createVaccineDoses } from "@/lib/vaccineDosingFunctions";
 import { VACCINE_DOSING_SCHEDULE } from "@/lib/vaccineDosingSchedule";
+import { useOffline } from "@/components/OfflineProvider";
+import { queueOperation } from "@/lib/syncManager";
+import { generateTempId } from "@/lib/offlineStorage";
+import { toast } from "sonner";
 
 export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine }) {
+  const { isOnline, showNotification } = useOffline();
+  
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -84,90 +88,177 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
 
     setIsLoading(true);
 
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+
     try {
       if (selectedVaccine) {
         // EDIT MODE: Update existing vaccine
-        const { data: vaccine, error: vaccineError } = await updateVaccine(
-          selectedVaccine.id,
-          {
-            name: formData.name,
-            quantity_available: parseInt(formData.quantity_available),
-            expiry_date: formData.expiry_date,
-            notes: formData.notes || "",
-            status: "Good"
+        if (actuallyOnline) {
+          try {
+            const response = await fetch('/api/vaccines', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: selectedVaccine.id,
+                name: formData.name,
+                quantity_available: parseInt(formData.quantity_available),
+                expiry_date: formData.expiry_date,
+                notes: formData.notes || "",
+                status: "Good"
+              })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Failed to update vaccine");
+            }
+
+            console.log("Vaccine updated:", result.data);
+
+            setSuccess(true);
+            setSuccessMessage("✓ Vaccine updated successfully!");
+            toast.success("Vaccine updated successfully");
+
+            // Close after delay
+            setTimeout(() => {
+              onSuccess?.();
+              onClose?.();
+            }, 1500);
+          } catch (err) {
+            console.error("Error updating vaccine:", err);
+            throw err;
           }
-        );
+        } else {
+          // Offline - queue the operation
+          await queueOperation({
+            endpoint: '/api/vaccines',
+            method: 'PUT',
+            body: {
+              id: selectedVaccine.id,
+              name: formData.name,
+              quantity_available: parseInt(formData.quantity_available),
+              expiry_date: formData.expiry_date,
+              notes: formData.notes || "",
+              status: "Good"
+            },
+            type: 'update',
+            description: `Update vaccine: ${formData.name}`,
+            cacheKey: 'vaccines_list'
+          });
 
-        if (vaccineError || !vaccine) {
-          throw new Error(vaccineError?.message || "Failed to update vaccine");
+          setSuccess(true);
+          setSuccessMessage("✓ Changes saved locally. Will sync when online.");
+          toast.info("Changes saved locally. Will sync when online.");
+
+          // Close after delay
+          setTimeout(() => {
+            onSuccess?.();
+            onClose?.();
+          }, 1500);
         }
-
-        console.log("Vaccine updated:", vaccine);
-
-        setSuccess(true);
-        setSuccessMessage("✓ Vaccine updated successfully!");
-
-        // Close after delay
-        setTimeout(() => {
-          onSuccess?.();
-          onClose?.();
-        }, 1500);
       } else {
         // CREATE MODE: Add new vaccine
-        // 1. Create vaccine
-        const { data: vaccine, error: vaccineError } = await createVaccine({
-          name: formData.name,
-          quantity_available: parseInt(formData.quantity_available),
-          expiry_date: formData.expiry_date,
-          notes: formData.notes || "",
-          status: "Good"
-        });
+        if (actuallyOnline) {
+          try {
+            const response = await fetch('/api/vaccines', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: formData.name,
+                quantity_available: parseInt(formData.quantity_available),
+                expiry_date: formData.expiry_date,
+                notes: formData.notes || "",
+                status: "Good",
+                create_doses: true
+              })
+            });
 
-        if (vaccineError || !vaccine) {
-          throw new Error(vaccineError?.message || "Failed to create vaccine");
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Failed to create vaccine");
+            }
+
+            console.log("Vaccine created:", result.data);
+
+            if (result.warning) {
+              setError(`Vaccine created but ${result.warning}: ${result.dosesError || ''}`);
+              toast.warning(result.warning);
+            } else {
+              setSuccess(true);
+              setSuccessMessage(
+                `✓ Vaccine added successfully!\n\nCreated ${result.dosesCount || 0} dose record(s).`
+              );
+              toast.success(`Vaccine added successfully! Created ${result.dosesCount || 0} dose(s).`);
+
+              // Reset form
+              setFormData({
+                name: "",
+                quantity_available: "",
+                expiry_date: "",
+                notes: ""
+              });
+
+              // Close after delay
+              setTimeout(() => {
+                onSuccess?.();
+                onClose?.();
+              }, 2000);
+            }
+          } catch (err) {
+            console.error("Error creating vaccine:", err);
+            throw err;
+          }
+        } else {
+          // Offline - queue the operation
+          const tempId = generateTempId();
+          
+          await queueOperation({
+            endpoint: '/api/vaccines',
+            method: 'POST',
+            body: {
+              name: formData.name,
+              quantity_available: parseInt(formData.quantity_available),
+              expiry_date: formData.expiry_date,
+              notes: formData.notes || "",
+              status: "Good",
+              create_doses: true
+            },
+            type: 'create',
+            description: `Create vaccine: ${formData.name}`,
+            cacheKey: 'vaccines_list',
+            tempId
+          });
+
+          setSuccess(true);
+          setSuccessMessage(
+            `✓ Vaccine saved locally. Will sync when online.\n\nDoses will be created automatically when synced.`
+          );
+          toast.info("Vaccine saved locally. Will sync when online.");
+
+          // Reset form
+          setFormData({
+            name: "",
+            quantity_available: "",
+            expiry_date: "",
+            notes: ""
+          });
+
+          // Close after delay
+          setTimeout(() => {
+            onSuccess?.();
+            onClose?.();
+          }, 2000);
         }
-
-        console.log("Vaccine created:", vaccine);
-
-        // 2. Auto-create doses
-        const { success: dosesSuccess, doses, error: dosesError } = await createVaccineDoses(
-          vaccine.id,
-          formData.name,
-          parseInt(formData.quantity_available)
-        );
-
-        if (!dosesSuccess) {
-          console.error("❌ Error creating doses:", dosesError);
-          const errorMsg = dosesError?.message || "Failed to create doses";
-          setError(`Vaccine created but failed to create doses: ${errorMsg}`);
-          return;
-        }
-
-        console.log("✅ Doses created:", doses?.length || 0, "doses");
-
-        // Success (keep dose records attached to this vaccine_id)
-        setSuccess(true);
-        setSuccessMessage(
-          `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).`
-        );
-
-        // Reset form
-        setFormData({
-          name: "",
-          quantity_available: "",
-          expiry_date: "",
-          notes: ""
-        });
-
-        // Close after delay
-        setTimeout(() => {
-          onSuccess?.();
-          onClose?.();
-        }, 2000);
       }
     } catch (err) {
       console.error("Error submitting vaccine:", err);
       setError(err.message || "Failed to submit vaccine");
+      toast.error(err.message || "Failed to submit vaccine");
     } finally {
       setIsLoading(false);
     }
@@ -206,7 +297,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
         </label>
         <select
           name="name"
-          value={formData.name}
+          value={formData.name || ""}
           onChange={handleChange}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent bg-white"
         >
@@ -230,7 +321,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
         <input
           type="number"
           name="quantity_available"
-          value={formData.quantity_available}
+          value={formData.quantity_available || ""}
           onChange={handleChange}
           placeholder="e.g., 600"
           min="1"
@@ -249,7 +340,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
         <input
           type="date"
           name="expiry_date"
-          value={formData.expiry_date}
+          value={formData.expiry_date || ""}
           onChange={handleChange}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
         />
@@ -262,7 +353,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
         </label>
         <textarea
           name="notes"
-          value={formData.notes}
+          value={formData.notes || ""}
           onChange={handleChange}
           placeholder="Additional notes..."
           rows="3"

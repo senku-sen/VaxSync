@@ -110,12 +110,35 @@ export default function ResidentsPage() {
     }
   };
 
-  // Export currently visible residents to CSV
+  // Calculate age from birthday
+  const calculateAge = (birthday) => {
+    if (!birthday) return "";
+    try {
+      const birthDate = new Date(birthday);
+      if (isNaN(birthDate.getTime())) return "";
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age.toString();
+    } catch (err) {
+      return "";
+    }
+  };
+
+  // Export currently visible residents to CSV (works offline using cached data)
   const handleExport = () => {
     try {
       if (!residents || residents.length === 0) {
         toast.info("No data to export for current view");
         return;
+      }
+
+      // Show notification if exporting from cache (offline mode)
+      if (isFromCache) {
+        toast.info("Exporting from cached data (offline mode)");
       }
 
       const escapeCell = (value) => {
@@ -127,21 +150,27 @@ export default function ResidentsPage() {
 
       const headers = [
         "Name",
+        "Birthday",
         "Age",
+        "Sex",
         "Address",
         "Barangay",
-        "Vaccine Status",
         "Contact",
-        "Submitted"
+        "Vaccine Status",
+        "Status",
+        "Submitted At"
       ];
 
       const rows = residents.map((r) => [
-        r.name,
-        r.age,
-        r.address,
+        r.name || "",
+        r.birthday || "",
+        calculateAge(r.birthday),
+        r.sex || "",
+        r.address || "",
         r.barangay || "",
-        r.vaccine_status,
-        r.contact,
+        r.contact || "",
+        r.vaccine_status || "not_vaccinated",
+        r.status || "pending",
         r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : ""
       ]);
 
@@ -151,9 +180,8 @@ export default function ResidentsPage() {
 
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`;
+      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${timestamp}${isFromCache ? "_OFFLINE" : ""}.csv`;
 
       const a = document.createElement("a");
       a.href = url;
@@ -162,7 +190,7 @@ export default function ResidentsPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Export started");
+      toast.success(`Exported ${residents.length} resident(s)${isFromCache ? " (from cache)" : ""}`);
     } catch (err) {
       console.error("Error exporting data:", err);
       toast.error("Failed to export data");
@@ -314,13 +342,13 @@ export default function ResidentsPage() {
   const openEditDialog = (resident) => {
     setSelectedResident(resident);
     setFormData({
-      name: resident.name ?? "",
-      birthday: resident.birthday ?? "",
-      sex: resident.sex ?? "",
-      address: resident.address ?? "",
-      vaccine_status: resident.vaccine_status ?? "not_vaccinated",
-      contact: resident.contact ?? "",
-      barangay: resident.barangay ?? "",
+      name: resident.name || "",
+      birthday: resident.birthday || "",
+      sex: resident.sex || "",
+      address: resident.address || "",
+      vaccine_status: resident.vaccine_status || "not_vaccinated",
+      contact: resident.contact || "",
+      barangay: resident.barangay || "",
       vaccines_given: Array.isArray(resident.vaccines_given) ? resident.vaccines_given : []
     });
     setIsEditDialogOpen(true);
@@ -596,7 +624,7 @@ export default function ResidentsPage() {
                       </div>
                       <div>
                         <Label htmlFor="sex">Sex *</Label>
-                        <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
+                        <Select value={formData.sex || ""} onValueChange={(value) => setFormData({...formData, sex: value})}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select sex" />
                           </SelectTrigger>
@@ -621,7 +649,7 @@ export default function ResidentsPage() {
                     
                     <div>
                       <Label htmlFor="vaccine_status">Vaccine Status</Label>
-                      <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                      <Select value={formData.vaccine_status || "not_vaccinated"} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select vaccine status" />
                         </SelectTrigger>
@@ -635,7 +663,7 @@ export default function ResidentsPage() {
                     
                     <div>
                       <Label htmlFor="barangay">Barangay</Label>
-                      <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
+                      <Select value={formData.barangay || ""} onValueChange={(value) => setFormData({...formData, barangay: value})}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select barangay" />
                         </SelectTrigger>
@@ -726,7 +754,7 @@ export default function ResidentsPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search by name or address..."
-                value={searchTerm}
+                value={searchTerm || ""}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
@@ -860,7 +888,7 @@ export default function ResidentsPage() {
                   </div>
                   <div>
                     <Label htmlFor="edit-sex">Sex *</Label>
-                    <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
+                    <Select value={formData.sex || ""} onValueChange={(value) => setFormData({...formData, sex: value})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select sex" />
                       </SelectTrigger>
@@ -885,7 +913,7 @@ export default function ResidentsPage() {
                 
                 <div>
                   <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
-                  <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                  <Select value={formData.vaccine_status || "not_vaccinated"} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vaccine status" />
                     </SelectTrigger>
@@ -899,7 +927,7 @@ export default function ResidentsPage() {
                 
                 <div>
                   <Label htmlFor="edit-barangay">Barangay</Label>
-                  <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
+                  <Select value={formData.barangay || ""} onValueChange={(value) => setFormData({...formData, barangay: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select barangay" />
                     </SelectTrigger>

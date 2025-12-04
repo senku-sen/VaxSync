@@ -78,28 +78,197 @@ async function executeOperation(operation) {
 
     const options = {
       method,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: {}
     };
 
-    // Add body for POST, PUT, PATCH
-    if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
-      // Remove temporary IDs before sending to server
+    // Handle file uploads (FormData)
+    if (body && body.isFileUpload && body.fileContent) {
+      try {
+        // Reconstruct FormData from stored file content in IndexedDB
+        const formData = new FormData();
+        
+        // Ensure fileContent is a string (it should be stored as string in IndexedDB)
+        let fileContent = body.fileContent;
+        
+        // Handle different possible formats
+        if (typeof fileContent !== 'string') {
+          if (fileContent instanceof ArrayBuffer) {
+            fileContent = new TextDecoder('utf-8').decode(fileContent);
+          } else if (fileContent instanceof Blob) {
+            fileContent = await fileContent.text();
+          } else {
+            fileContent = String(fileContent || '');
+          }
+        }
+        
+        // Validate file content
+        if (!fileContent || fileContent.length === 0) {
+          throw new Error('File content is empty or invalid. File may not have been stored correctly.');
+        }
+        
+        // Create File object from stored content
+        const blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8' });
+        const file = new File([blob], body.fileName || 'masterlist.csv', { 
+          type: 'text/csv',
+          lastModified: body.queuedAt ? new Date(body.queuedAt).getTime() : Date.now()
+        });
+        
+        // Validate file was created correctly
+        if (file.size === 0) {
+          throw new Error('Reconstructed file is empty');
+        }
+        
+        // Build FormData
+        formData.append('file', file);
+        formData.append('barangay', body.barangay || '');
+        formData.append('submitted_by', body.submitted_by || '');
+        
+        console.log('Reconstructing FormData for file upload:', {
+          fileName: body.fileName,
+          originalFileSize: body.fileSize || fileContent.length,
+          reconstructedFileSize: file.size,
+          fileContentLength: fileContent.length,
+          barangay: body.barangay,
+          submitted_by: body.submitted_by,
+          queuedAt: body.queuedAt
+        });
+        
+        // Don't set Content-Type header - browser will set it with boundary for FormData
+        options.body = formData;
+      } catch (fileError) {
+        console.error('Error reconstructing FormData:', {
+          error: fileError.message,
+          stack: fileError.stack,
+          bodyKeys: Object.keys(body),
+          hasFileContent: !!body.fileContent,
+          fileContentType: typeof body.fileContent,
+          fileName: body.fileName
+        });
+        throw new Error(`Failed to reconstruct file for upload: ${fileError.message}`);
+      }
+    } else if (body && ['POST', 'PUT', 'PATCH'].includes(method)) {
+      // Set Content-Type for JSON requests
+      options.headers['Content-Type'] = 'application/json';
+      // Remove temporary IDs and internal flags before sending to server
       const cleanBody = { ...body };
+      
+      // Remove temporary ID if present (server will generate real ID)
       if (isTempId(cleanBody.id)) {
         delete cleanBody.id;
       }
+      
+      // Remove internal flags and metadata
+      delete cleanBody._pending;
+      delete cleanBody.isFileUpload;
+      delete cleanBody.fileContent;
+      delete cleanBody.fileName;
+      
+      // Log the cleaned body for debugging
+      console.log('Sending request body:', {
+        endpoint,
+        method,
+        bodyKeys: Object.keys(cleanBody),
+        hasRequiredFields: {
+          name: !!cleanBody.name,
+          birthday: !!cleanBody.birthday,
+          sex: !!cleanBody.sex,
+          address: !!cleanBody.address,
+          contact: !!cleanBody.contact,
+          barangay_id: !!cleanBody.barangay_id,
+          barangay: !!cleanBody.barangay,
+          submitted_by: !!cleanBody.submitted_by
+        },
+        bodyPreview: {
+          name: cleanBody.name,
+          birthday: cleanBody.birthday,
+          sex: cleanBody.sex,
+          address: cleanBody.address,
+          contact: cleanBody.contact,
+          barangay_id: cleanBody.barangay_id,
+          barangay: cleanBody.barangay,
+          submitted_by: cleanBody.submitted_by
+        }
+      });
+      
       options.body = JSON.stringify(cleanBody);
-    } else if (body && method === 'DELETE') {
+    } else if (body && method === 'DELETE' && !params) {
+      // Only add body for DELETE if params are not used
       options.body = JSON.stringify(body);
     }
 
     const response = await fetch(url, options);
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+      let errorData = {};
+      let responseText = '';
+      try {
+        responseText = await response.text();
+        if (responseText) {
+          try {
+            errorData = JSON.parse(responseText);
+          } catch (parseError) {
+            // If JSON parsing fails, use the raw text
+            errorData = { error: responseText || response.statusText || `HTTP ${response.status}` };
+          }
+        } else {
+          errorData = { error: response.statusText || `HTTP ${response.status}` };
+        }
+      } catch (e) {
+        // If text reading fails, use status text
+        errorData = { error: response.statusText || `HTTP ${response.status}` };
+      }
+      
+      // Log more details for debugging
+      let bodyPreview;
+      if (body && body.isFileUpload) {
+        bodyPreview = {
+          type: 'FileUpload',
+          fileName: body.fileName,
+          fileContentLength: body.fileContent ? (typeof body.fileContent === 'string' ? body.fileContent.length : 'unknown') : 0,
+          barangay: body.barangay,
+          submitted_by: body.submitted_by,
+          hasFileContent: !!body.fileContent,
+          fileContentPreview: body.fileContent ? (typeof body.fileContent === 'string' ? body.fileContent.substring(0, 200) : '[non-string]') : '[empty]'
+        };
+      } else if (body) {
+        bodyPreview = {
+          keys: Object.keys(body),
+          preview: {
+            name: body.name,
+            birthday: body.birthday,
+            sex: body.sex,
+            address: body.address,
+            contact: body.contact,
+            barangay_id: body.barangay_id,
+            barangay: body.barangay,
+            submitted_by: body.submitted_by,
+            vaccine_status: body.vaccine_status,
+            vaccines_given: body.vaccines_given
+          },
+          hasAllRequiredFields: !!(body.name && body.birthday && body.sex && body.address && body.contact && (body.barangay_id || body.barangay) && body.submitted_by)
+        };
+      } else {
+        bodyPreview = '[No body]';
+      }
+      
+      console.error('Operation failed:', {
+        endpoint,
+        method,
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData.error || errorData.message || errorData,
+        errorDetails: errorData,
+        responseText: responseText.substring(0, 1000), // First 1000 chars of response
+        bodyPreview
+      });
+      
+      const errorMessage = errorData.error || errorData.message || errorData.missingFields 
+        ? (Array.isArray(errorData.missingFields) 
+          ? `Missing required fields: ${errorData.missingFields.join(', ')}` 
+          : errorData.error || errorData.message)
+        : `HTTP ${response.status}: ${response.statusText}`;
+      
+      throw new Error(errorMessage);
     }
 
     const data = await response.json().catch(() => ({}));
@@ -117,32 +286,63 @@ async function executeOperation(operation) {
  * @returns {boolean} Whether sync was successful
  */
 async function syncOperation(operation) {
-  const result = await executeOperation(operation);
-
-  if (result.success) {
-    // Operation succeeded, remove from pending
-    await deletePendingOperation(operation.id);
-    return true;
-  } else {
-    // Operation failed, update retry count
-    const newRetryCount = (operation.retryCount || 0) + 1;
+  try {
+    console.log('Syncing operation:', {
+      id: operation.id,
+      endpoint: operation.endpoint,
+      method: operation.method,
+      type: operation.type,
+      description: operation.description
+    });
     
-    if (newRetryCount >= MAX_RETRIES) {
-      // Mark as failed after max retries
-      await updatePendingOperation(operation.id, {
-        status: 'failed',
-        retryCount: newRetryCount,
-        lastError: result.error,
-        lastAttempt: Date.now()
-      });
+    const result = await executeOperation(operation);
+
+    if (result.success) {
+      // Operation succeeded, remove from pending
+      await deletePendingOperation(operation.id);
+      console.log('Operation synced successfully:', operation.id);
+      return true;
     } else {
-      // Update retry count
-      await updatePendingOperation(operation.id, {
+      // Operation failed, update retry count
+      const newRetryCount = (operation.retryCount || 0) + 1;
+      console.warn('Operation failed:', {
+        id: operation.id,
+        error: result.error,
         retryCount: newRetryCount,
-        lastError: result.error,
-        lastAttempt: Date.now()
+        maxRetries: MAX_RETRIES
       });
+      
+      if (newRetryCount >= MAX_RETRIES) {
+        // Mark as failed after max retries
+        await updatePendingOperation(operation.id, {
+          status: 'failed',
+          retryCount: newRetryCount,
+          lastError: result.error,
+          failedAt: Date.now()
+        });
+        return false;
+      } else {
+        // Update retry count and try again later
+        await updatePendingOperation(operation.id, {
+          retryCount: newRetryCount,
+          lastError: result.error,
+          lastRetryAt: Date.now()
+        });
+        return false;
+      }
     }
+  } catch (error) {
+    console.error('Error syncing operation:', {
+      operationId: operation.id,
+      error: error.message,
+      stack: error.stack
+    });
+    // Mark as failed if there's an unexpected error
+    await updatePendingOperation(operation.id, {
+      status: 'failed',
+      lastError: error.message,
+      failedAt: Date.now()
+    }).catch(e => console.error('Failed to update operation status:', e));
     return false;
   }
 }
@@ -330,4 +530,5 @@ export default {
   getFailedOperations,
   hasPendingOperations
 };
+
 

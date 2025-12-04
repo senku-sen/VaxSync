@@ -37,6 +37,7 @@ export function OfflineStatusBanner() {
     bannerType,
     triggerSync,
     retryFailed,
+    clearAllFailed,
     hideBanner
   } = useOffline();
 
@@ -111,7 +112,7 @@ export function OfflineStatusBanner() {
             </Button>
           )}
 
-          {/* Retry button - show when has failed operations */}
+          {/* Retry button - show when has failed operations and online */}
           {isOnline && failedOperations.length > 0 && !isSyncing && (
             <Button
               size="sm"
@@ -124,8 +125,26 @@ export function OfflineStatusBanner() {
             </Button>
           )}
 
-          {/* Close button */}
-          {showBanner && bannerType !== 'warning' && (
+          {/* Cancel/Clear button - show when has failed operations */}
+          {failedOperations.length > 0 && !isSyncing && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-white hover:bg-white/20 h-7 px-2"
+              onClick={async () => {
+                if (confirm(`Clear all ${failedOperations.length} failed operation(s)? This cannot be undone.`)) {
+                  await clearAllFailed();
+                }
+              }}
+              title="Clear all failed operations"
+            >
+              <X className="h-3 w-3 mr-1" />
+              Clear Failed
+            </Button>
+          )}
+
+          {/* Close button - show when no failed operations */}
+          {showBanner && failedOperations.length === 0 && bannerType !== 'warning' && (
             <Button
               size="sm"
               variant="ghost"

@@ -201,7 +201,46 @@ export async function POST(request) {
     if (contentType.includes('application/json')) {
       // Handle JSON request for adding a single resident
       const body = await request.json();
-      const { name, birthday, sex, address, contact, barangay_id, submitted_by, barangay } = body;
+      const { name, birthday, sex, address, contact, barangay_id, submitted_by, barangay, municipality, barangay_municipality } = body;
+
+      // Resolve barangay_id if not provided but barangay name is
+      let resolvedBarangayId = barangay_id || null;
+      if (!resolvedBarangayId && barangay) {
+        // Try to find existing barangay by name
+        const { data: foundBarangay, error: findBarangayError } = await supabase
+          .from('barangays')
+          .select('id')
+          .eq('name', barangay)
+          .maybeSingle();
+        
+        if (findBarangayError) {
+          console.error('Supabase error (find barangay):', findBarangayError);
+        }
+        
+        if (foundBarangay?.id) {
+          resolvedBarangayId = foundBarangay.id;
+        } else {
+          // If not found, create new barangay
+          const { data: newBarangay, error: insertBarangayError } = await supabase
+            .from('barangays')
+            .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
+            .select('id')
+            .single();
+          
+          if (insertBarangayError) {
+            console.error('Supabase error (create barangay):', insertBarangayError);
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Failed to resolve barangay',
+                details: process.env.NODE_ENV === 'development' ? insertBarangayError.message : undefined
+              },
+              { status: 500 }
+            );
+          }
+          resolvedBarangayId = newBarangay.id;
+        }
+      }
 
       // Validate required fields with detailed error messages
       const missingFields = [];
@@ -210,7 +249,7 @@ export async function POST(request) {
       if (!sex) missingFields.push('sex');
       if (!address) missingFields.push('address');
       if (!contact) missingFields.push('contact');
-      if (!barangay_id) missingFields.push('barangay_id');
+      if (!resolvedBarangayId) missingFields.push('barangay_id');
       if (!submitted_by) missingFields.push('submitted_by');
 
       if (missingFields.length > 0) {
@@ -232,7 +271,7 @@ export async function POST(request) {
         sex,
         address: address.trim(),
         contact: contact.trim(),
-        barangay_id,
+        barangay_id: resolvedBarangayId,
         barangay: barangay || null,
         submitted_by,
         status: 'pending',
@@ -574,6 +613,15 @@ export async function POST(request) {
 
       if (error) {
         console.error(`Error inserting batch ${Math.floor(i / batchSize) + 1}:`, error);
+        console.error('Batch error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          batchSize: batch.length,
+          batchIndex: Math.floor(i / batchSize) + 1
+        });
+        
         // Check if it's a connection error
         if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
           // Return early if it's a connection error - can't continue
@@ -587,12 +635,20 @@ export async function POST(request) {
             { status: 503 }
           );
         }
+        
         // Check for constraint violations (like birthday_not_future)
-        let errorMessage = error.message;
+        let errorMessage = error.message || 'Unknown database error';
         if (error.message?.includes('birthday_not_future') || error.code === '23514') {
           errorMessage = `Database constraint violation: Some birthdays are in the future. Please remove the 'birthday_not_future' constraint from your database if you want to allow future dates.`;
+        } else if (error.code === '23505') {
+          errorMessage = `Duplicate entry: Some residents already exist in the database.`;
+        } else if (error.code === '23503') {
+          errorMessage = `Foreign key violation: Invalid reference (e.g., barangay_id doesn't exist).`;
+        } else if (error.code === '23502') {
+          errorMessage = `Not null violation: Required field is missing.`;
         }
-        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${errorMessage}`);
+        
+        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${errorMessage} (Code: ${error.code || 'N/A'})`);
         // Continue with next batch even if one fails
       } else {
         successCount += data?.length || 0;
@@ -612,8 +668,36 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error processing CSV upload:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      cause: error.cause,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process CSV file';
+    if (error.message) {
+      errorMessage += ': ' + error.message;
+    } else if (error.code) {
+      errorMessage += ` (Error code: ${error.code})`;
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to process CSV file: ' + error.message },
+      { 
+        success: false, 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          stack: error.stack
+        } : undefined
+      },
       { status: 500 }
     );
   }

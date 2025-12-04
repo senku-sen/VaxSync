@@ -113,12 +113,40 @@ export function OfflineProvider({ children }) {
   }, [isOnline, refreshStatus]);
 
   /**
+   * Show notification banner
+   */
+  const showNotification = useCallback((message, type = 'info', duration = 4000) => {
+    setBannerMessage(message);
+    setBannerType(type);
+    setShowBanner(true);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        setShowBanner(false);
+      }, duration);
+    }
+  }, []);
+
+  /**
    * Clear a specific failed operation
    */
   const handleClearFailed = useCallback(async (operationId) => {
     await clearFailedOperation(operationId);
     await refreshStatus();
-  }, [refreshStatus]);
+    showNotification('Failed operation cleared', 'success');
+  }, [refreshStatus, showNotification]);
+
+  /**
+   * Clear all failed operations
+   */
+  const clearAllFailed = useCallback(async () => {
+    const failed = await getFailedOperations();
+    for (const op of failed) {
+      await clearFailedOperation(op.id);
+    }
+    await refreshStatus();
+    showNotification('All failed operations cleared', 'success');
+  }, [refreshStatus, showNotification]);
 
   /**
    * Clear all offline data (for troubleshooting)
@@ -133,22 +161,7 @@ export function OfflineProvider({ children }) {
       console.error('Error clearing offline data:', error);
       showNotification('Failed to clear offline data', 'error');
     }
-  }, [refreshStatus]);
-
-  /**
-   * Show notification banner
-   */
-  const showNotification = useCallback((message, type = 'info', duration = 4000) => {
-    setBannerMessage(message);
-    setBannerType(type);
-    setShowBanner(true);
-
-    if (duration > 0) {
-      setTimeout(() => {
-        setShowBanner(false);
-      }, duration);
-    }
-  }, []);
+  }, [refreshStatus, showNotification]);
 
   /**
    * Hide notification banner
@@ -242,6 +255,7 @@ export function OfflineProvider({ children }) {
     triggerSync,
     retryFailed: handleRetryFailed,
     clearFailed: handleClearFailed,
+    clearAllFailed,
     clearOfflineData,
     refreshStatus,
     checkConnectivity,

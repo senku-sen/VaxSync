@@ -19,6 +19,10 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DeleteConfirm from "@/components/inventory/DeleteConfirm";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { useOffline } from "@/components/OfflineProvider";
+import { cacheData, getCachedData } from "@/lib/offlineStorage";
+import { queueOperation } from "@/lib/syncManager";
+import { toast } from "sonner";
 
 // Initialize Supabase environment variables
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -66,6 +70,10 @@ export default function Inventory() {
   
   // Available barangays
   const [barangays, setBarangays] = useState([]);
+  
+  // Offline support
+  const { isOnline } = useOffline();
+  const [isFromCache, setIsFromCache] = useState(false);
 
   useEffect(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
@@ -105,16 +113,73 @@ export default function Inventory() {
     }
   };
 
-  // expose fetch function so other handlers can refresh
+  // expose fetch function so other handlers can refresh (with offline support)
   const fetchVaccines = async () => {
-    const { data, error } = await supabase
-      .from("vaccines")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Error fetching vaccines:", error);
+    const cacheKey = 'vaccines_list';
+    
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+
+    if (actuallyOnline) {
+      try {
+        // Try API endpoint first
+        const response = await fetch('/api/vaccines');
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success) {
+            // Cache the data
+            await cacheData(cacheKey, result.data || [], 'inventory');
+            setVaccines(result.data || []);
+            setIsFromCache(false);
+            return;
+          }
+        }
+        
+        // Fallback to Supabase direct call
+        const { data, error } = await supabase
+          .from("vaccines")
+          .select("*")
+          .order("created_at", { ascending: false });
+        
+        if (error) {
+          console.error("Error fetching vaccines:", error);
+          // Try cache on error
+          const cached = await getCachedData(cacheKey);
+          if (cached) {
+            setVaccines(cached);
+            setIsFromCache(true);
+          }
+        } else {
+          // Cache the data
+          await cacheData(cacheKey, data || [], 'inventory');
+          setVaccines(data || []);
+          setIsFromCache(false);
+        }
+      } catch (err) {
+        console.error("Error fetching vaccines:", err);
+        // Try cache on error
+        const cached = await getCachedData(cacheKey);
+        if (cached) {
+          setVaccines(cached);
+          setIsFromCache(true);
+        }
+      }
     } else {
-      setVaccines(data || []);
+      // Offline - get from cache
+      try {
+        const cached = await getCachedData(cacheKey);
+        if (cached) {
+          setVaccines(cached);
+          setIsFromCache(true);
+        } else {
+          setError('No cached data available while offline');
+        }
+      } catch (err) {
+        console.error("Error loading cached vaccines:", err);
+        setError('Failed to load cached data');
+      }
     }
   };
 
@@ -144,25 +209,60 @@ export default function Inventory() {
 
   const confirmDelete = async () => {
     if (!toDelete || !toDelete.id) return;
-    try {
-      const { error } = await supabase
-        .from("vaccines")
-        .delete()
-        .eq("id", toDelete.id);
-      if (error) {
-        console.error("Error deleting vaccine:", error);
-        setError(`Failed to delete vaccine: ${error.message}`);
-      } else {
+    
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+
+    if (actuallyOnline) {
+      try {
+        const response = await fetch(`/api/vaccines?id=${toDelete.id}`, {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Failed to delete vaccine");
+        }
+
         console.log("Vaccine deleted successfully");
-        // refresh list
+        toast.success("Vaccine deleted successfully");
+        
+        // Refresh list
         await fetchVaccines();
+      } catch (err) {
+        console.error("Error deleting vaccine:", err);
+        setError(`Failed to delete vaccine: ${err.message}`);
+        toast.error(`Failed to delete vaccine: ${err.message}`);
+      } finally {
+        setToDelete(null);
+        setSelectedVaccine(null);
       }
-    } catch (err) {
-      console.error("Error during delete:", err);
-      setError(`Error deleting vaccine: ${err.message}`);
-    } finally {
-      setToDelete(null);
-      setSelectedVaccine(null);
+    } else {
+      // Offline - queue the operation
+      try {
+        await queueOperation({
+          endpoint: '/api/vaccines',
+          method: 'DELETE',
+          params: { id: toDelete.id },
+          type: 'delete',
+          description: `Delete vaccine: ${toDelete.name}`,
+          cacheKey: 'vaccines_list'
+        });
+
+        // Optimistic update - remove from UI immediately
+        setVaccines(prev => prev.filter(v => v.id !== toDelete.id));
+        
+        toast.info("Delete queued. Will sync when online.");
+        setToDelete(null);
+        setSelectedVaccine(null);
+      } catch (err) {
+        console.error("Error queueing delete operation:", err);
+        setError(`Failed to queue delete: ${err.message}`);
+        toast.error("Failed to queue delete operation");
+      }
     }
   };
 
@@ -276,7 +376,7 @@ export default function Inventory() {
                         type="text"
                         placeholder="Search by vaccine name or batch..."
                         className="w-full text-sm"
-                        value={searchTerm}
+                        value={searchTerm || ""}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
