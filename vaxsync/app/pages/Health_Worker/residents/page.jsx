@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -256,26 +256,58 @@ export default function ResidentsPage() {
   const handleCreateResident = async (e) => {
     e.preventDefault();
     
+    console.log("=== Add Resident Debug ===");
+    console.log("User Profile:", userProfile);
+    console.log("Selected Barangay ID:", selectedBarangayId);
+    console.log("Form Data:", formData);
+    
     // Validate user profile is loaded
     if (!userProfile || !userProfile.id) {
+      console.error("User profile missing");
       toast.error("User profile not loaded. Please refresh the page.");
+      return;
+    }
+
+    // Validate barangay is selected
+    if (!selectedBarangayId) {
+      console.error("Barangay ID missing:", selectedBarangayId);
+      toast.error("Barangay is not assigned. Please contact your head nurse.");
+      return;
+    }
+
+    // Validate required fields
+    const missingFields = [];
+    if (!formData.name) missingFields.push("name");
+    if (!formData.birthday) missingFields.push("birthday");
+    if (!formData.sex) missingFields.push("sex");
+    if (!formData.address) missingFields.push("address");
+    if (!formData.contact) missingFields.push("contact");
+
+    if (missingFields.length > 0) {
+      console.error("Missing fields:", missingFields);
+      toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
       return;
     }
     
     try {
+      const payload = {
+        ...formData,
+        barangay_id: selectedBarangayId,
+        submitted_by: userProfile.id
+      };
+
+      console.log("Sending payload:", payload);
+
       const response = await fetch("/api/residents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...formData,
-          barangay_id: selectedBarangayId || null,
-          submitted_by: userProfile.id
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
+      console.log("API Response:", data);
 
       if (response.ok) {
         toast.success("Resident created successfully");
@@ -293,11 +325,12 @@ export default function ResidentsPage() {
         fetchResidents(activeTab);
         fetchCounts();
       } else {
+        console.error("API Error:", data);
         toast.error(data.error || "Failed to create resident");
       }
     } catch (error) {
       console.error("Error creating resident:", error);
-      toast.error("Error creating resident");
+      toast.error("Error creating resident: " + error.message);
     }
   };
 

@@ -401,7 +401,64 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
 
     // Check if enough vials are available
     if (availableVials < quantityToReserve) {
-      console.warn('Not enough vials available to reserve:', {
+      console.warn('Not enough vials available to reserve on first check:', {
+        availableVials,
+        quantityToReserve,
+        totalVials: currentInventory.quantity_vial,
+        alreadyReserved: currentReserved
+      });
+
+      // Try to self-heal reserved_vial based on actual sessions, then retry
+      const recalcResult = await recalculateReservedVials(barangayId, vaccineId);
+
+      if (recalcResult.success) {
+        console.log('Recalculated reserved vials, re-checking availability...');
+
+        const { data: inventoryAfter, error: fetchAfterError } = await supabase
+          .from('barangay_vaccine_inventory')
+          .select('id, quantity_vial, quantity_dose, reserved_vial')
+          .eq('barangay_id', barangayId)
+          .eq('vaccine_id', vaccineId)
+          .order('created_at', { ascending: true })
+          .limit(1);
+
+        if (!fetchAfterError && inventoryAfter && inventoryAfter.length > 0) {
+          const inv2 = inventoryAfter[0];
+          const currentReserved2 = inv2.reserved_vial || 0;
+          const availableVials2 = inv2.quantity_vial - currentReserved2;
+
+          console.log('Availability after recalculation:', {
+            availableVials: availableVials2,
+            totalVials: inv2.quantity_vial,
+            alreadyReserved: currentReserved2
+          });
+
+          if (availableVials2 >= quantityToReserve) {
+            const newReservedQuantityAfter = currentReserved2 + quantityToReserve;
+
+            const { error: updateAfterError } = await supabase
+              .from('barangay_vaccine_inventory')
+              .update({
+                reserved_vial: newReservedQuantityAfter,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', inv2.id);
+
+            if (updateAfterError) {
+              console.error('Error reserving inventory after recalculation:', updateAfterError);
+              return { success: false, error: updateAfterError };
+            }
+
+            console.log('Vaccine reserved successfully after recalculation. New reserved quantity:', newReservedQuantityAfter);
+            return { success: true, error: null };
+          }
+        }
+      } else {
+        console.warn('Failed to recalculate reserved vials:', recalcResult.error);
+      }
+
+      // Still not enough after recalculation - return error
+      console.warn('Not enough vials available to reserve even after recalculation:', {
         availableVials,
         quantityToReserve,
         totalVials: currentInventory.quantity_vial,
@@ -580,13 +637,12 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
       .order('id', { ascending: true });
 
     if (fetchDosesError) {
-      console.error('❌ ERROR: Could not fetch vaccine doses:', fetchDosesError);
-      console.error('Error details:', { message: fetchDosesError.message, code: fetchDosesError.code });
-      // Don't fail - just warn
+      console.log('ℹ️ Info: vaccine_doses table not available (optional feature)');
+      // Don't fail - vaccine_doses is optional
     } else if (!doses) {
-      console.warn('⚠️ Warning: vaccine_doses query returned null');
+      console.log('ℹ️ Info: vaccine_doses query returned null (optional feature)');
     } else if (doses.length === 0) {
-      console.warn(`⚠️ Warning: No vaccine_doses found for vaccine ${vaccineId}. Vaccine_doses table may not have data for this vaccine.`);
+      console.log(`ℹ️ Info: No vaccine_doses found for vaccine ${vaccineId} (optional feature - skipping)`);
     } else {
       console.log(`✅ Found ${doses.length} dose record(s) for FIFO add-back:`, 
         doses.map(d => ({ id: d.id, dose_code: d.dose_code, quantity: d.quantity_available }))
@@ -687,13 +743,12 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
       .order('id', { ascending: true });
 
     if (fetchDosesError) {
-      console.error('❌ ERROR: Could not fetch vaccine doses:', fetchDosesError);
-      console.error('Error details:', { message: fetchDosesError.message, code: fetchDosesError.code });
-      // Don't fail - just warn
+      console.log('ℹ️ Info: vaccine_doses table not available (optional feature)');
+      // Don't fail - vaccine_doses is optional
     } else if (!doses) {
-      console.warn('⚠️ Warning: vaccine_doses query returned null');
+      console.log('ℹ️ Info: vaccine_doses query returned null (optional feature)');
     } else if (doses.length === 0) {
-      console.warn(`⚠️ Warning: No vaccine_doses found for vaccine ${vaccineId}. Vaccine_doses table may not have data for this vaccine.`);
+      console.log(`ℹ️ Info: No vaccine_doses found for vaccine ${vaccineId} (optional feature - skipping)`);
     } else {
       console.log(`✅ Found ${doses.length} dose record(s) for FIFO deduction:`, 
         doses.map(d => ({ id: d.id, dose_code: d.dose_code, quantity: d.quantity_available }))
@@ -738,6 +793,60 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
   }
 }
 
+/**
+ * Recalculate and fix reserved vials based on actual scheduled sessions
+ * @param {string} barangayId - The barangay ID
+ * @param {string} vaccineId - The vaccine ID
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export async function recalculateReservedVials(barangayId, vaccineId) {
+  try {
+    console.log('Recalculating reserved vials:', { barangayId, vaccineId });
+
+    // Get all scheduled/in-progress sessions for this vaccine and barangay
+    const { data: sessions, error: sessionsError } = await supabase
+      .from('vaccination_sessions')
+      .select('target, administered, status')
+      .eq('vaccine_id', vaccineId)
+      .eq('barangay_id', barangayId)
+      .in('status', ['Scheduled', 'In progress']);
+
+    if (sessionsError) {
+      console.error('Error fetching sessions:', sessionsError);
+      return { success: false, error: sessionsError.message };
+    }
+
+    // Calculate correct reserved vials: sum of (target - administered) for each session
+    const correctReserved = (sessions || []).reduce((sum, session) => {
+      const remaining = (session.target || 0) - (session.administered || 0);
+      return sum + Math.max(0, remaining);
+    }, 0);
+
+    console.log('Correct reserved vials should be:', correctReserved);
+
+    // Update the inventory with correct reserved vials
+    const { error: updateError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .update({
+        reserved_vial: correctReserved,
+        updated_at: new Date().toISOString()
+      })
+      .eq('barangay_id', barangayId)
+      .eq('vaccine_id', vaccineId);
+
+    if (updateError) {
+      console.error('Error updating reserved vials:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    console.log('✅ Reserved vials recalculated successfully:', correctReserved);
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error in recalculateReservedVials:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 export default {
   fetchBarangayVaccineInventory,
   getBarangayVaccineTotal,
@@ -749,5 +858,6 @@ export default {
   deductMainVaccineInventory,
   reserveBarangayVaccineInventory,
   releaseBarangayVaccineReservation,
-  getLowStockVaccines
+  getLowStockVaccines,
+  recalculateReservedVials
 };

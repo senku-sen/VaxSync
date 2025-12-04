@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { User, Edit, Trash2, CheckCircle } from "lucide-react";
 
 export default function PendingResidentsTable({
@@ -16,6 +17,8 @@ export default function PendingResidentsTable({
   getVaccineStatusBadge,
   formatDate,
   showApproveButton = true,
+  selectedResidents = new Set(),
+  onToggleSelection = () => {},
 }) {
   return (
     <Card>
@@ -42,6 +45,19 @@ export default function PendingResidentsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-medium text-xs w-8">
+                    <Checkbox
+                      checked={residents.length > 0 && selectedResidents.size === residents.length}
+                      indeterminate={selectedResidents.size > 0 && selectedResidents.size < residents.length ? true : undefined}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          residents.forEach(r => onToggleSelection(r.id));
+                        } else {
+                          selectedResidents.forEach(id => onToggleSelection(id));
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Name</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Sex</th>
@@ -56,7 +72,13 @@ export default function PendingResidentsTable({
               </thead>
               <tbody>
                 {residents.map((resident) => (
-                  <tr key={resident.id} className="border-b hover:bg-gray-50">
+                  <tr key={resident.id} className={`border-b hover:bg-gray-50 ${selectedResidents.has(resident.id) ? 'bg-blue-50' : ''}`}>
+                    <td className="py-2 px-2">
+                      <Checkbox
+                        checked={selectedResidents.has(resident.id)}
+                        onCheckedChange={() => onToggleSelection(resident.id)}
+                      />
+                    </td>
                     <td className="py-2 px-2">
                       <div className="font-medium text-xs">{resident.name}</div>
                     </td>

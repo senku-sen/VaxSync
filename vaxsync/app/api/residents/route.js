@@ -195,6 +195,76 @@ function determineVaccineStatus(vaccines) {
 
 export async function POST(request) {
   try {
+    // Check if this is a JSON request (for adding single resident) or FormData (for CSV upload)
+    const contentType = request.headers.get('content-type') || '';
+    
+    if (contentType.includes('application/json')) {
+      // Handle JSON request for adding a single resident
+      const body = await request.json();
+      const { name, birthday, sex, address, contact, barangay_id, submitted_by, barangay } = body;
+
+      // Validate required fields with detailed error messages
+      const missingFields = [];
+      if (!name) missingFields.push('name');
+      if (!birthday) missingFields.push('birthday');
+      if (!sex) missingFields.push('sex');
+      if (!address) missingFields.push('address');
+      if (!contact) missingFields.push('contact');
+      if (!barangay_id) missingFields.push('barangay_id');
+      if (!submitted_by) missingFields.push('submitted_by');
+
+      if (missingFields.length > 0) {
+        console.error('Missing fields:', missingFields, 'Body:', body);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: `Missing required fields: ${missingFields.join(', ')}`,
+            missingFields 
+          },
+          { status: 400 }
+        );
+      }
+
+      // Create resident object
+      const resident = {
+        name: name.trim(),
+        birthday,
+        sex,
+        address: address.trim(),
+        contact: contact.trim(),
+        barangay_id,
+        barangay: barangay || null,
+        submitted_by,
+        status: 'pending',
+        submitted_at: new Date().toISOString()
+      };
+
+      // Insert resident
+      const { data, error } = await supabase
+        .from('residents')
+        .insert([resident])
+        .select('id');
+
+      if (error) {
+        console.error('Error inserting resident:', error);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: error.message || 'Failed to add resident',
+            details: error.details || null
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: data?.[0] || {},
+        message: 'Resident added successfully'
+      });
+    }
+
+    // Handle FormData request for CSV upload
     const formData = await request.formData();
     const file = formData.get('file');
     const barangayName = formData.get('barangay') || '';

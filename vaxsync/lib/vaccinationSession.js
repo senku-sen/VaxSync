@@ -360,7 +360,7 @@ export const updateSessionStatus = async (sessionId, status) => {
 };
 
 /**
- * Delete a vaccination session
+ * Delete a vaccination session and restore inventory
  * @param {string} sessionId - Session ID to delete
  * @returns {Promise<Object>} - { success: boolean, error: string }
  */
@@ -368,20 +368,72 @@ export const deleteVaccinationSession = async (sessionId) => {
   try {
     console.log('Deleting vaccination session:', sessionId);
 
-    const { error } = await supabase
+    // First, fetch the session to get vaccine and administered info
+    const { data: session, error: fetchError } = await supabase
+      .from("vaccination_sessions")
+      .select('id, vaccine_id, barangay_id, target, administered')
+      .eq("id", sessionId)
+      .single();
+
+    if (fetchError || !session) {
+      console.error('Error fetching session:', fetchError);
+      return {
+        success: false,
+        error: 'Session not found'
+      };
+    }
+
+    console.log('Session found:', session);
+
+    // Delete the session
+    const { error: deleteError } = await supabase
       .from("vaccination_sessions")
       .delete()
       .eq("id", sessionId);
 
-    if (error) {
-      console.error('Error deleting session:', error);
+    if (deleteError) {
+      console.error('Error deleting session:', deleteError);
       return {
         success: false,
-        error: error.message || 'Failed to delete session'
+        error: deleteError.message || 'Failed to delete session'
       };
     }
 
-    console.log('Session deleted successfully');
+    console.log('✅ Session deleted successfully');
+
+    // Restore inventory: add back the administered doses
+    if (session.administered && session.administered > 0) {
+      console.log('🟢 Restoring administered doses to inventory:', session.administered);
+      
+      // Import functions dynamically to avoid circular dependencies
+      const { addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
+      
+      // Add back to barangay inventory
+      const addBackResult = await addBackBarangayVaccineInventory(
+        session.barangay_id,
+        session.vaccine_id,
+        session.administered
+      );
+
+      if (addBackResult.success) {
+        console.log('✅ Barangay inventory restored');
+      } else {
+        console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
+      }
+
+      // Add back to main vaccine inventory
+      const mainAddBackResult = await addMainVaccineInventory(
+        session.vaccine_id,
+        session.administered
+      );
+
+      if (mainAddBackResult.success) {
+        console.log('✅ Main vaccine inventory restored');
+      } else {
+        console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
+      }
+    }
+
     return {
       success: true,
       error: null
