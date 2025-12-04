@@ -142,33 +142,59 @@ export default function ResidentsPage() {
 
       const headers = [
         "Name",
-        "Age",
-        "Address",
+        "Sex",
+        "Birthday",
         "Barangay",
-        "Vaccine Status",
-        "Contact",
+        "Defaulters",
+        "Date of Vaccine",
+        "Vaccines Given",
         "Submitted"
       ];
 
       const rows = residents.map((r) => [
         r.name,
-        r.age,
-        r.address,
+        r.sex || "",
+        r.birthday ? new Date(r.birthday).toLocaleDateString() : "",
         r.barangay || "",
-        r.vaccine_status,
-        r.contact,
+        Array.isArray(r.missed_schedule_of_vaccine) ? r.missed_schedule_of_vaccine.join(", ") : "",
+        r.administered_date ? new Date(r.administered_date).toLocaleDateString() : "",
+        Array.isArray(r.vaccines_given) ? r.vaccines_given.join(", ") : "",
         r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : ""
       ]);
 
-      const csv = [headers, ...rows]
-        .map((row) => row.map(escapeCell).join(","))
-        .join("\n");
+      // Helper function to count defaulters by month
+      const getDefaultersByMonth = (residentsArray) => {
+        const monthlyDefaulters = {};
+        residentsArray.forEach((r) => {
+          if (Array.isArray(r.missed_schedule_of_vaccine) && r.missed_schedule_of_vaccine.length > 0) {
+            const date = r.administered_date ? new Date(r.administered_date) : null;
+            if (date) {
+              const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+              monthlyDefaulters[monthKey] = (monthlyDefaulters[monthKey] || 0) + r.missed_schedule_of_vaccine.length;
+            }
+          }
+        });
+        return monthlyDefaulters;
+      };
+
+      // Single barangay export with monthly summary
+      const monthlyDefaulters = getDefaultersByMonth(residents);
+      const monthlyHeaders = ["Month", "Total Defaulters"];
+      const monthlyRows = Object.entries(monthlyDefaulters)
+        .sort()
+        .map(([month, count]) => [month, count]);
+
+      let csv = "SUMMARY - Total Defaulters by Month\n";
+      csv += monthlyHeaders.map(escapeCell).join(",") + "\n";
+      csv += monthlyRows.map((row) => row.map(escapeCell).join(",")).join("\n");
+      csv += "\n\n";
+
+      csv += headers.map(escapeCell).join(",") + "\n";
+      csv += rows.map((row) => row.map(escapeCell).join(",")).join("\n");
 
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`;
+      const filename = `${selectedBarangay} ${activeTab === "pending" ? "pending" : "approved"} residents.csv`;
 
       const a = document.createElement("a");
       a.href = url;
@@ -240,7 +266,6 @@ export default function ResidentsPage() {
       }
       const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
       const approvedData = await approvedResponse.json();
-      
       if (pendingResponse.ok) {
         setPendingCount(pendingData.residents?.length || 0);
       }
@@ -260,6 +285,12 @@ export default function ResidentsPage() {
     // Validate user profile is loaded
     if (!userProfile || !userProfile.id) {
       toast.error("User profile not loaded. Please refresh the page.");
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.name || !formData.birthday || !formData.sex || !formData.administered_date || !formData.barangay) {
+      toast.error("Please fill in all required fields including Barangay");
       return;
     }
     
@@ -285,9 +316,8 @@ export default function ResidentsPage() {
           name: "",
           birthday: "",
           sex: "",
-          address: "",
           vaccine_status: "not_vaccinated",
-          contact: "",
+          administered_date: "",
           barangay: "",
           vaccines_given: [],
           missed_schedule_of_vaccine: []
@@ -393,9 +423,8 @@ export default function ResidentsPage() {
       name: resident.name || "",
       birthday: resident.birthday || "",
       sex: resident.sex || "",
-      address: resident.address || "",
       vaccine_status: resident.vaccine_status || "not_vaccinated",
-      contact: resident.contact || "",
+      administered_date: resident.administered_date || "",
       barangay: resident.barangay || "",
       vaccines_given: resident.vaccines_given || [],
       missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
@@ -491,9 +520,8 @@ export default function ResidentsPage() {
                     name: "",
                     birthday: "",
                     sex: "",
-                    address: "",
                     vaccine_status: "not_vaccinated",
-                    contact: "",
+                    administered_date: "",
                     barangay: selectedBarangay || "",
                     vaccines_given: [],
                     missed_schedule_of_vaccine: []
@@ -511,6 +539,7 @@ export default function ResidentsPage() {
                     <DialogTitle>Add New Resident</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleCreateResident} className="space-y-4">
+                    
                     <div>
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
@@ -518,17 +547,6 @@ export default function ResidentsPage() {
                         placeholder="Enter full name"
                         value={formData.name}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="address">Address *</Label>
-                      <Input
-                        id="address"
-                        placeholder="Enter address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({...formData, address: e.target.value})}
                         required
                       />
                     </div>
@@ -559,12 +577,12 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label htmlFor="contact">Contact Number *</Label>
+                      <Label htmlFor="administered_date">Vaccination Date *</Label>
                       <Input
-                        id="contact"
-                        placeholder="09XXXXXXXXX"
-                        value={formData.contact}
-                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        id="administered_date"
+                        type="date"
+                        value={formData.administered_date}
+                        onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
                         required
                       />
                     </div>
@@ -584,7 +602,7 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label htmlFor="barangay">Barangay</Label>
+                      <Label htmlFor="barangay">Barangay *</Label>
                       <Select 
                         value={formData.barangay || selectedBarangay} 
                         onValueChange={(value) => setFormData({...formData, barangay: value})}
@@ -874,17 +892,6 @@ export default function ResidentsPage() {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="edit-address">Address *</Label>
-                  <Input
-                    id="edit-address"
-                    placeholder="Enter address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    required
-                  />
-                </div>
-                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-birthday">Birthday *</Label>
@@ -911,12 +918,12 @@ export default function ResidentsPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="edit-contact">Contact Number *</Label>
+                  <Label htmlFor="edit-administered_date">Vaccination Date *</Label>
                   <Input
-                    id="edit-contact"
-                    placeholder="09XXXXXXXXX"
-                    value={formData.contact}
-                    onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                    id="edit-administered_date"
+                    type="date"
+                    value={formData.administered_date}
+                    onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
                     required
                   />
                 </div>

@@ -277,15 +277,15 @@ export default function UploadMasterListModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[98vw] max-w-full h-[75vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Upload Master List</DialogTitle>
           <DialogDescription>
-            Upload a CSV file containing resident information. The file should have columns: NO., NAME, SEX, BIRTHDAY, DATE OF VACCINE, VACCINE GIVEN
+            Upload a CSV file containing resident information. The file should have columns: NAME, SEX, BIRTHDAY, DATE OF VACCINE, VACCINES GIVEN, DEFAULTERS (optional)
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1">
           {/* File Input */}
           <div>
             <Label htmlFor="csv-file">CSV File</Label>
@@ -344,17 +344,17 @@ export default function UploadMasterListModal({
                 )}
               </div>
               
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto border rounded flex-1 flex flex-col">
                 {preview.headerRowIndex > 0 && (
-                  <div className="mb-2 text-xs text-gray-500">
+                  <div className="mb-2 text-xs text-gray-500 px-3 pt-2">
                     Note: Header row found at row {preview.headerRowIndex + 1}. Previous rows will be skipped.
                   </div>
                 )}
-                <table className="min-w-full text-sm border-collapse">
+                <table className="w-full text-xs border-collapse">
                   <thead>
-                    <tr className="border-b">
+                    <tr className="border-b bg-gray-100 sticky top-0">
                       {preview.headers.map((header, idx) => (
-                        <th key={idx} className="text-left p-2 font-semibold bg-gray-50">
+                        <th key={idx} className="text-left p-2 font-semibold whitespace-nowrap">
                           {header || `Column ${idx + 1}`}
                         </th>
                       ))}
@@ -363,9 +363,9 @@ export default function UploadMasterListModal({
                   <tbody>
                     {preview.rows.length > 0 ? (
                       preview.rows.map((row, rowIdx) => (
-                        <tr key={rowIdx} className="border-b">
+                        <tr key={rowIdx} className="border-b hover:bg-gray-50">
                           {preview.headers.map((_, cellIdx) => (
-                            <td key={cellIdx} className="p-2">
+                            <td key={cellIdx} className="p-2 whitespace-nowrap">
                               {row[cellIdx] || '-'}
                             </td>
                           ))}
@@ -405,7 +405,7 @@ export default function UploadMasterListModal({
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end space-x-2 border-t pt-4">
             <Button
               type="button"
               variant="outline"

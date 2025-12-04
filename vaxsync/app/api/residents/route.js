@@ -197,10 +197,10 @@ function determineVaccineStatus(vaccines) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
+    const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
 
     // Validate required fields
-    if (!name || !birthday || !sex || !address || !contact) {
+    if (!name || !birthday || !sex || !administered_date) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -255,8 +255,7 @@ export async function POST(request) {
           name: name.toUpperCase(),
           birthday: birthday || null,
           sex: sex || null,
-          address,
-          contact,
+          administered_date,
           vaccine_status: vaccine_status || 'not_vaccinated',
           status: 'pending',
           barangay: barangay || null,
@@ -340,8 +339,7 @@ export async function GET(request) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(r =>
         r.name?.toLowerCase().includes(searchLower) ||
-        r.address?.toLowerCase().includes(searchLower) ||
-        r.contact?.toLowerCase().includes(searchLower)
+        r.address?.toLowerCase().includes(searchLower)
       );
     }
 

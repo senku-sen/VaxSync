@@ -457,8 +457,7 @@ export async function POST(request) {
         name: name,
         birthday: parsedBirthday,
         sex: normalizedSex || 'Male', // Default to 'Male' if missing (database might require it)
-        address: defaultAddress,
-        contact: 'N/A', // CSV doesn't have contact, use default
+        administered_date: dateOfVaccine ? (parseDate(dateOfVaccine)?.date || null) : null,
         vaccine_status: vaccineStatus,
         status: 'pending',
         barangay: effectiveBarangayName || null,
@@ -470,8 +469,8 @@ export async function POST(request) {
       };
       
       // Validate required fields for database
-      if (!resident.name || !resident.birthday || !resident.address || !resident.contact) {
-        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, address, contact)`);
+      if (!resident.name || !resident.birthday || !resident.administered_date) {
+        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, date of vaccine)`);
         continue;
       }
       
