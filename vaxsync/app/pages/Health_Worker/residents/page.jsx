@@ -18,7 +18,10 @@ import {
   Search, 
   CheckCircle, 
   Clock,
-  MapPin
+  MapPin,
+  User,
+  Syringe,
+  AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
@@ -58,6 +61,11 @@ export default function ResidentsPage() {
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+
+  // Add vaccine state
+  const [newVaccine, setNewVaccine] = useState("");
+  const [newVaccineDate, setNewVaccineDate] = useState("");
+  const [vaccineType, setVaccineType] = useState("given"); // "given" or "missed"
 
   const [formData, setFormData] = useState({
     name: "",
@@ -685,6 +693,58 @@ export default function ResidentsPage() {
     }
   };
 
+  // Add vaccine to resident
+  const handleAddVaccine = async () => {
+    if (!newVaccine.trim() || !newVaccineDate) {
+      toast.error("Please enter vaccine name and date");
+      return;
+    }
+
+    try {
+      // Add to session beneficiaries for custom vaccines
+      if (selectedResident?.id) {
+        const beneficiaryRecord = {
+          session_id: null,
+          resident_id: selectedResident.id,
+          vaccine_name: newVaccine.trim(),
+          attended: vaccineType === "given" ? true : false,
+          vaccinated: vaccineType === "given" ? true : false,
+        };
+
+        const response = await fetch("/api/session-beneficiaries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(beneficiaryRecord),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to add vaccine");
+        }
+
+        // Also update local formData
+        if (vaccineType === "given") {
+          setFormData({
+            ...formData,
+            vaccines_given: [...formData.vaccines_given, newVaccine.trim()]
+          });
+        } else {
+          // Store both vaccine name and date for missed vaccines
+          setFormData({
+            ...formData,
+            missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, { name: newVaccine.trim(), date: newVaccineDate }]
+          });
+        }
+
+        toast.success(`Vaccine added to session beneficiaries`);
+        setNewVaccine("");
+        setNewVaccineDate("");
+      }
+    } catch (error) {
+      console.error("Error adding vaccine:", error);
+      toast.error("Failed to add vaccine");
+    }
+  };
+
   // Open edit dialog
   const openEditDialog = (resident) => {
     setSelectedResident(resident);
@@ -699,6 +759,10 @@ export default function ResidentsPage() {
       missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
     });
     setIsEditDialogOpen(true);
+    // Reset vaccine add form
+    setNewVaccine("");
+    setNewVaccineDate("");
+    setVaccineType("given");
   };
 
   // Get vaccine status badge
@@ -916,184 +980,289 @@ export default function ResidentsPage() {
 
           {/* Edit Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Resident</DialogTitle>
+            <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="bg-gradient-to-r from-[#4A7C59] to-[#3E6B4D] -mx-6 -mt-6 px-6 py-4 text-white rounded-t-lg">
+                <DialogTitle className="text-xl font-bold text-white">Edit Resident Information</DialogTitle>
+                <p className="text-sm text-green-100 mt-1">{selectedResident?.name || "Resident"}</p>
               </DialogHeader>
-              <form onSubmit={handleUpdateResident} className="space-y-4">
-                <div>
-                  <Label htmlFor="edit-name">Full Name *</Label>
-                  <Input
-                    id="edit-name"
-                    placeholder="Enter full name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleUpdateResident} className="space-y-6 pt-4">
+                {/* Basic Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <User size={20} className="text-blue-600" />
+                    Basic Information
+                  </h3>
+                  
                   <div>
-                    <Label htmlFor="edit-birthday">Birthday *</Label>
+                    <Label htmlFor="edit-name">Full Name *</Label>
                     <Input
-                      id="edit-birthday"
-                      type="date"
-                      value={formData.birthday}
-                      onChange={(e) => setFormData({...formData, birthday: e.target.value})}
+                      id="edit-name"
+                      placeholder="Enter full name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
                       required
+                      className="mt-1"
                     />
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-birthday">Birthday *</Label>
+                      <Input
+                        id="edit-birthday"
+                        type="date"
+                        value={formData.birthday}
+                        onChange={(e) => setFormData({...formData, birthday: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-sex">Sex *</Label>
+                      <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select sex" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Vaccination Information Section */}
+                <div className="border-t pt-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Syringe size={20} className="text-blue-600" />
+                    Vaccination Information
+                  </h3>
+                  
                   <div>
-                    <Label htmlFor="edit-sex">Sex *</Label>
-                    <Select value={formData.sex} onValueChange={(value) => setFormData({...formData, sex: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select sex" />
+                    <Label htmlFor="edit-administered_date">Vaccination Date *</Label>
+                    <Input
+                      id="edit-administered_date"
+                      type="date"
+                      value={formData.administered_date}
+                      onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
+                      required
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
+                    <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Select vaccine status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
+                        <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
+                        <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-                
-                <div>
-                  <Label htmlFor="edit-administered_date">Vaccination Date *</Label>
-                  <Input
-                    id="edit-administered_date"
-                    type="date"
-                    value={formData.administered_date}
-                    onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-vaccine_status">Vaccine Status</Label>
-                  <Select value={formData.vaccine_status} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select vaccine status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                      <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                      <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <Label htmlFor="edit-barangay">Barangay</Label>
-                  <Select 
-                    value={formData.barangay || selectedBarangay} 
-                    onValueChange={(value) => setFormData({...formData, barangay: value})}
-                    disabled={!!selectedBarangay}
-                  >
-                    <SelectTrigger className={selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}>
-                      <SelectValue placeholder="Select barangay" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectedBarangay ? (
-                        <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
-                      ) : (
-                        BARANGAYS.map((b) => (
-                          <SelectItem key={b} value={b}>{b}</SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {selectedBarangay && (
-                    <p className="text-xs text-gray-500 mt-1">Barangay is locked to your assignment: {selectedBarangay}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <Label>Vaccines Given (Optional)</Label>
-                  <p className="text-xs text-gray-500 mb-2">Select vaccines that have been administered to this resident</p>
-                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {VACCINE_TYPES.map((vaccine) => (
-                        <div key={vaccine} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-vaccine-${vaccine}`}
-                            checked={formData.vaccines_given.includes(vaccine)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFormData({
-                                  ...formData,
-                                  vaccines_given: [...formData.vaccines_given, vaccine]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  vaccines_given: formData.vaccines_given.filter(v => v !== vaccine)
-                                });
-                              }
-                            }}
-                          />
-                          <Label
-                            htmlFor={`edit-vaccine-${vaccine}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {vaccine.toUpperCase()}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                    {formData.vaccines_given.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-3">
-                        Selected: {formData.vaccines_given.join(", ")}
-                      </p>
+
+                {/* Location Information Section */}
+                <div className="border-t pt-6 space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <MapPin size={20} className="text-blue-600" />
+                    Location Information
+                  </h3>
+                  
+                  <div>
+                    <Label htmlFor="edit-barangay">Barangay</Label>
+                    <Select 
+                      value={formData.barangay || selectedBarangay} 
+                      onValueChange={(value) => setFormData({...formData, barangay: value})}
+                      disabled={!!selectedBarangay}
+                    >
+                      <SelectTrigger className={`mt-1 ${selectedBarangay ? "bg-gray-100 cursor-not-allowed" : ""}`}>
+                        <SelectValue placeholder="Select barangay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedBarangay ? (
+                          <SelectItem value={selectedBarangay}>{selectedBarangay}</SelectItem>
+                        ) : (
+                          BARANGAYS.map((b) => (
+                            <SelectItem key={b} value={b}>{b}</SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {selectedBarangay && (
+                      <p className="text-xs text-gray-500 mt-2">Barangay is locked to your assignment: {selectedBarangay}</p>
                     )}
+                  </div>
+                </div>
+                
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <CheckCircle size={20} className="text-green-600" />
+                    Vaccines Given
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Vaccines administered to this resident</p>
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    {formData.vaccines_given.length > 0 ? (
+                      <div className="space-y-2">
+                        {formData.vaccines_given.map((vaccine, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-white border border-green-200 rounded">
+                            <div className="flex items-center gap-3">
+                              <CheckCircle size={18} className="text-green-600" />
+                              <span className="font-medium text-gray-900">{vaccine.toUpperCase()}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setFormData({
+                                ...formData,
+                                vaccines_given: formData.vaccines_given.filter((_, i) => i !== index)
+                              })}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No vaccines added yet</p>
+                    )}
+                  </div>
+
+                  {/* Add Vaccine Form */}
+                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-gray-900">Add Vaccine</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="vaccine-name" className="text-sm">Vaccine Name *</Label>
+                        <Input
+                          id="vaccine-name"
+                          placeholder="Enter vaccine name"
+                          value={newVaccine}
+                          onChange={(e) => setNewVaccine(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="vaccine-date" className="text-sm">Date *</Label>
+                        <Input
+                          id="vaccine-date"
+                          type="date"
+                          value={newVaccineDate}
+                          onChange={(e) => setNewVaccineDate(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          onClick={handleAddVaccine}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <Label>Missed Schedule of Vaccine (Optional)</Label>
-                  <p className="text-xs text-gray-500 mb-2">Select vaccines that the resident missed during their scheduled vaccination dates</p>
-                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {VACCINE_TYPES.map((vaccine) => (
-                        <div key={vaccine} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-missed-vaccine-${vaccine}`}
-                            checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFormData({
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <AlertCircle size={20} className="text-orange-600" />
+                    Missed Schedule of Vaccine
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Vaccines missed during scheduled vaccination dates</p>
+                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    {formData.missed_schedule_of_vaccine.length > 0 ? (
+                      <div className="space-y-2">
+                        {formData.missed_schedule_of_vaccine.map((item, index) => {
+                          // Handle both old format (date string) and new format (object with name and date)
+                          const isObject = typeof item === 'object' && item !== null;
+                          const vaccineName = isObject ? item.name : 'Unknown Vaccine';
+                          const vaccineDate = isObject ? item.date : item;
+                          
+                          return (
+                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded">
+                              <div className="flex items-center gap-3">
+                                <AlertCircle size={18} className="text-orange-600" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{vaccineName.toUpperCase()}</p>
+                                  <p className="text-sm text-gray-600">{new Date(vaccineDate).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({
                                   ...formData,
-                                  missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
-                                });
-                              }
-                            }}
-                          />
-                          <Label
-                            htmlFor={`edit-missed-vaccine-${vaccine}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {vaccine.toUpperCase()}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                    {formData.missed_schedule_of_vaccine.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-3">
-                        Selected: {formData.missed_schedule_of_vaccine.join(", ")}
-                      </p>
+                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter((_, i) => i !== index)
+                                })}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No missed vaccines recorded</p>
                     )}
+                  </div>
+
+                  {/* Add Missed Vaccine Form */}
+                  <div className="mt-4 p-4 bg-white border border-orange-200 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-gray-900">Add Missed Vaccine</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="missed-vaccine-name" className="text-sm">Vaccine Name *</Label>
+                        <Input
+                          id="missed-vaccine-name"
+                          placeholder="Enter vaccine name"
+                          value={vaccineType === "missed" ? newVaccine : ""}
+                          onChange={(e) => {
+                            setVaccineType("missed");
+                            setNewVaccine(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="missed-vaccine-date" className="text-sm">Date *</Label>
+                        <Input
+                          id="missed-vaccine-date"
+                          type="date"
+                          value={vaccineType === "missed" ? newVaccineDate : ""}
+                          onChange={(e) => {
+                            setVaccineType("missed");
+                            setNewVaccineDate(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setVaccineType("missed");
+                            handleAddVaccine();
+                          }}
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex justify-end space-x-2">
+                <div className="border-t pt-6 flex justify-end gap-3">
                   <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                  <Button type="submit" className="bg-[#4A7C59] hover:bg-[#3E6B4D] text-white">
                     Update Resident
                   </Button>
                 </div>
