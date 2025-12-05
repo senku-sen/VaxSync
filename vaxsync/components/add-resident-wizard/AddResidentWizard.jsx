@@ -119,9 +119,17 @@ export default function AddResidentWizard({
           setError("Please add at least one vaccine");
           return;
         }
+        if (!formData.selectedUpcomingSession || (Array.isArray(formData.selectedUpcomingSession) && formData.selectedUpcomingSession.length === 0)) {
+          setError("Please select an upcoming session to register the resident");
+          return;
+        }
       } else if (formData.vaccineStatus === "fully_vaccinated") {
         if (formData.selectedVaccines.length === 0) {
           setError("Please add at least one vaccine");
+          return;
+        }
+        if (!formData.selectedFullyVaccinatedSessions || (Array.isArray(formData.selectedFullyVaccinatedSessions) && formData.selectedFullyVaccinatedSessions.length === 0)) {
+          setError("Please select an upcoming session to register the resident");
           return;
         }
       }

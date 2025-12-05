@@ -168,8 +168,8 @@ export default function Step2VaccineStatus({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900">
               <span className="font-semibold">Note:</span> Add vaccines the
-              resident received in the past, then optionally select an upcoming
-              session to add them to.
+              resident received in the past, then select an upcoming
+              session to register them for.
             </p>
           </div>
 
@@ -183,10 +183,10 @@ export default function Step2VaccineStatus({
 
           <div className="border-t pt-6">
             <h4 className="font-semibold text-gray-900 mb-4">
-              Upcoming Session (Optional)
+              Upcoming Session *
             </h4>
             <p className="text-sm text-gray-600 mb-4">
-              Optionally select an upcoming session to add this resident to
+              Select an upcoming session to register this resident for
             </p>
             <Step2SessionSelector
               sessionType="upcoming"
@@ -221,10 +221,10 @@ export default function Step2VaccineStatus({
 
           <div className="border-t pt-6">
             <h4 className="font-semibold text-gray-900 mb-4">
-              Upcoming Sessions (Optional)
+              Upcoming Sessions *
             </h4>
             <p className="text-sm text-gray-600 mb-4">
-              Optionally select upcoming sessions to add this resident to (you can select multiple)
+              Select upcoming sessions to register this resident for (you can select multiple)
             </p>
             <Step2SessionSelector
               sessionType="upcoming"
