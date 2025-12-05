@@ -103,3 +103,159 @@ export async function GET() {
     )
   }
 }
+
+// POST - Create new barangay
+export async function POST(request) {
+  try {
+    const supabase = createSupabaseAdminClient()
+    const body = await request.json()
+    const { name, municipality, population } = body
+
+    // Validate required fields
+    if (!name || !municipality) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Missing required fields: name and municipality are required" 
+        },
+        { status: 400 }
+      )
+    }
+
+    const { data, error } = await supabase
+      .from("barangays")
+      .insert([{
+        name: name.trim(),
+        municipality: municipality.trim(),
+        population: population || 0
+      }])
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error creating barangay:", error)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: error.message || "Failed to create barangay" 
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error("Error creating barangay:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to create barangay",
+        message: error.message
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Update barangay
+export async function PUT(request) {
+  try {
+    const supabase = createSupabaseAdminClient()
+    const body = await request.json()
+    const { id, name, municipality, population } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Barangay ID is required" 
+        },
+        { status: 400 }
+      )
+    }
+
+    const updateData = {}
+    if (name) updateData.name = name.trim()
+    if (municipality) updateData.municipality = municipality.trim()
+    if (population !== undefined) updateData.population = population
+
+    const { data, error } = await supabase
+      .from("barangays")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error updating barangay:", error)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: error.message || "Failed to update barangay" 
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error("Error updating barangay:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to update barangay",
+        message: error.message
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Delete barangay
+export async function DELETE(request) {
+  try {
+    const supabase = createSupabaseAdminClient()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    if (!id) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: "Barangay ID is required" 
+        },
+        { status: 400 }
+      )
+    }
+
+    const { data, error } = await supabase
+      .from("barangays")
+      .delete()
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("Error deleting barangay:", error)
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: error.message || "Failed to delete barangay" 
+        },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error("Error deleting barangay:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to delete barangay",
+        message: error.message
+      },
+      { status: 500 }
+    )
+  }
+}

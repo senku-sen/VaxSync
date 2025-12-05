@@ -53,13 +53,19 @@ export async function fetchVaccineRequestNotifications(userId) {
         .order("created_at", { ascending: false });
       
       if (altError) {
-        console.error("Error fetching vaccine requests:", altError);
+        // Only log error if we're actually online
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          console.error("Error fetching vaccine requests:", altError);
+        }
         return { data: [], error: altError.message };
       }
       requests = allRequests;
       requestError = null;
     } else if (requestError) {
-      console.error("Error fetching vaccine requests:", requestError);
+      // Only log error if we're actually online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.error("Error fetching vaccine requests:", requestError);
+      }
       return { data: [], error: requestError.message };
     }
 
@@ -311,7 +317,10 @@ export async function fetchResidentApprovalNotifications(userId) {
 
     return { data: notifications, error: null };
   } catch (err) {
-    console.error("Error in fetchResidentApprovalNotifications:", err);
+    // Only log error if we're actually online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      console.error("Error in fetchResidentApprovalNotifications:", err);
+    }
     return { data: [], error: err.message };
   }
 }
@@ -350,7 +359,10 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
     const { data: sessions, error: sessionError } = await query;
 
     if (sessionError) {
-      console.error("Error fetching session notifications:", sessionError);
+      // Only log error if we're actually online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.error("Error fetching session notifications:", sessionError);
+      }
       return { data: [], error: sessionError.message };
     }
 

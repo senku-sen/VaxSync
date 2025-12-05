@@ -432,18 +432,119 @@ export async function POST(request) {
         // Continue to try creating if lookup fails (could be network issue)
       }
 
-      if (foundBarangay && foundBarangay.id) {
-        resolvedBarangayId = foundBarangay.id;
-      } else {
-        // If not found, insert
-        const { data: newBarangay, error: insertBarangayError } = await supabase
-          .from('barangays')
-          .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
-          .select('id')
-          .single();
+    // Parse data rows (start after header row, skip empty rows)
+    const residents = [];
+    const errors = [];
+    
+    for (let i = headerRowIndex + 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const values = parseCSVLine(line);
+      
+      // Skip empty rows
+      if (isEmptyRow(values)) continue;
+      
+      // Safely extract values (handle cases where row might have fewer columns)
+      const name = values[nameIndex]?.trim() || '';
+      const sex = values[sexIndex]?.trim() || '';
+      const birthday = values[birthdayIndex]?.trim() || '';
+      const dateOfVaccine = (dateOfVaccineIndex >= 0 && values[dateOfVaccineIndex]) ? values[dateOfVaccineIndex].trim() : null;
+      const vaccineGiven = (vaccineGivenIndex >= 0 && values[vaccineGivenIndex]) ? values[vaccineGivenIndex].trim() : null;
+      
+      // Skip rows with empty or invalid names (likely empty rows that weren't caught)
+      if (!name || name === '-' || name.length < 2) {
+        continue;
+      }
+      
+      // Validate required fields - be lenient with missing data
+      if (!birthday || birthday === '-') {
+        errors.push(`Row ${i + 1}: Missing birthday for ${name}`);
+        continue;
+      }
+      
+      const parsedBirthdayResult = parseDate(birthday);
+      if (!parsedBirthdayResult || parsedBirthdayResult.error) {
+        const errorMsg = parsedBirthdayResult?.error || 'Invalid format';
+        errors.push(`Row ${i + 1}: Invalid birthday format "${birthday}" for ${name} (${errorMsg})`);
+        continue;
+      }
+      
+      // Accept all dates, even future dates - keep format as is in CSV
+      const parsedBirthday = parsedBirthdayResult.date;
+      
+      const normalizedSex = normalizeSex(sex);
+      const vaccines = parseVaccines(vaccineGiven);
+      const vaccineStatus = determineVaccineStatus(vaccines);
+      
+      // Build resident object
+      // Use barangay name as default address if CSV doesn't have address field
+      const defaultAddress = effectiveBarangayName || 'Not specified';
+      
+      const resident = {
+        name: name,
+        birthday: parsedBirthday,
+        sex: normalizedSex || 'Male', // Default to 'Male' if missing (database might require it)
+        address: defaultAddress,
+        contact: 'N/A', // CSV doesn't have contact, use default
+        vaccine_status: vaccineStatus,
+        status: 'pending',
+        barangay: effectiveBarangayName || null,
+        barangay_id: barangayId,
+        submitted_by: submittedBy,
+        vaccines_given: vaccines,
+        submitted_at: new Date().toISOString()
+      };
+      
+      // Validate required fields for database
+      if (!resident.name || !resident.birthday || !resident.address || !resident.contact) {
+        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, address, contact)`);
+        continue;
+      }
+      
+      // Validate that we have a barangay_id (required by database)
+      if (!resident.barangay_id) {
+        errors.push(`Row ${i + 1}: Failed to resolve barangay`);
+        continue;
+      }
+      
+      residents.push(resident);
+    }
 
-        if (insertBarangayError) {
-          console.error('Supabase error (create barangay):', insertBarangayError);
+    if (residents.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No valid residents found in CSV file', errors },
+        { status: 400 }
+      );
+    }
+
+    // Insert residents in batches (Supabase has a limit, typically 1000 rows)
+    const batchSize = 100;
+    let successCount = 0;
+    const batchErrors = [];
+
+    for (let i = 0; i < residents.length; i += batchSize) {
+      const batch = residents.slice(i, i + batchSize);
+      
+      const { data, error } = await supabase
+        .from('residents')
+        .insert(batch)
+        .select('id');
+
+      if (error) {
+        console.error(`Error inserting batch ${Math.floor(i / batchSize) + 1}:`, error);
+        console.error('Batch error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          batchSize: batch.length,
+          batchIndex: Math.floor(i / batchSize) + 1
+        });
+        
+        // Check if it's a connection error
+        if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+          // Return early if it's a connection error - can't continue
           return NextResponse.json(
             {
               success: false,
@@ -453,7 +554,23 @@ export async function POST(request) {
             { status: 500 }
           );
         }
-        resolvedBarangayId = newBarangay.id;
+        
+        // Check for constraint violations (like birthday_not_future)
+        let errorMessage = error.message || 'Unknown database error';
+        if (error.message?.includes('birthday_not_future') || error.code === '23514') {
+          errorMessage = `Database constraint violation: Some birthdays are in the future. Please remove the 'birthday_not_future' constraint from your database if you want to allow future dates.`;
+        } else if (error.code === '23505') {
+          errorMessage = `Duplicate entry: Some residents already exist in the database.`;
+        } else if (error.code === '23503') {
+          errorMessage = `Foreign key violation: Invalid reference (e.g., barangay_id doesn't exist).`;
+        } else if (error.code === '23502') {
+          errorMessage = `Not null violation: Required field is missing.`;
+        }
+        
+        batchErrors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${errorMessage} (Code: ${error.code || 'N/A'})`);
+        // Continue with next batch even if one fails
+      } else {
+        successCount += data?.length || 0;
       }
     }
 
@@ -507,9 +624,37 @@ export async function POST(request) {
       message: 'Resident created successfully'
     });
   } catch (error) {
-    console.error('Error creating resident:', error);
+    console.error('Error processing CSV upload:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      cause: error.cause,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process CSV file';
+    if (error.message) {
+      errorMessage += ': ' + error.message;
+    } else if (error.code) {
+      errorMessage += ` (Error code: ${error.code})`;
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to create resident' },
+      { 
+        success: false, 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          stack: error.stack
+        } : undefined
+      },
       { status: 500 }
     );
   }

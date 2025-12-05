@@ -16,6 +16,10 @@ import BarangayForm from "@/components/barangay-management/BarangayForm";
 import DeleteConfirmDialog from "@/components/barangay-management/DeleteConfirmDialog";
 import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '@/lib/barangay';
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { useOffline } from "@/components/OfflineProvider";
+import { queueOperation } from "@/lib/syncManager";
+import { generateTempId } from "@/lib/offlineStorage";
+import { toast } from "sonner";
 
 // PAGE COMPONENT: Handles UI rendering and state management
 export default function BarangayManagement({
@@ -42,9 +46,10 @@ export default function BarangayManagement({
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const { isOnline, showNotification } = useOffline();
 
   // ========== FORM SUBMISSION HANDLER ==========
-  // Handles both insert and update operations
+  // Handles both insert and update operations with offline support
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -52,32 +57,103 @@ export default function BarangayManagement({
       ...formData,
       created_at: selectedBarangay?.created_at || new Date().toISOString(),
     };
-    let result;
+    
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+
     if (editMode && selectedBarangay) {
-      result = await updateBarangay(selectedBarangay.id, payload);
-      if (result.error) {
-        setSuccessMessage(`Failed to update barangay: ${result.error.message || JSON.stringify(result.error)}`);
+      // Update operation
+      if (actuallyOnline) {
+        try {
+          const result = await updateBarangay(selectedBarangay.id, payload);
+          if (result.error) {
+            setSuccessMessage(`Failed to update barangay: ${result.error.message || JSON.stringify(result.error)}`);
+            toast.error("Failed to update barangay");
+          } else {
+            setBarangays(barangays.map((b) => (b.id === selectedBarangay.id ? { ...payload, id: b.id, created_at: b.created_at } : b)));
+            setSuccessMessage(`Barangay "${formData.name}" updated successfully.`);
+            toast.success("Barangay updated successfully");
+          }
+        } catch (err) {
+          setSuccessMessage(`Failed to update barangay: ${err.message}`);
+          toast.error("Failed to update barangay");
+        }
       } else {
-        setBarangays(barangays.map((b) => (b.id === selectedBarangay.id ? { ...payload, id: b.id, created_at: b.created_at } : b)));
-        setSuccessMessage(`Barangay "${formData.name}" updated successfully.`);
+        // Offline - queue the operation
+        const tempId = generateTempId();
+        await queueOperation({
+          endpoint: '/api/barangays',
+          method: 'PUT',
+          body: { id: selectedBarangay.id, ...payload },
+          type: 'update',
+          description: `Update barangay: ${formData.name}`,
+          cacheKey: 'barangays_list',
+          tempId
+        });
+
+        // Optimistic update
+        setBarangays(barangays.map((b) => 
+          b.id === selectedBarangay.id 
+            ? { ...b, ...payload, _pending: true } 
+            : b
+        ));
+        setSuccessMessage(`Barangay "${formData.name}" changes saved locally. Will sync when online.`);
+        toast.info("Changes saved locally. Will sync when online.");
       }
     } else {
-      result = await insertBarangay(payload);
-      if (result.error) {
-        setSuccessMessage(`Failed to add barangay: ${result.error.message || JSON.stringify(result.error)}`);
+      // Insert operation
+      if (actuallyOnline) {
+        try {
+          const result = await insertBarangay(payload);
+          if (result.error) {
+            setSuccessMessage(`Failed to add barangay: ${result.error.message || JSON.stringify(result.error)}`);
+            toast.error("Failed to add barangay");
+          } else {
+            setBarangays([{ id: result.data.id, ...payload }, ...barangays]);
+            setSuccessMessage(`Barangay "${formData.name}" added successfully.`);
+            toast.success("Barangay added successfully");
+          }
+        } catch (err) {
+          setSuccessMessage(`Failed to add barangay: ${err.message}`);
+          toast.error("Failed to add barangay");
+        }
       } else {
-        setBarangays([{ id: result.data.id, ...payload }, ...barangays]);
-        setSuccessMessage(`Barangay "${formData.name}" added successfully.`);
+        // Offline - queue the operation
+        const tempId = generateTempId();
+        await queueOperation({
+          endpoint: '/api/barangays',
+          method: 'POST',
+          body: payload,
+          type: 'create',
+          description: `Create barangay: ${formData.name}`,
+          cacheKey: 'barangays_list',
+          tempId
+        });
+
+        // Optimistic update
+        setBarangays([{ id: tempId, ...payload, _pending: true }, ...barangays]);
+        setSuccessMessage(`Barangay "${formData.name}" saved locally. Will sync when online.`);
+        toast.info("Barangay saved locally. Will sync when online.");
       }
     }
+    
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), editMode ? 6000 : 3000);
-    if (!result.error) {
+    
+    // Reset form if operation succeeded (or was queued offline)
+    if (actuallyOnline) {
+      // Only reset if we got a successful result online
+      // For offline, we already showed success message
+    } else {
+      // Offline - reset form since we queued it
       setFormData({ name: "", municipality: "Daet", population: 0 });
       setIsOpen(false);
       setEditMode(false);
       setSelectedBarangay(null);
     }
+    
     setIsLoading(false);
   };
 
@@ -104,13 +180,50 @@ export default function BarangayManagement({
   const confirmDelete = async () => {
     if (deleteTarget) {
       setIsLoading(true);
-      const result = await deleteBarangay(deleteTarget.id);
-      if (result.error) {
-        setSuccessMessage(`Failed to delete barangay: ${result.error.message || JSON.stringify(result.error)}`);
+      
+      // Check if online
+      const actuallyOnline = typeof navigator !== 'undefined' 
+        ? (navigator.onLine || isOnline) 
+        : isOnline;
+
+      if (actuallyOnline) {
+        try {
+          const result = await deleteBarangay(deleteTarget.id);
+          if (result.error) {
+            setSuccessMessage(`Failed to delete barangay: ${result.error.message || JSON.stringify(result.error)}`);
+            toast.error("Failed to delete barangay");
+          } else {
+            setBarangays(barangays.filter((b) => b.id !== deleteTarget.id));
+            setSuccessMessage(`Barangay "${deleteTarget.name}" deleted successfully.`);
+            toast.success("Barangay deleted successfully");
+          }
+        } catch (err) {
+          setSuccessMessage(`Failed to delete barangay: ${err.message}`);
+          toast.error("Failed to delete barangay");
+        }
       } else {
-        setBarangays(barangays.filter((b) => b.id !== deleteTarget.id));
-        setSuccessMessage(`Barangay "${deleteTarget.name}" deleted successfully.`);
+        // Offline - queue the operation
+        try {
+          await queueOperation({
+            endpoint: '/api/barangays',
+            method: 'DELETE',
+            params: { id: deleteTarget.id },
+            type: 'delete',
+            description: `Delete barangay: ${deleteTarget.name}`,
+            cacheKey: 'barangays_list'
+          });
+
+          // Optimistic update
+          setBarangays(barangays.filter((b) => b.id !== deleteTarget.id));
+          setSuccessMessage(`Barangay "${deleteTarget.name}" delete queued. Will sync when online.`);
+          toast.info("Delete queued. Will sync when online.");
+        } catch (err) {
+          console.error("Error queueing delete operation:", err);
+          setSuccessMessage(`Failed to queue delete: ${err.message}`);
+          toast.error("Failed to queue delete operation");
+        }
       }
+      
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
       setIsDeleteConfirmOpen(false);
@@ -185,7 +298,7 @@ export default function BarangayManagement({
                   <Input
                     type="text"
                     placeholder="Search barangays..."
-                    value={searchTerm}
+                    value={searchTerm || ""}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="text-sm sm:text-base"
                   />

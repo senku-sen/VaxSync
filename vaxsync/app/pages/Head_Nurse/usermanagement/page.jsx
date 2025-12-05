@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Search, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import DeleteUserModal from "@/components/modals/delete-user-modals";
+import { useOffline } from "@/components/OfflineProvider";
+import { cacheData, getCachedData } from "@/lib/offlineStorage";
+import { queueOperation } from "@/lib/syncManager";
 
 const FEATURE_CHECKLIST = [
   { key: "dashboard", label: "Dashboard" },
@@ -72,31 +75,72 @@ export default function HeadNurseUserManagement() {
   // Legacy permission state removed; permissions remain read-only in this view.
   const [modalError, setModalError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isFromCache, setIsFromCache] = useState(false);
+  
+  // Get offline status
+  const { isOnline, showNotification } = useOffline();
   useEffect(() => {
     let isMounted = true;
+    const cacheKey = 'users_list';
+    
     const fetchUsers = async () => {
       setLoading(true);
       setError("");
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select(
-          "id, first_name, last_name, email, user_role, address, assigned_barangay_id, date_of_birth, sex, created_at"
-        )
-        .order("created_at", { ascending: true });
 
-      if (!isMounted) return;
+      if (isOnline) {
+        const { data, error: fetchError } = await supabase
+          .from("user_profiles")
+          .select(
+            "id, first_name, last_name, email, user_role, address, assigned_barangay_id, date_of_birth, sex, created_at"
+          )
+          .order("created_at", { ascending: true });
 
-      if (error) {
-        console.error("Failed to fetch users:", error);
-        setError("Unable to load users. Please try again later.");
-        setUsers([]);
+        if (!isMounted) return;
+
+        if (fetchError) {
+          console.error("Failed to fetch users:", fetchError);
+          // Try cache on error
+          const cached = await getCachedData(cacheKey);
+          if (cached) {
+            setUsers(
+              cached.map((user) => ({
+                ...user,
+                permissions: defaultPermissionsForRole(user.user_role),
+              }))
+            );
+            setIsFromCache(true);
+          } else {
+            setError("Unable to load users. Please try again later.");
+            setUsers([]);
+          }
+        } else {
+          // Cache the data
+          await cacheData(cacheKey, data || [], 'users');
+          setUsers(
+            (data || []).map((user) => ({
+              ...user,
+              permissions: defaultPermissionsForRole(user.user_role),
+            }))
+          );
+          setIsFromCache(false);
+        }
       } else {
-        setUsers(
-          (data || []).map((user) => ({
-            ...user,
-            permissions: defaultPermissionsForRole(user.user_role),
-          }))
-        );
+        // Offline - get from cache
+        const cached = await getCachedData(cacheKey);
+        if (!isMounted) return;
+        
+        if (cached) {
+          setUsers(
+            cached.map((user) => ({
+              ...user,
+              permissions: defaultPermissionsForRole(user.user_role),
+            }))
+          );
+          setIsFromCache(true);
+        } else {
+          setError("No cached data available while offline.");
+          setUsers([]);
+        }
       }
       setLoading(false);
     };
@@ -105,7 +149,7 @@ export default function HeadNurseUserManagement() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isOnline]);
 
   useEffect(() => {
     let isMounted = true;
@@ -260,66 +304,95 @@ export default function HeadNurseUserManagement() {
   };
 
   const handleDeleteUser = async (userId) => {
+    // Check online status - trust navigator.onLine directly
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+    
+    // Store original users for rollback
+    const originalUsers = [...users];
+    
+    // Optimistic update
+    setUsers(prev => prev.filter((u) => u.id !== userId));
+    
     try {
       setDeletingUserId(userId);
       
       console.log('Attempting to delete user with ID:', userId);
       
-      const response = await fetch('/api/users', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: userId }),
-      });
+      if (actuallyOnline) {
+        const response = await fetch('/api/users', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ id: userId }),
+        });
 
-      // Check if response is ok before trying to parse JSON
-      let responseData;
-      try {
-        const text = await response.text();
-        responseData = text ? JSON.parse(text) : {};
-      } catch (parseError) {
-        console.error('Failed to parse response:', parseError);
-        throw new Error('Invalid response from server');
-      }
-
-      console.log('Delete response status:', response.status);
-      console.log('Delete response data:', responseData);
-
-      if (!response.ok) {
-        let errorMessage = responseData?.error || responseData?.details || responseData?.message || `Server error: ${response.status}`;
-        
-        // Provide more helpful error messages
-        if (responseData?.code === '23503' || errorMessage.includes('barangays') || errorMessage.includes('assigned')) {
-          errorMessage = responseData?.message || "This user is assigned to one or more barangays. Please unassign them first before deleting.";
+        // Check if response is ok before trying to parse JSON
+        let responseData;
+        try {
+          const text = await response.text();
+          responseData = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+          console.error('Failed to parse response:', parseError);
+          throw new Error('Invalid response from server');
         }
-        
-        console.error('Delete failed:', errorMessage);
-        throw new Error(errorMessage);
+
+        console.log('Delete response status:', response.status);
+        console.log('Delete response data:', responseData);
+
+        if (!response.ok) {
+          let errorMessage = responseData?.error || responseData?.details || responseData?.message || `Server error: ${response.status}`;
+          
+          // Provide more helpful error messages
+          if (responseData?.code === '23503' || errorMessage.includes('barangays') || errorMessage.includes('assigned')) {
+            errorMessage = responseData?.message || "This user is assigned to one or more barangays. Please unassign them first before deleting.";
+          }
+          
+          console.error('Delete failed:', errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        // Verify deletion was successful
+        if (responseData.warning) {
+          console.warn('Delete warning:', responseData.warning);
+          throw new Error(responseData.error || 'User not found or already deleted');
+        }
+
+        // Check if deletion was actually successful
+        if (!responseData.message && !responseData.deletedCount) {
+          throw new Error('Delete operation completed but no confirmation received');
+        }
+
+        console.log('User deleted successfully from database');
+        showNotification?.('User deleted successfully!', 'success');
+
+        // Wait a bit for smooth animation
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        setShowDeleteModal(false);
+        setSelectedUser(null);
+        setDeletingUserId(null);
+      } else {
+        // Offline - queue the operation
+        await queueOperation({
+          endpoint: '/api/users',
+          method: 'DELETE',
+          body: { id: userId },
+          type: 'delete',
+          description: `Delete user ID: ${userId}`,
+          cacheKey: 'users_list'
+        });
+
+        showNotification?.('Delete queued. Will sync when online.', 'info');
+        setShowDeleteModal(false);
+        setSelectedUser(null);
+        setDeletingUserId(null);
       }
-
-      // Verify deletion was successful
-      if (responseData.warning) {
-        console.warn('Delete warning:', responseData.warning);
-        throw new Error(responseData.error || 'User not found or already deleted');
-      }
-
-      // Check if deletion was actually successful
-      if (!responseData.message && !responseData.deletedCount) {
-        throw new Error('Delete operation completed but no confirmation received');
-      }
-
-      console.log('User deleted successfully from database');
-
-      // Wait a bit for smooth animation
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Remove user from local state only after successful deletion
-      setUsers(users.filter((u) => u.id !== userId));
-      setShowDeleteModal(false);
-      setSelectedUser(null);
-      setDeletingUserId(null);
     } catch (error) {
+      // Revert optimistic update on error
+      setUsers(originalUsers);
       console.error('Error deleting user:', error);
       const errorMessage = error.message || 'Unknown error occurred. Please try again.';
       alert(`Failed to delete user: ${errorMessage}`);
@@ -373,6 +446,12 @@ export default function HeadNurseUserManagement() {
     if (!activeUser) return;
     setIsSaving(true);
     setModalError("");
+    
+    // Check online status - trust navigator.onLine directly
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+    
     try {
       const isHeadNurse = normalizeRole(activeUser.user_role) === "Head Nurse";
       // Preserve original role for Head Nurse users
@@ -429,40 +508,113 @@ export default function HeadNurseUserManagement() {
         assigned_barangay_id: allowedBarangayId,
       };
 
-      const response = await fetch("/api/users", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: activeUser.id,
-          data: payload,
-        }),
-      });
+      // Store original users for rollback
+      const originalUsers = [...users];
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result?.message || "Failed to update user");
-      }
-
-      const updatedUser = result?.user || { ...activeUser, ...payload };
-
+      // Optimistic update
       setUsers((prev) =>
         prev.map((user) =>
           user.id === activeUser.id
             ? {
                 ...user,
-                ...updatedUser,
+                ...payload,
+                _pending: true,
                 name:
-                  `${updatedUser.first_name || ""} ${
-                    updatedUser.last_name || ""
-                  }`.trim() || updatedUser.email,
+                  `${payload.first_name || ""} ${
+                    payload.last_name || ""
+                  }`.trim() || user.email,
               }
             : user
         )
       );
-      closeModal();
+
+      if (actuallyOnline) {
+        try {
+          const response = await fetch("/api/users", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: activeUser.id,
+              data: payload,
+            }),
+          });
+
+          // Handle network errors
+          if (!response.ok) {
+            let errorMessage = "Failed to update user";
+            try {
+              const result = await response.json();
+              errorMessage = result?.message || result?.error || errorMessage;
+            } catch (parseError) {
+              // If response is not JSON, use status text
+              errorMessage = response.statusText || `HTTP ${response.status}`;
+            }
+            throw new Error(errorMessage);
+          }
+
+          const result = await response.json();
+          const updatedUser = result?.user || { ...activeUser, ...payload };
+
+          setUsers((prev) =>
+            prev.map((user) =>
+              user.id === activeUser.id
+                ? {
+                    ...user,
+                    ...updatedUser,
+                    _pending: false,
+                    name:
+                      `${updatedUser.first_name || ""} ${
+                        updatedUser.last_name || ""
+                      }`.trim() || updatedUser.email,
+                  }
+                : user
+            )
+          );
+          
+          showNotification?.('User updated successfully!', 'success');
+          closeModal();
+        } catch (err) {
+          // Check if it's a network error - if so, queue for offline
+          if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+            console.warn('Network error detected, queueing for offline sync:', err);
+            
+            // Queue the operation for offline sync
+            await queueOperation({
+              endpoint: '/api/users',
+              method: 'PATCH',
+              body: { id: activeUser.id, data: payload },
+              type: 'update',
+              description: `Update user: ${payload.first_name || ''} ${payload.last_name || ''}`,
+              cacheKey: 'users_list'
+            });
+
+            showNotification?.('Network error. Changes saved locally. Will sync when connection is restored.', 'info');
+            closeModal();
+          } else {
+            // Revert optimistic update for other errors
+            setUsers(originalUsers);
+            console.error("Failed to save user:", err);
+            setModalError(
+              err?.message || "Unable to save changes right now. Please try again."
+            );
+          }
+        }
+      } else {
+        // Offline - queue the operation
+        await queueOperation({
+          endpoint: '/api/users',
+          method: 'PATCH',
+          body: { id: activeUser.id, data: payload },
+          type: 'update',
+          description: `Update user: ${payload.first_name || ''} ${payload.last_name || ''}`,
+          cacheKey: 'users_list'
+        });
+
+        showNotification?.('User changes saved locally. Will sync when online.', 'info');
+        closeModal();
+      }
     } catch (err) {
       console.error("Failed to save user:", err);
       setModalError(
@@ -486,6 +638,15 @@ export default function HeadNurseUserManagement() {
 
         <main className="flex-1 p-6 lg:p-10">
           <div className="mx-auto max-w-6xl space-y-6">
+            {/* Offline Cache Indicator */}
+            {isFromCache && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-900">
+                  <span className="font-semibold">Offline Mode:</span> Showing cached data. Changes will sync when online.
+                </p>
+              </div>
+            )}
+
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input

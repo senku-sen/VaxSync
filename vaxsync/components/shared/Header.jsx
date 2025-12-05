@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabase";
+import { OfflineIndicator } from "@/components/OfflineStatusBanner";
 
 export default function InventoryHeader({ title, subtitle }) {
   async function handleLogout() {
@@ -26,6 +27,9 @@ export default function InventoryHeader({ title, subtitle }) {
         <p className="text-gray-600 text-sm mt-2">{subtitle}</p>
       </div>
       <div className="flex items-center space-x-8">
+        {/* Offline status indicator */}
+        <OfflineIndicator />
+        
         <div className="relative">
           <Bell className="h-5 w-5 text-gray-700 hover:text-gray-700 cursor-pointer" />
           <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500"></span>

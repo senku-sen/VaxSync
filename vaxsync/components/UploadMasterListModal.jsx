@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Upload, X, FileText, AlertCircle, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useOffline } from "@/components/OfflineProvider";
+import { queueOperation } from "@/lib/syncManager";
+import { generateTempId } from "@/lib/offlineStorage";
 
 export default function UploadMasterListModal({ 
   isOpen, 
@@ -16,6 +19,7 @@ export default function UploadMasterListModal({
   userProfile,
   selectedBarangay 
 }) {
+  const { isOnline } = useOffline();
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -212,42 +216,115 @@ export default function UploadMasterListModal({
     setIsUploading(true);
     setErrors([]);
 
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine || isOnline) 
+      : isOnline;
+
     try {
       // Use detected barangay from CSV if available, otherwise use selected barangay
       const barangayToUse = preview?.detectedBarangay || selectedBarangay || '';
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('barangay', barangayToUse);
-      formData.append('submitted_by', userProfile.id);
 
-      const response = await fetch('/api/residents/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      if (actuallyOnline) {
+        // Online - upload directly
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('barangay', barangayToUse);
+        formData.append('submitted_by', userProfile.id);
 
-      const data = await response.json();
+        const response = await fetch('/api/residents', {
+          method: 'POST',
+          body: formData,
+        });
 
-      if (response.ok) {
-        toast.success(`Successfully uploaded ${data.successCount || 0} residents`);
-        if (data.errors && data.errors.length > 0) {
-          setErrors(data.errors);
-          toast.warning(`${data.errors.length} rows had errors`);
-        }
-        setFile(null);
-        setPreview(null);
-        if (onUploadSuccess) {
-          onUploadSuccess();
-        }
-        // Don't close automatically if there are errors, let user review
-        if (!data.errors || data.errors.length === 0) {
-          onClose();
+        const data = await response.json();
+
+        if (response.ok) {
+          toast.success(`Successfully uploaded ${data.successCount || 0} residents`);
+          if (data.errors && data.errors.length > 0) {
+            setErrors(data.errors);
+            toast.warning(`${data.errors.length} rows had errors`);
+          }
+          setFile(null);
+          setPreview(null);
+          if (onUploadSuccess) {
+            onUploadSuccess();
+          }
+          // Don't close automatically if there are errors, let user review
+          if (!data.errors || data.errors.length === 0) {
+            onClose();
+          }
+        } else {
+          toast.error(data.error || "Failed to upload file");
+          if (data.errors) {
+            setErrors(data.errors);
+          }
         }
       } else {
-        toast.error(data.error || "Failed to upload file");
-        if (data.errors) {
-          setErrors(data.errors);
-        }
+        // Offline - read file content and store in IndexedDB for sync
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          try {
+            const fileContent = event.target.result; // This is the CSV text content
+            const fileName = file.name;
+            
+            // Validate file content
+            if (!fileContent || typeof fileContent !== 'string' || fileContent.length === 0) {
+              throw new Error('File content is empty or invalid');
+            }
+            
+            // Store file metadata and content in the operation
+            // The fileContent is stored as a string, which IndexedDB can handle
+            const operationId = await queueOperation({
+              endpoint: '/api/residents', // Use main endpoint which handles FormData CSV uploads
+              method: 'POST',
+              body: {
+                fileContent: fileContent, // Store as string - IndexedDB handles this fine
+                fileName: fileName,
+                barangay: barangayToUse || '',
+                submitted_by: userProfile.id,
+                isFileUpload: true, // Flag to indicate this is a file upload
+                fileSize: fileContent.length,
+                queuedAt: new Date().toISOString()
+              },
+              type: 'create',
+              description: `Upload master list: ${fileName} (${preview?.totalRows || 0} residents)`,
+              cacheKey: 'residents_pending',
+              tempId: generateTempId()
+            });
+
+            console.log('File queued for upload:', {
+              fileName,
+              fileSize: fileContent.length,
+              barangay: barangayToUse,
+              residents: preview?.totalRows || 0,
+              operationId
+            });
+
+            toast.success(`File saved locally. ${preview?.totalRows || 0} residents will be uploaded when online.`);
+            setFile(null);
+            setPreview(null);
+            if (onUploadSuccess) {
+              onUploadSuccess();
+            }
+            onClose();
+          } catch (err) {
+            console.error("Error queueing file upload:", err);
+            toast.error("Failed to save file: " + err.message);
+          } finally {
+            setIsUploading(false);
+          }
+        };
+        
+        reader.onerror = (error) => {
+          console.error("File read error:", error);
+          toast.error("Failed to read file. Please try again.");
+          setIsUploading(false);
+        };
+        
+        // Read file as text (UTF-8)
+        reader.readAsText(file, 'UTF-8');
+        return; // Exit early, setIsUploading(false) will be called in reader callbacks
       }
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -325,7 +402,14 @@ export default function UploadMasterListModal({
                   {preview.headers && preview.headers.length > 0 ? (
                     <div className="flex items-center gap-2 text-blue-600">
                       <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm">Ready to upload ({preview.totalRows} data rows found)</span>
+                      <span className="text-sm">
+                        Ready to {typeof navigator !== 'undefined' && (navigator.onLine || isOnline) 
+                          ? 'upload' 
+                          : 'queue'} ({preview.totalRows} data rows found)
+                        {typeof navigator !== 'undefined' && !(navigator.onLine || isOnline) && (
+                          <span className="ml-2 text-xs text-gray-500">(Will sync when online)</span>
+                        )}
+                      </span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-yellow-600">
@@ -415,12 +499,16 @@ export default function UploadMasterListModal({
               {isUploading ? (
                 <>
                   <div className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                  Uploading...
+                  {typeof navigator !== 'undefined' && (navigator.onLine || isOnline) 
+                    ? 'Uploading...' 
+                    : 'Queuing...'}
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  Upload
+                  {typeof navigator !== 'undefined' && (navigator.onLine || isOnline) 
+                    ? 'Upload' 
+                    : 'Queue for Upload'}
                 </>
               )}
             </Button>
