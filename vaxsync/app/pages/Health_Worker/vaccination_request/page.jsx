@@ -22,10 +22,10 @@ import {
   createVaccineRequestData,
 } from "@/lib/vaccineRequest";
 
-export default function VaccinationRequest({
-  title = "Vaccine Requisition Requests",
-  subtitle = "Barangay: Barangay A",
-}) {
+export default function VaccinationRequest() {
+  const title = "Vaccine Requisition Requests";
+  const subtitle = "Barangay: Barangay A";
+
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -152,7 +152,7 @@ export default function VaccinationRequest({
         />
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
-          <div className="max-w-7xl mx-auto px-0 sm:px-2">
+          <div className="w-full mx-auto px-0 sm:px-2">
             {/* Summary Cards */}
             <VaccineSummaryCards requests={requests} />
 

@@ -168,7 +168,7 @@ export default function EditSessionModal({
                 type="number"
                 id="target"
                 name="target"
-                value={session.target || ""}
+                value={session.target ?? ""}
                 onChange={handleChange}
                 placeholder="Enter target number"
                 min="1"

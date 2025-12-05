@@ -443,7 +443,7 @@ export default function SessionParticipantsMonitor({
                   Resident Name
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                  Contact
+                  Birthday
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
                   Status
@@ -463,7 +463,7 @@ export default function SessionParticipantsMonitor({
                     {beneficiary.residents?.name || "Unknown"}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {beneficiary.residents?.contact || "N/A"}
+                    {beneficiary.residents?.birthday || "N/A"}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center">

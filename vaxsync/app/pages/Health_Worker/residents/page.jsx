@@ -172,27 +172,6 @@ export default function ResidentsPage() {
 
       const headers = [
         "Name",
-        "Birthday",
-        "Age",
-        "Sex",
-        "Address",
-        "Barangay",
-        "Contact",
-        "Vaccine Status",
-        "Status",
-        "Submitted At"
-      ];
-
-      const rows = residents.map((r) => [
-        r.name || "",
-        r.birthday || "",
-        calculateAge(r.birthday),
-        r.sex || "",
-        r.address || "",
-        r.barangay || "",
-        r.contact || "",
-        r.vaccine_status || "not_vaccinated",
-        r.status || "pending",
         "Sex",
         "Birthday",
         "Barangay",
@@ -396,7 +375,8 @@ export default function ResidentsPage() {
         });
 
         const data = await response.json();
-        console.log("API Response:", data);
+        console.log("API Response Status:", response.status);
+        console.log("API Response Data:", data);
 
         if (response.ok) {
           toast.success("Resident created successfully");
@@ -405,16 +385,20 @@ export default function ResidentsPage() {
             name: "",
             birthday: "",
             sex: "",
-            address: "",
             vaccine_status: "not_vaccinated",
-            contact: "",
+            administered_date: "",
             barangay: "",
-            vaccines_given: []
+            vaccines_given: [],
+            missed_schedule_of_vaccine: [],
           });
-          fetchResidents(activeTab);
-          fetchCounts();
+          // Add delay to allow Supabase to sync before fetching
+          setTimeout(() => {
+            fetchResidents(activeTab);
+            fetchCounts();
+          }, 500);
         } else {
-          console.error("API Error:", data);
+          console.error("API Error Status:", response.status);
+          console.error("API Error Data:", data);
           toast.error(data.error || "Failed to create resident");
         }
       } catch (error) {
@@ -437,27 +421,6 @@ export default function ResidentsPage() {
           tempId
         });
 
-    try {
-      const payload = {
-        ...formData,
-        barangay_id: selectedBarangayId,
-        submitted_by: userProfile.id,
-      };
-
-      console.log("Sending payload:", JSON.stringify(payload, null, 2));
-      
-      const response = await fetch("/api/residents", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      console.log("API Response Status:", response.status);
-      console.log("API Response Data:", data);
-
         // Optimistic update
         setResidents(prev => [...prev, { ...payload, id: tempId, _pending: true }]);
 
@@ -477,19 +440,6 @@ export default function ResidentsPage() {
         console.error("Error saving offline:", error);
         toast.error("Error saving resident offline");
       }
-        // Add delay to allow Supabase to sync before fetching
-        setTimeout(() => {
-          fetchResidents(activeTab);
-          fetchCounts();
-        }, 500);
-      } else {
-        console.error("API Error Status:", response.status);
-        console.error("API Error Data:", data);
-        toast.error(data.error || "Failed to create resident");
-      }
-    } catch (error) {
-      console.error("Error creating resident:", error);
-      toast.error("Error creating resident");
     }
   };
 

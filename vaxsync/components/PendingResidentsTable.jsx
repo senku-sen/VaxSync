@@ -45,19 +45,6 @@ export default function PendingResidentsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 px-2 font-medium text-xs w-8">
-                    <Checkbox
-                      checked={residents.length > 0 && selectedResidents.size === residents.length}
-                      indeterminate={selectedResidents.size > 0 && selectedResidents.size < residents.length ? true : undefined}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          residents.forEach(r => onToggleSelection(r.id));
-                        } else {
-                          selectedResidents.forEach(id => onToggleSelection(id));
-                        }
-                      }}
-                    />
-                  </th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Name</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Sex</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
@@ -73,13 +60,13 @@ export default function PendingResidentsTable({
                 {residents.map((resident) => (
                   <tr key={resident.id} className={`border-b hover:bg-gray-50 ${selectedResidents.has(resident.id) ? 'bg-blue-50' : ''}`}>
                     <td className="py-2 px-2">
-                      <Checkbox
-                        checked={selectedResidents.has(resident.id)}
-                        onCheckedChange={() => onToggleSelection(resident.id)}
-                      />
-                    </td>
-                    <td className="py-2 px-2">
-                      <div className="font-medium text-xs">{resident.name}</div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedResidents.has(resident.id)}
+                          onCheckedChange={() => onToggleSelection(resident.id)}
+                        />
+                        <div className="font-medium text-xs">{resident.name}</div>
+                      </div>
                     </td>
                     <td className="py-2 px-2 text-xs">
                       {resident.sex || 'N/A'}

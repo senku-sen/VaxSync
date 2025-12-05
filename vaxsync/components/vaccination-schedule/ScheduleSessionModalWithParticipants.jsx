@@ -473,7 +473,7 @@ export default function ScheduleSessionModalWithParticipants({
                         <label className="block text-sm text-gray-600 mb-2">Target (number of people)</label>
                         <input
                           type="number"
-                          value={vaccineItem.target}
+                          value={vaccineItem.target ?? ""}
                           onChange={(e) => handleVaccineChange(index, "target", e.target.value)}
                           placeholder={inventory.isValid ? `Max: ${inventory.availableQuantity} people` : 'Select vaccine first'}
                           min="1"
@@ -550,7 +550,7 @@ export default function ScheduleSessionModalWithParticipants({
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Search by name or contact..."
+                placeholder="Search by name..."
                 value={residentSearch}
                 onChange={(e) => setResidentSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
@@ -610,7 +610,7 @@ export default function ScheduleSessionModalWithParticipants({
                         <div className="ml-3 flex-1">
                           <p className="text-sm font-medium text-gray-900">{resident.name}</p>
                           <p className="text-xs text-gray-600">
-                            {resident.contact || 'No contact'} | Birthday: {resident.birthday || 'N/A'}
+                            Birthday: {resident.birthday || 'N/A'}
                           </p>
                         </div>
                       </label>

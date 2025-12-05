@@ -130,7 +130,7 @@ export default function VaccineRequestsTable({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Barangay</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vaccine Type</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vaccine Dose</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (dose)</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity (vial)</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -155,7 +155,7 @@ export default function VaccineRequestsTable({
                 {request.barangays?.name || 'Loading...'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                {vaccines.find(v => v.id === request.vaccine_id)?.name || 'Loading...'}
+                {request.notes ? request.notes.replace('Dose: ', '') : 'N/A'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {request.quantity_dose} doses
@@ -178,26 +178,34 @@ export default function VaccineRequestsTable({
               </td>
               
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" onClick={(e) => e.stopPropagation()}>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {isAdmin ? (
                     <>
                       {request.status === 'pending' && (
                         <>
                           <button 
                             onClick={() => onUpdateStatus && onUpdateStatus(request.id, 'approved')}
-                            className="text-green-600 hover:text-green-800 transition-colors p-1 rounded hover:bg-green-50" 
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors text-xs font-medium" 
                             title="Approve request"
                           >
-                            <Check size={18} />
+                            <Check size={14} />
+                            Approve
                           </button>
                           <button 
                             onClick={() => onUpdateStatus && onUpdateStatus(request.id, 'rejected')}
-                            className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50" 
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors text-xs font-medium" 
                             title="Reject request"
                           >
-                            <X size={18} />
+                            <X size={14} />
+                            Reject
                           </button>
                         </>
+                      )}
+                      {request.status === 'approved' && (
+                        <span className="text-xs text-gray-500">No actions</span>
+                      )}
+                      {request.status === 'rejected' && (
+                        <span className="text-xs text-gray-500">No actions</span>
                       )}
                     </>
                   ) : (
@@ -205,11 +213,15 @@ export default function VaccineRequestsTable({
                       {request.status === 'pending' && (
                         <button 
                           onClick={() => handleDeleteClick(request)}
-                          className="text-red-600 hover:text-red-800 transition-colors p-1 rounded hover:bg-red-50"
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 transition-colors text-xs font-medium"
                           title="Delete request"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={14} />
+                          Delete
                         </button>
+                      )}
+                      {request.status !== 'pending' && (
+                        <span className="text-xs text-gray-500">No actions</span>
                       )}
                     </>
                   )}

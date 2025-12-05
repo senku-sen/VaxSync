@@ -257,43 +257,6 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
             onClose?.();
           }, 2000);
         }
-
-        console.log("✅ Doses created:", doses?.length || 0, "doses");
-
-        // 3. Auto-create monthly report entry
-        console.log("📊 Creating monthly report entry...");
-        const { success: reportSuccess, error: reportError } = await createMonthlyReportEntryForVaccine(
-          vaccine.id,
-          formData.name,
-          parseInt(formData.quantity_available)
-        );
-
-        if (reportSuccess) {
-          console.log("✅ Monthly report entry created");
-        } else {
-          console.warn("⚠️ Warning: Failed to create monthly report entry:", reportError);
-          // Don't fail the vaccine creation if monthly report fails
-        }
-
-        // Success (keep dose records attached to this vaccine_id)
-        setSuccess(true);
-        setSuccessMessage(
-          `✓ Vaccine added successfully!\n\nCreated ${doses?.length || 0} dose record(s).\n📊 Monthly report updated.`
-        );
-
-        // Reset form
-        setFormData({
-          name: "",
-          quantity_available: "",
-          expiry_date: "",
-          notes: ""
-        });
-
-        // Close after delay
-        setTimeout(() => {
-          onSuccess?.();
-          onClose?.();
-        }, 2000);
       }
     } catch (err) {
       console.error("Error submitting vaccine:", err);

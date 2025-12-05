@@ -97,8 +97,7 @@ export default function AddParticipantsModal({
   };
 
   const filteredResidents = availableResidents.filter(resident =>
-    resident.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    resident.contact?.toLowerCase().includes(searchTerm.toLowerCase())
+    resident.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!isOpen) return null;
@@ -135,7 +134,7 @@ export default function AddParticipantsModal({
           <div>
             <input
               type="text"
-              placeholder="Search by name or contact..."
+              placeholder="Search by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
@@ -178,7 +177,7 @@ export default function AddParticipantsModal({
                   <div className="ml-3 flex-1">
                     <p className="font-medium text-gray-900">{resident.name}</p>
                     <p className="text-sm text-gray-600">
-                      Contact: {resident.contact || "N/A"}
+                      Birthday: {resident.birthday || "N/A"}
                     </p>
                   </div>
                 </label>

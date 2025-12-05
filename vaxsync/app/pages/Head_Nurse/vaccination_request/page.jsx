@@ -22,9 +22,8 @@ import {
 } from "@/lib/vaccineRequest";
 import VaccineSummaryCards from "../../../../components/vaccination-request/VaccineSummaryCards";
 
-export default function VaccinationRequest({
-  title = "Vaccine Request Approval",
-}) {
+export default function VaccinationRequest() {
+  const title = "Vaccine Request Approval";
   // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
   
@@ -48,6 +47,9 @@ export default function VaccinationRequest({
 
   // Status filter state
   const [statusFilter, setStatusFilter] = useState(null);
+
+  // Barangay filter state
+  const [barangayFilter, setBarangayFilter] = useState(null);
 
   useEffect(() => {
     initializeData();
@@ -105,7 +107,7 @@ export default function VaccinationRequest({
         <Header title={title} />
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
-          <div className="max-w-7xl mx-auto px-0 sm:px-2">
+          <div className="w-full mx-auto px-0 sm:px-2">
             {/* Summary Cards - Status Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               {/* Pending Card */}
@@ -177,9 +179,10 @@ export default function VaccinationRequest({
               </button>
             </div>
 
-            {/* Search Section */}
-            <div className="mb-6">
-              <div className="relative w-full">
+            {/* Search and Barangay Filter Section */}
+            <div className="mb-6 flex flex-col md:flex-row gap-4 items-end">
+              {/* Search Bar */}
+              <div className="relative flex-1">
                 <Search
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                   size={16}
@@ -191,6 +194,25 @@ export default function VaccinationRequest({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+              </div>
+
+              {/* Barangay Filter */}
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <span className="text-gray-600 text-sm font-medium flex items-center gap-1 whitespace-nowrap">
+                  🔽 Filter by Barangay:
+                </span>
+                <select
+                  value={barangayFilter || ""}
+                  onChange={(e) => setBarangayFilter(e.target.value || null)}
+                  className="px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent text-sm bg-white min-w-[200px]"
+                >
+                  <option value="">All Barangays</option>
+                  {Array.from(new Set(requests.map(r => r.barangays?.name).filter(Boolean))).sort().map(barangay => (
+                    <option key={barangay} value={barangay}>
+                      {barangay}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             
@@ -207,7 +229,7 @@ export default function VaccinationRequest({
 
               <div className="overflow-x-auto">
                 <VaccineRequestsTable
-                  requests={requests}
+                  requests={requests.filter(r => !barangayFilter || r.barangays?.name === barangayFilter)}
                   vaccines={vaccines}
                   isLoading={isLoading}
                   error={error}
