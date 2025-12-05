@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Use service role key for backend operations (bypasses RLS)
+// Fallback to anon key if service role key is not available
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  supabaseKey
+);
 
 // Parse CSV line (handles quoted fields)
 function parseCSVLine(line) {
@@ -197,22 +205,19 @@ function determineVaccineStatus(vaccines) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
-    // Check if this is a JSON request (for adding single resident) or FormData (for CSV upload)
     const contentType = request.headers.get('content-type') || '';
     
     if (contentType.includes('application/json')) {
       // Handle JSON request for adding a single resident
-      const body = await request.json();
-      const { name, birthday, sex, address, contact, barangay_id, submitted_by, barangay } = body;
+      const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
+         submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
 
       // Validate required fields with detailed error messages
       const missingFields = [];
       if (!name) missingFields.push('name');
       if (!birthday) missingFields.push('birthday');
       if (!sex) missingFields.push('sex');
-      if (!address) missingFields.push('address');
-      if (!contact) missingFields.push('contact');
+      if (!administered_date) missingFields.push('administered_date');
       if (!barangay_id) missingFields.push('barangay_id');
       if (!submitted_by) missingFields.push('submitted_by');
 
@@ -228,38 +233,50 @@ export async function POST(request) {
         );
       }
 
-      // Create resident object
+      // Create resident object with new schema
       const resident = {
-        name: name.trim(),
+        name: name.trim().toUpperCase(),
         birthday,
-        sex,
-        address: address.trim(),
-        contact: contact.trim(),
+        sex: normalizeSex(sex),
+        administered_date,
+        vaccine_status: vaccine_status || 'not_vaccinated',
         barangay_id,
         barangay: barangay || null,
         submitted_by,
+        vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
+        missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
         status: 'pending',
         submitted_at: new Date().toISOString()
       };
 
       // Insert resident
+      console.log('Inserting resident:', JSON.stringify(resident, null, 2));
+      
       const { data, error } = await supabase
         .from('residents')
         .insert([resident])
-        .select('id');
+        .select('*');
 
       if (error) {
-        console.error('Error inserting resident:', error);
+        console.error('❌ Error inserting resident:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        console.error('Error hint:', error.hint);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
         return NextResponse.json(
           { 
             success: false, 
             error: error.message || 'Failed to add resident',
-            details: error.details || null
+            details: error.details || null,
+            code: error.code,
+            hint: error.hint
           },
           { status: 400 }
         );
       }
 
+      console.log('✅ Resident inserted successfully:', JSON.stringify(data, null, 2));
       return NextResponse.json({
         success: true,
         data: data?.[0] || {},
@@ -532,7 +549,7 @@ export async function GET(request) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(r =>
         r.name?.toLowerCase().includes(searchLower) ||
-        r.address?.toLowerCase().includes(searchLower)
+        r.barangay?.toLowerCase().includes(searchLower)
       );
     }
 

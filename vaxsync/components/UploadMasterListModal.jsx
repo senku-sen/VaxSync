@@ -281,7 +281,7 @@ export default function UploadMasterListModal({
         <DialogHeader>
           <DialogTitle>Upload Master List</DialogTitle>
           <DialogDescription>
-            Upload a CSV file containing resident information. The file should have columns: NAME, SEX, BIRTHDAY, DATE OF VACCINE, VACCINES GIVEN, DEFAULTERS (optional)
+            Upload a CSV file containing resident information. The file should have columns: NAME, SEX, BIRTHDAY, ADMINISTERED DATE, VACCINES GIVEN, DEFAULTERS (optional)
           </DialogDescription>
         </DialogHeader>
 
@@ -334,63 +334,18 @@ export default function UploadMasterListModal({
                     </div>
                   )}
                 </div>
-                {preview.headers && preview.headers.length > 0 ? (
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm">Ready to upload ({preview.totalRows} data rows found)</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-yellow-600">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">Header row will be auto-detected during upload</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="overflow-x-auto border rounded flex-1 flex flex-col">
-                {preview.headerRowIndex > 0 && (
-                  <div className="mb-2 text-xs text-gray-500 px-3 pt-2">
-                    Note: Header row found at row {preview.headerRowIndex + 1}. Previous rows will be skipped.
-                  </div>
-                )}
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b bg-gray-100 sticky top-0">
-                      {preview.headers.map((header, idx) => (
-                        <th key={idx} className="text-left p-2 font-semibold whitespace-nowrap">
-                          {header || `Column ${idx + 1}`}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.length > 0 ? (
-                      preview.rows.map((row, rowIdx) => (
-                        <tr key={rowIdx} className="border-b hover:bg-gray-50">
-                          {preview.headers.map((_, cellIdx) => (
-                            <td key={cellIdx} className="p-2 whitespace-nowrap">
-                              {row[cellIdx] || '-'}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={preview.headers.length} className="p-4 text-center text-gray-500">
-                          No data rows found (empty rows are skipped)
-                        </td>
                 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto border rounded flex-1 flex flex-col">
                   {preview.headerRowIndex > 0 && (
-                    <div className="mb-2 text-xs text-gray-500">
+                    <div className="mb-2 text-xs text-gray-500 px-3 pt-2">
                       Note: Header row found at row {preview.headerRowIndex + 1}. Previous rows will be skipped.
                     </div>
                   )}
-                  <table className="min-w-full text-sm border-collapse">
+                  <table className="w-full text-xs border-collapse">
                     <thead>
-                      <tr className="border-b">
+                      <tr className="border-b bg-gray-100 sticky top-0">
                         {preview.headers.map((header, idx) => (
-                          <th key={idx} className="text-left p-2 font-semibold bg-gray-50">
+                          <th key={idx} className="text-left p-2 font-semibold whitespace-nowrap">
                             {header || `Column ${idx + 1}`}
                           </th>
                         ))}
@@ -399,9 +354,9 @@ export default function UploadMasterListModal({
                     <tbody>
                       {preview.rows.length > 0 ? (
                         preview.rows.map((row, rowIdx) => (
-                          <tr key={rowIdx} className="border-b">
+                          <tr key={rowIdx} className="border-b hover:bg-gray-50">
                             {preview.headers.map((_, cellIdx) => (
-                              <td key={cellIdx} className="p-2">
+                              <td key={cellIdx} className="p-2 whitespace-nowrap">
                                 {row[cellIdx] || '-'}
                               </td>
                             ))}

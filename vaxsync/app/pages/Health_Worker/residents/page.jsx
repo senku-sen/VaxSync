@@ -275,58 +275,41 @@ export default function ResidentsPage() {
       }
     } catch (error) {
       console.error("Error fetching counts:", error);
-    }
+    };
   };
 
   // Create new resident
   const handleCreateResident = async (e) => {
     e.preventDefault();
-    
-    console.log("=== Add Resident Debug ===");
-    console.log("User Profile:", userProfile);
-    console.log("Selected Barangay ID:", selectedBarangayId);
-    console.log("Form Data:", formData);
-    
+
     // Validate user profile is loaded
     if (!userProfile || !userProfile.id) {
-      console.error("User profile missing");
       toast.error("User profile not loaded. Please refresh the page.");
       return;
     }
 
-    // Validate required fields
-    if (!formData.name || !formData.birthday || !formData.sex || !formData.administered_date || !formData.barangay) {
-      toast.error("Please fill in all required fields including Barangay");
-    // Validate barangay is selected
+    // Validate health worker has an assigned barangay ID
     if (!selectedBarangayId) {
       console.error("Barangay ID missing:", selectedBarangayId);
       toast.error("Barangay is not assigned. Please contact your head nurse.");
       return;
     }
 
-    // Validate required fields
-    const missingFields = [];
-    if (!formData.name) missingFields.push("name");
-    if (!formData.birthday) missingFields.push("birthday");
-    if (!formData.sex) missingFields.push("sex");
-    if (!formData.address) missingFields.push("address");
-    if (!formData.contact) missingFields.push("contact");
-
-    if (missingFields.length > 0) {
-      console.error("Missing fields:", missingFields);
-      toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
+    // Validate required fields for new schema
+    if (!formData.name || !formData.birthday || !formData.sex || !formData.administered_date || !formData.barangay) {
+      toast.error("Please fill in all required fields including Barangay");
       return;
     }
-    
+
     try {
       const payload = {
         ...formData,
         barangay_id: selectedBarangayId,
-        submitted_by: userProfile.id
+        submitted_by: userProfile.id,
       };
 
-      console.log("Sending payload:", payload);
-
+      console.log("Sending payload:", JSON.stringify(payload, null, 2));
+      
       const response = await fetch("/api/residents", {
         method: "POST",
         headers: {
@@ -336,7 +319,8 @@ export default function ResidentsPage() {
       });
 
       const data = await response.json();
-      console.log("API Response:", data);
+      console.log("API Response Status:", response.status);
+      console.log("API Response Data:", data);
 
       if (response.ok) {
         toast.success("Resident created successfully");
@@ -349,17 +333,21 @@ export default function ResidentsPage() {
           administered_date: "",
           barangay: "",
           vaccines_given: [],
-          missed_schedule_of_vaccine: []
+          missed_schedule_of_vaccine: [],
         });
-        fetchResidents(activeTab);
-        fetchCounts();
+        // Add delay to allow Supabase to sync before fetching
+        setTimeout(() => {
+          fetchResidents(activeTab);
+          fetchCounts();
+        }, 500);
       } else {
-        console.error("API Error:", data);
+        console.error("API Error Status:", response.status);
+        console.error("API Error Data:", data);
         toast.error(data.error || "Failed to create resident");
       }
     } catch (error) {
       console.error("Error creating resident:", error);
-      toast.error("Error creating resident: " + error.message);
+      toast.error("Error creating resident");
     }
   };
 
@@ -657,7 +645,8 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label>Vaccines Given</Label>
+                      <Label>Vaccines Given (Optional)</Label>
+                      <p className="text-xs text-gray-500 mb-2">Select vaccines that have been administered to this resident</p>
                       <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {VACCINE_TYPES.map((vaccine) => (
@@ -741,7 +730,8 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label>Missed Schedule of Vaccine</Label>
+                      <Label>Missed Schedule of Vaccine (Optional)</Label>
+                      <p className="text-xs text-gray-500 mb-2">Select vaccines that the resident missed during their scheduled vaccination dates</p>
                       <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {VACCINE_TYPES.map((vaccine) => (
@@ -998,7 +988,8 @@ export default function ResidentsPage() {
                 </div>
                 
                 <div>
-                  <Label>Vaccines Given</Label>
+                  <Label>Vaccines Given (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">Select vaccines that have been administered to this resident</p>
                   <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {VACCINE_TYPES.map((vaccine) => (
@@ -1038,7 +1029,8 @@ export default function ResidentsPage() {
                 </div>
 
                 <div>
-                  <Label>Missed Schedule of Vaccine</Label>
+                  <Label>Missed Schedule of Vaccine (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">Select vaccines that the resident missed during their scheduled vaccination dates</p>
                   <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {VACCINE_TYPES.map((vaccine) => (

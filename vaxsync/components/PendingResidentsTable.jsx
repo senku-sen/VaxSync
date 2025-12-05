@@ -45,15 +45,6 @@ export default function PendingResidentsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 px-2 font-large text-xs">Name</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Sex</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Birthday</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Barangay</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Defaulters</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Date of Vaccine</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Vaccines Given</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Submitted</th>
-                  <th className="text-left py-2 px-2 font-large text-xs">Actions</th>
                   <th className="text-left py-2 px-2 font-medium text-xs w-8">
                     <Checkbox
                       checked={residents.length > 0 && selectedResidents.size === residents.length}
@@ -68,13 +59,12 @@ export default function PendingResidentsTable({
                     />
                   </th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Name</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Sex</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Address</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Barangay</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Vaccine Status</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Defaulters</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Date of Vaccine</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Contact</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Actions</th>
                 </tr>
