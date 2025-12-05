@@ -45,6 +45,15 @@ export default function PendingResidentsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-large text-xs">Name</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Sex</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Birthday</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Barangay</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Defaulters</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Date of Vaccine</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Vaccines Given</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Submitted</th>
+                  <th className="text-left py-2 px-2 font-large text-xs">Actions</th>
                   <th className="text-left py-2 px-2 font-medium text-xs w-8">
                     <Checkbox
                       checked={residents.length > 0 && selectedResidents.size === residents.length}
@@ -83,6 +92,9 @@ export default function PendingResidentsTable({
                       <div className="font-medium text-xs">{resident.name}</div>
                     </td>
                     <td className="py-2 px-2 text-xs">
+                      {resident.sex || 'N/A'}
+                    </td>
+                    <td className="py-2 px-2 text-xs">
                       {resident.birthday 
                         ? new Date(resident.birthday).toLocaleDateString('en-US', { 
                             month: '2-digit', 
@@ -93,16 +105,30 @@ export default function PendingResidentsTable({
                       }
                     </td>
                     <td className="py-2 px-2 text-xs">
-                      {resident.sex || 'N/A'}
-                    </td>
-                    <td className="py-2 px-2 text-xs max-w-xs truncate">
-                      {resident.address}
-                    </td>
-                    <td className="py-2 px-2 text-xs">
                       {resident.barangay || 'N/A'}
                     </td>
                     <td className="py-2 px-2">
-                      {getVaccineStatusBadge(resident.vaccine_status)}
+                      <div className="flex flex-wrap gap-0.5 max-w-xs">
+                        {resident.missed_schedule_of_vaccine && Array.isArray(resident.missed_schedule_of_vaccine) && resident.missed_schedule_of_vaccine.length > 0 ? (
+                          resident.missed_schedule_of_vaccine.map((vaccine, index) => (
+                            <Badge key={index} variant="outline" className="text-xs py-0 px-1 bg-orange-50 text-orange-700 border-orange-200">
+                              {vaccine.toUpperCase()}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">None</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-xs">
+                      {resident.administered_date 
+                        ? new Date(resident.administered_date).toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit', 
+                            year: 'numeric' 
+                          })
+                        : 'N/A'
+                      }
                     </td>
                     <td className="py-2 px-2">
                       <div className="flex flex-wrap gap-0.5 max-w-xs">
@@ -116,9 +142,6 @@ export default function PendingResidentsTable({
                           <span className="text-xs text-gray-400">None</span>
                         )}
                       </div>
-                    </td>
-                    <td className="py-2 px-2 text-xs">
-                      {resident.contact}
                     </td>
                     <td className="py-2 px-2 text-xs">
                       {formatDate(resident.submitted_at)}
