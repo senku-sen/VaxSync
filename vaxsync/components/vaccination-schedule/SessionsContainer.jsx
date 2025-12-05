@@ -13,6 +13,7 @@ export default function SessionsContainer({
   onEdit = () => {},
   onDelete = () => {},
   onUpdateProgress = () => {},
+  onManageParticipants = () => {},
   isHeadNurse = false
 }) {
   return (
@@ -29,6 +30,7 @@ export default function SessionsContainer({
         onEdit={isHeadNurse ? undefined : onEdit}
         onDelete={isHeadNurse ? undefined : onDelete}
         onUpdateProgress={onUpdateProgress}
+        onManageParticipants={onManageParticipants}
         isHeadNurse={isHeadNurse}
       />
 

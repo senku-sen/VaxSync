@@ -5,13 +5,14 @@
 // Displays session details with action buttons
 // ============================================
 
-import { SquarePen, Trash2, Activity } from "lucide-react";
+import { SquarePen, Trash2, Activity, Users } from "lucide-react";
 
 export default function SessionsTable({
   sessions = [],
   onEdit = () => {},
   onDelete = () => {},
   onUpdateProgress = () => {},
+  onManageParticipants = () => {},
   isHeadNurse = false
 }) {
   return (
@@ -65,6 +66,13 @@ export default function SessionsTable({
                       title={isHeadNurse ? "View progress" : "Update progress"}
                     >
                       <Activity size={18} />
+                    </button>
+                    <button 
+                      onClick={() => onManageParticipants(session)}
+                      className="text-blue-600 hover:text-blue-800 transition-colors p-1"
+                      title="Manage participants"
+                    >
+                      <Users size={18} />
                     </button>
                     {!isHeadNurse && (
                       <>

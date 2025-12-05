@@ -22,6 +22,7 @@ export default function SignUp() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -39,13 +40,53 @@ export default function SignUp() {
     }
   };
 
-  const validateStep1 = () => {
+  const checkEmailExists = async (email) => {
+    try {
+      const res = await fetch(`/api/signup?email=${encodeURIComponent(email)}`, {
+        method: 'GET',
+      });
+      const data = await res.json();
+      return data.exists || false;
+    } catch (err) {
+      console.error('Error checking email:', err);
+      return false; // On error, allow to proceed (server will catch it)
+    }
+  };
+
+  const validateEmail = (email) => {
+    if (!email || !email.trim()) return { valid: false, error: "Email is required" };
+    
+    // Proper email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return { valid: false, error: "Please enter a valid email address" };
+    }
+    
+    return { valid: true, error: null };
+  };
+
+  const validateStep1 = async () => {
     const errors = {};
     if (!formData.firstName.trim()) errors.firstName = "First name is required";
     if (!formData.lastName.trim()) errors.lastName = "Last name is required";
-    if (!formData.email.trim()) errors.email = "Email is required";
-    if (!formData.email.includes("@")) errors.email = "Invalid email format";
+    
+    // Validate email format and Gmail requirement
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.valid) {
+      errors.email = emailValidation.error;
+    }
+    
     if (!formData.password || formData.password.length < 6) errors.password = "Password must be at least 6 characters";
+    
+    // Check email existence if format is valid
+    if (!errors.email && formData.email.trim()) {
+      setIsCheckingEmail(true);
+      const emailExists = await checkEmailExists(formData.email.trim());
+      setIsCheckingEmail(false);
+      if (emailExists) {
+        errors.email = "This email is already registered. Please use a different email or sign in.";
+      }
+    }
     
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -58,6 +99,16 @@ export default function SignUp() {
     if (!formData.year) errors.year = "Year is required";
     if (!formData.sex) errors.sex = "Sex is required";
     if (!formData.address.trim()) errors.address = "Address is required";
+    
+    // Validate date if all fields are provided
+    if (formData.month && formData.date && formData.year) {
+      const dateValidation = validateDate(formData.month, formData.date, formData.year);
+      if (!dateValidation.valid) {
+        errors.date = dateValidation.error || "Please enter a valid date of birth";
+        errors.month = "";
+        errors.year = "";
+      }
+    }
     
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -72,29 +123,87 @@ export default function SignUp() {
     return Object.keys(errors).length === 0;
   };
 
+  const calculateAge = (month, date, year) => {
+    const monthIndex = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ].indexOf(month);
+    
+    if (monthIndex === -1) return null;
+    
+    const birthDate = new Date(year, monthIndex, parseInt(date));
+    const today = new Date();
+    
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    const dayDiff = today.getDate() - birthDate.getDate();
+    
+    // Adjust age if birthday hasn't occurred this year
+    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+      age--;
+    }
+    
+    return age;
+  };
+
   const validateDate = (month, date, year) => {
-    if (!month || !date || !year) return false;
+    if (!month || !date || !year) return { valid: false, error: null };
     
     const monthIndex = [
       "January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
     ].indexOf(month);
     
+    if (monthIndex === -1) return { valid: false, error: "Invalid month" };
+    
     const day = parseInt(date);
     const yearNum = parseInt(year);
     
-    if (isNaN(day) || isNaN(yearNum)) return false;
-    if (day < 1 || day > 31) return false;
-    if (yearNum < 1900 || yearNum > new Date().getFullYear()) return false;
+    if (isNaN(day) || isNaN(yearNum)) return { valid: false, error: "Invalid date" };
+    if (day < 1 || day > 31) return { valid: false, error: "Invalid day" };
     
+    // Year must be between 1900 and current year (not future)
+    const currentYear = new Date().getFullYear();
+    if (yearNum < 1900 || yearNum > currentYear) {
+      return { valid: false, error: "Year must be between 1900 and current year" };
+    }
+    
+    // Create date object and validate it's a real date
     const dateObj = new Date(yearNum, monthIndex, day);
-    return dateObj.getDate() === day && dateObj.getMonth() === monthIndex && dateObj.getFullYear() === yearNum;
+    
+    // Check if the date is valid (e.g., Feb 30 becomes March 2, so dates won't match)
+    if (dateObj.getDate() !== day || dateObj.getMonth() !== monthIndex || dateObj.getFullYear() !== yearNum) {
+      return { valid: false, error: "Invalid date (e.g., February 30 doesn't exist)" };
+    }
+    
+    // Additional check: ensure date is not in the future
+    const today = new Date();
+    today.setHours(23, 59, 59, 999); // End of today
+    if (dateObj > today) {
+      return { valid: false, error: "Date of birth cannot be in the future" };
+    }
+    
+    // Check if user is at least 18 years old
+    const age = calculateAge(month, date, year);
+    if (age === null) {
+      return { valid: false, error: "Could not calculate age" };
+    }
+    if (age < 18) {
+      return { valid: false, error: "You must be at least 18 years old to create an account" };
+    }
+    
+    return { valid: true, error: null };
   };
 
-  const handleNext = () => {
-    if (currentStep === 1 && validateStep1()) {
-      setCurrentStep(2);
-      setError("");
+  const handleNext = async (e) => {
+    if (e) e.preventDefault();
+    
+    if (currentStep === 1) {
+      const isValid = await validateStep1();
+      if (isValid) {
+        setCurrentStep(2);
+        setError("");
+      }
     } else if (currentStep === 2 && validateStep2()) {
       setCurrentStep(3);
       setError("");
@@ -130,9 +239,10 @@ export default function SignUp() {
       return;
     }
 
-    // Validate date of birth
-    if (!validateDate(formData.month, formData.date, formData.year)) {
-      setError("Please enter a valid date of birth");
+    // Validate date of birth and age requirement
+    const dateValidation = validateDate(formData.month, formData.date, formData.year);
+    if (!dateValidation.valid) {
+      setError(dateValidation.error || "Please enter a valid date of birth");
       setIsSubmitting(false);
       return;
     }
@@ -204,14 +314,14 @@ export default function SignUp() {
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
-                className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${(currentStep / 3) * 100}%` }}
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(currentStep / 3) * 100}%`, backgroundColor: '#3E5F44' }}
               ></div>
             </div>
             <div className="flex justify-between mt-3">
-              <span className={`text-xs font-medium ${currentStep >= 1 ? 'text-green-600' : 'text-gray-400'}`}>Personal</span>
-              <span className={`text-xs font-medium ${currentStep >= 2 ? 'text-green-600' : 'text-gray-400'}`}>Details</span>
-              <span className={`text-xs font-medium ${currentStep >= 3 ? 'text-green-600' : 'text-gray-400'}`}>Verification</span>
+              <span className={`text-xs font-medium ${currentStep >= 1 ? '' : 'text-gray-400'}`} style={currentStep >= 1 ? { color: '#3E5F44' } : {}}>Personal</span>
+              <span className={`text-xs font-medium ${currentStep >= 2 ? '' : 'text-gray-400'}`} style={currentStep >= 2 ? { color: '#3E5F44' } : {}}>Details</span>
+              <span className={`text-xs font-medium ${currentStep >= 3 ? '' : 'text-gray-400'}`} style={currentStep >= 3 ? { color: '#3E5F44' } : {}}>Verification</span>
             </div>
           </div>
 
@@ -227,7 +337,7 @@ export default function SignUp() {
 
           {/* Success Banner */}
           {success ? (
-            <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-start gap-3" role="alert" aria-live="assertive">
+            <div className="mb-6 rounded-lg border px-4 py-3 text-sm flex items-start gap-3" role="alert" aria-live="assertive" style={{ borderColor: '#3E5F44', backgroundColor: '#f0f9f4', color: '#1a4d2e' }}>
               <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
@@ -257,7 +367,7 @@ export default function SignUp() {
                       onChange={handleInputChange}
                       placeholder="John"
                       className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                        fieldErrors.firstName ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                        fieldErrors.firstName ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                       }`}
                       required
                     />
@@ -277,7 +387,7 @@ export default function SignUp() {
                       onChange={handleInputChange}
                       placeholder="Doe"
                       className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                        fieldErrors.lastName ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                        fieldErrors.lastName ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                       }`}
                       required
                     />
@@ -300,12 +410,15 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     placeholder="your.email@example.com"
                     className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                      fieldErrors.email ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                      fieldErrors.email ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                     }`}
                     required
                   />
                   {fieldErrors.email && (
                     <p className="text-red-500 text-xs mt-1">{fieldErrors.email}</p>
+                  )}
+                  {isCheckingEmail && (
+                    <p className="text-xs mt-1" style={{ color: '#3E5F44' }}>Checking email availability...</p>
                   )}
                 </div>
 
@@ -322,7 +435,7 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     placeholder="Create a strong password"
                     className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                      fieldErrors.password ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                      fieldErrors.password ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                     }`}
                     required
                   />
@@ -349,7 +462,7 @@ export default function SignUp() {
                       value={formData.month}
                       onChange={handleInputChange}
                       className={`px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 ${
-                        fieldErrors.month ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                        fieldErrors.month ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                       }`}
                       required
                     >
@@ -363,7 +476,7 @@ export default function SignUp() {
                       value={formData.date}
                       onChange={handleInputChange}
                       className={`px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 ${
-                        fieldErrors.date ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                        fieldErrors.date ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                       }`}
                       required
                     >
@@ -377,7 +490,7 @@ export default function SignUp() {
                       value={formData.year}
                       onChange={handleInputChange}
                       className={`px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 ${
-                        fieldErrors.date ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                        fieldErrors.date ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                       }`}
                       required
                     >
@@ -387,9 +500,16 @@ export default function SignUp() {
                       ))}
                     </select>
                   </div>
-                  {fieldErrors.date && (
-                    <p className="text-red-500 text-xs mt-1">{fieldErrors.date}</p>
+                  {(fieldErrors.date || fieldErrors.month || fieldErrors.year) && (
+                    <p className="text-red-500 text-xs mt-1">{fieldErrors.date || fieldErrors.month || fieldErrors.year}</p>
                   )}
+                  {!fieldErrors.date && !fieldErrors.month && !fieldErrors.year && formData.month && formData.date && formData.year && (() => {
+                    const age = calculateAge(formData.month, formData.date, formData.year);
+                    if (age !== null && age >= 0) {
+                      return <p className="text-xs text-gray-500 mt-1">Age: {age} years old {age < 18 ? '(Must be 18+)' : ''}</p>;
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 {/* Sex Field */}
@@ -403,7 +523,7 @@ export default function SignUp() {
                     value={formData.sex}
                     onChange={handleInputChange}
                     className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 ${
-                      fieldErrors.sex ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                      fieldErrors.sex ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                     }`}
                     required
                   >
@@ -425,7 +545,7 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     placeholder="123 Main St, City"
                     className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                      fieldErrors.address ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                      fieldErrors.address ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                     }`}
                     required
                   />
@@ -447,25 +567,25 @@ export default function SignUp() {
                     User Role
                   </label>
                   <div className="space-y-2">
-                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 hover:border-green-500 hover:bg-green-50 cursor-pointer transition-colors">
+                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 cursor-pointer transition-colors" style={{ '--hover-border': '#3E5F44', '--hover-bg': '#f0f9f4' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3E5F44'; e.currentTarget.style.backgroundColor = '#f0f9f4'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
                       <input
                         type="radio"
                         name="userRole"
                         value="Health Worker"
                         checked={formData.userRole === "Health Worker"}
                         onChange={handleInputChange}
-                        className="h-4 w-4 text-green-600"
+                        style={{ accentColor: '#3E5F44' }}
                       />
                       <span className="ml-2 text-sm text-gray-700 font-medium">Health Worker</span>
                     </label>
-                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 hover:border-green-500 hover:bg-green-50 cursor-pointer transition-colors">
+                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 cursor-pointer transition-colors" style={{ '--hover-border': '#3E5F44', '--hover-bg': '#f0f9f4' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3E5F44'; e.currentTarget.style.backgroundColor = '#f0f9f4'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
                       <input
                         type="radio"
                         name="userRole"
                         value="RHM/HRH"
                         checked={formData.userRole === "RHM/HRH"}
                         onChange={handleInputChange}
-                        className="h-4 w-4 text-green-600"
+                        style={{ accentColor: '#3E5F44' }}
                       />
                       <span className="ml-2 text-sm text-gray-700 font-medium">RHM/HRH (Head Nurse)</span>
                     </label>
@@ -485,7 +605,7 @@ export default function SignUp() {
                     onChange={handleInputChange}
                     placeholder="Enter your authorization code"
                     className={`w-full px-3 py-2 bg-white border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 text-sm text-gray-900 placeholder-gray-400 ${
-                      fieldErrors.authCode ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-green-200 focus:border-green-500'
+                      fieldErrors.authCode ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-[#3E5F44]/20 focus:border-[#3E5F44]'
                     }`}
                     required
                   />
@@ -513,9 +633,12 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm ${
+                className={`flex-1 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 text-sm ${
                   isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
+                style={{ backgroundColor: '#3E5F44', '--tw-ring-color': '#3E5F44' }}
+                onMouseEnter={(e) => !isSubmitting && (e.target.style.backgroundColor = '#2d4a33')}
+                onMouseLeave={(e) => !isSubmitting && (e.target.style.backgroundColor = '#3E5F44')}
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -542,7 +665,7 @@ export default function SignUp() {
           {/* Sign In Link */}
           <div className="text-center">
             <p className="text-sm text-gray-700">
-              <a href="/pages/signin" className="font-semibold text-green-600 hover:text-green-700 transition-colors">
+              <a href="/pages/signin" className="font-semibold transition-colors" style={{ color: '#3E5F44' }}>
                 Sign in here
               </a>
             </p>

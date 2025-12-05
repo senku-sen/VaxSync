@@ -325,6 +325,22 @@ export const updateSessionStatus = async (sessionId, status) => {
   try {
     console.log('Updating session status:', { sessionId, status });
 
+    // Fetch session to get current data
+    const { data: session, error: fetchError } = await supabase
+      .from("vaccination_sessions")
+      .select('id, vaccine_id, barangay_id, target, administered, status')
+      .eq("id", sessionId)
+      .single();
+
+    if (fetchError || !session) {
+      console.error('Error fetching session:', fetchError);
+      return {
+        success: false,
+        data: null,
+        error: 'Session not found'
+      };
+    }
+
     const { data, error } = await supabase
       .from("vaccination_sessions")
       .update({
@@ -344,6 +360,29 @@ export const updateSessionStatus = async (sessionId, status) => {
     }
 
     console.log('Session status updated successfully');
+
+    // If session is being completed or cancelled, release reserved vials
+    if ((status === 'Completed' || status === 'Cancelled') && session.status !== status) {
+      console.log('🟢 Releasing reserved vaccine vials for', status, 'session...');
+      
+      const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+      const vialsToRelease = session.target - (session.administered || 0);
+      
+      if (vialsToRelease > 0) {
+        const releaseResult = await releaseBarangayVaccineReservation(
+          session.barangay_id,
+          session.vaccine_id,
+          vialsToRelease
+        );
+
+        if (releaseResult.success) {
+          console.log('✅ Reserved vaccine vials released');
+        } else {
+          console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+        }
+      }
+    }
+
     return {
       success: true,
       data: data?.[0] || null,
@@ -360,7 +399,7 @@ export const updateSessionStatus = async (sessionId, status) => {
 };
 
 /**
- * Delete a vaccination session
+ * Delete a vaccination session and restore inventory
  * @param {string} sessionId - Session ID to delete
  * @returns {Promise<Object>} - { success: boolean, error: string }
  */
@@ -368,20 +407,102 @@ export const deleteVaccinationSession = async (sessionId) => {
   try {
     console.log('Deleting vaccination session:', sessionId);
 
-    const { error } = await supabase
+    // First, fetch the session to get vaccine and administered info
+    const { data: session, error: fetchError } = await supabase
+      .from("vaccination_sessions")
+      .select('id, vaccine_id, barangay_id, target, administered')
+      .eq("id", sessionId)
+      .single();
+
+    if (fetchError || !session) {
+      console.error('Error fetching session:', fetchError);
+      return {
+        success: false,
+        error: 'Session not found'
+      };
+    }
+
+    console.log('Session found:', session);
+
+    // Reset resident vaccine data before deleting session
+    console.log('🔄 Resetting resident vaccine data for session...');
+    const { resetSessionResidentVaccineData } = await import('./sessionBeneficiaries.js');
+    const resetResult = await resetSessionResidentVaccineData(sessionId);
+    
+    if (resetResult.success) {
+      console.log('✅ Resident vaccine data reset successfully');
+    } else {
+      console.warn('⚠️ Warning: Failed to reset resident vaccine data:', resetResult.error);
+    }
+
+    // Delete the session
+    const { error: deleteError } = await supabase
       .from("vaccination_sessions")
       .delete()
       .eq("id", sessionId);
 
-    if (error) {
-      console.error('Error deleting session:', error);
+    if (deleteError) {
+      console.error('Error deleting session:', deleteError);
       return {
         success: false,
-        error: error.message || 'Failed to delete session'
+        error: deleteError.message || 'Failed to delete session'
       };
     }
 
-    console.log('Session deleted successfully');
+    console.log('✅ Session deleted successfully');
+
+    // Restore inventory: add back the administered doses
+    if (session.administered && session.administered > 0) {
+      console.log('🟢 Restoring administered doses to inventory:', session.administered);
+      
+      // Import functions dynamically to avoid circular dependencies
+      const { addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
+      
+      // Add back to barangay inventory
+      const addBackResult = await addBackBarangayVaccineInventory(
+        session.barangay_id,
+        session.vaccine_id,
+        session.administered
+      );
+
+      if (addBackResult.success) {
+        console.log('✅ Barangay inventory restored');
+      } else {
+        console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
+      }
+
+      // Add back to main vaccine inventory
+      const mainAddBackResult = await addMainVaccineInventory(
+        session.vaccine_id,
+        session.administered
+      );
+
+      if (mainAddBackResult.success) {
+        console.log('✅ Main vaccine inventory restored');
+      } else {
+        console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
+      }
+    }
+
+    // Release reserved vials
+    console.log('🟢 Releasing reserved vaccine vials...');
+    const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+    const vialsToRelease = session.target - (session.administered || 0);
+    
+    if (vialsToRelease > 0) {
+      const releaseResult = await releaseBarangayVaccineReservation(
+        session.barangay_id,
+        session.vaccine_id,
+        vialsToRelease
+      );
+
+      if (releaseResult.success) {
+        console.log('✅ Reserved vaccine vials released');
+      } else {
+        console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+      }
+    }
+
     return {
       success: true,
       error: null

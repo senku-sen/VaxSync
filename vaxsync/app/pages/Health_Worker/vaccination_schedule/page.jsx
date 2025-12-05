@@ -9,7 +9,7 @@
 
 import Sidebar from "../../../../components/shared/Sidebar";
 import Header from "../../../../components/shared/Header";
-import ScheduleSessionModal from "../../../../components/vaccination-schedule/ScheduleSessionModalMultiple";
+import ScheduleSessionModalWithParticipants from "../../../../components/vaccination-schedule/ScheduleSessionModalWithParticipants";
 import ScheduleConfirmationModal from "../../../../components/vaccination-schedule/ScheduleConfirmationModal";
 import EditSessionModal from "../../../../components/vaccination-schedule/EditSessionModal";
 import UpdateAdministeredModal from "../../../../components/vaccination-schedule/UpdateAdministeredModal";
@@ -18,7 +18,9 @@ import SessionCalendar from "../../../../components/vaccination-schedule/Session
 import SearchBar from "../../../../components/shared/SearchBar";
 import SessionsContainer from "../../../../components/vaccination-schedule/SessionsContainer";
 import SessionPerformanceCards from "../../../../components/vaccination-schedule/SessionPerformanceCards";
-import { Plus, Calendar, Filter } from "lucide-react";
+import SessionParticipantsMonitor from "../../../../components/vaccination-schedule/SessionParticipantsMonitor";
+import { addBeneficiariesToSession } from "@/lib/sessionBeneficiaries";
+import { Plus, Calendar, Filter, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/vaccineVialMapping";
@@ -34,10 +36,7 @@ import {
 } from "@/lib/vaccinationSession";
 import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, addMainVaccineInventory, deductMainVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/barangayVaccineInventory";
 
-export default function VaccinationSchedule({
-  title = "Vaccination Schedule",
-  subtitle = "Schedule vaccination sessions and track progress",
-}) {
+export default function VaccinationSchedule() {
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -104,6 +103,9 @@ export default function VaccinationSchedule({
   
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // State to track which session is selected for participant management
+  const [selectedSessionForParticipants, setSelectedSessionForParticipants] = useState(null);
 
   useEffect(() => {
     initializeData();
@@ -384,6 +386,11 @@ export default function VaccinationSchedule({
     });
   };
 
+  // Handle manage participants
+  const handleManageParticipants = (session) => {
+    setSelectedSessionForParticipants(session);
+  };
+
   // Filter sessions based on search term and status
   const filteredSessions = sessions.filter((session) => {
     const term = searchTerm.toLowerCase();
@@ -473,8 +480,23 @@ export default function VaccinationSchedule({
         if (result.success) {
           createdSessions.push({
             vaccineName: getVaccineName(vaccine.vaccine_id, vaccines),
-            target: vaccine.target
+            target: vaccine.target,
+            sessionId: result.data?.id
           });
+
+          // Add selected participants to the session
+          if (vaccine.selectedParticipants && vaccine.selectedParticipants.length > 0) {
+            const participantsResult = await addBeneficiariesToSession(
+              result.data.id,
+              vaccine.selectedParticipants
+            );
+            
+            if (participantsResult.success) {
+              console.log(`✅ Added ${participantsResult.data.length} participants to session`);
+            } else {
+              console.warn(`⚠️ Warning: Failed to add participants:`, participantsResult.error);
+            }
+          }
 
           // Reserve vaccine vials for this session
           // Calculate vials needed based on vaccine type and target people
@@ -524,7 +546,7 @@ export default function VaccinationSchedule({
       setIsConfirmationOpen(true);
       
       // Reset form
-      setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "" }] });
+      setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "", selectedParticipants: [] }] });
       setIsModalOpen(false);
       
       // Reload sessions
@@ -538,7 +560,7 @@ export default function VaccinationSchedule({
   };
 
   const handleCancel = () => {
-    setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "" }] });
+    setFormData({ date: "", time: "", vaccines: [{ vaccine_id: "", target: "", selectedParticipants: [] }] });
     setErrors({});
     setIsModalOpen(false);
   };
@@ -548,7 +570,7 @@ export default function VaccinationSchedule({
       <Sidebar />
 
       <div className="flex-1 flex flex-col w-full lg:ml-64">
-        <Header title={title} subtitle={subtitle} />
+        <Header title="Vaccination Schedule" subtitle="Schedule vaccination sessions and track progress" />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
           {/* Error Display */}
@@ -655,6 +677,7 @@ export default function VaccinationSchedule({
                 onEdit={handleEditSession}
                 onDelete={handleDeleteSession}
                 onUpdateProgress={handleUpdateProgress}
+                onManageParticipants={handleManageParticipants}
               />
             </>
           )}
@@ -673,7 +696,7 @@ export default function VaccinationSchedule({
           )}
 
           {/* Schedule Session Modal */}
-          <ScheduleSessionModal
+          <ScheduleSessionModalWithParticipants
             isOpen={isModalOpen}
             onClose={handleCancel}
             onSubmit={handleSubmit}
@@ -728,6 +751,46 @@ export default function VaccinationSchedule({
             isSubmitting={isSubmitting}
             errors={{}}
           />
+
+          {/* Session Participants Monitor Modal */}
+          {selectedSessionForParticipants && (
+            <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                {/* Close Button */}
+                <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">Manage Participants</h2>
+                  <button
+                    onClick={() => setSelectedSessionForParticipants(null)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                {/* Monitor Component */}
+                <div className="p-6">
+                  <SessionParticipantsMonitor
+                    sessionId={selectedSessionForParticipants.id}
+                    barangayName={selectedSessionForParticipants.barangays?.name}
+                    barangayId={selectedSessionForParticipants.barangay_id}
+                    vaccineName={selectedSessionForParticipants.vaccines?.name}
+                    vaccineId={selectedSessionForParticipants.vaccine_id}
+                    sessionDate={selectedSessionForParticipants.session_date}
+                    target={selectedSessionForParticipants.target}
+                    sessionStatus={selectedSessionForParticipants.status}
+                    onAdministeredCountChange={(newCount) => {
+                      // Update the session's administered count
+                      setSessions(sessions.map(s => 
+                        s.id === selectedSessionForParticipants.id 
+                          ? { ...s, administered: newCount }
+                          : s
+                      ));
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Confirm Dialog */}
           <ConfirmDialog

@@ -17,7 +17,9 @@ import {
   Download, 
   Search, 
   CheckCircle, 
-  Clock
+  Clock,
+  Check,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
@@ -51,6 +53,10 @@ export default function ResidentsPage() {
     vaccines_given: [],
     missed_schedule_of_vaccine: []
   });
+  
+  // Batch selection state
+  const [selectedResidents, setSelectedResidents] = useState(new Set());
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   // Available vaccine types
   const VACCINE_TYPES = [
@@ -470,6 +476,127 @@ export default function ResidentsPage() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  // Toggle resident selection
+  const toggleResidentSelection = (residentId) => {
+    const newSelected = new Set(selectedResidents);
+    if (newSelected.has(residentId)) {
+      newSelected.delete(residentId);
+    } else {
+      newSelected.add(residentId);
+    }
+    setSelectedResidents(newSelected);
+  };
+
+  // Select all residents
+  const selectAllResidents = () => {
+    if (residents.length === 0) return;
+    const allIds = new Set(residents.map(r => r.id));
+    setSelectedResidents(allIds);
+  };
+
+  // Deselect all residents
+  const deselectAllResidents = () => {
+    setSelectedResidents(new Set());
+  };
+
+  // Batch approve residents
+  const handleBatchApprove = async () => {
+    if (selectedResidents.size === 0) {
+      toast.error("Please select residents to approve");
+      return;
+    }
+
+    if (!confirm(`Approve ${selectedResidents.size} resident(s)?`)) return;
+
+    setIsBatchProcessing(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const residentId of selectedResidents) {
+        try {
+          const response = await fetch("/api/residents", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ id: residentId, action: "approve" }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Approved ${successCount} resident(s)`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to approve ${failCount} resident(s)`);
+      }
+
+      setSelectedResidents(new Set());
+      fetchResidents(activeTab);
+      fetchCounts();
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  // Batch reject residents
+  const handleBatchReject = async () => {
+    if (selectedResidents.size === 0) {
+      toast.error("Please select residents to reject");
+      return;
+    }
+
+    if (!confirm(`Reject ${selectedResidents.size} resident(s)?`)) return;
+
+    setIsBatchProcessing(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const residentId of selectedResidents) {
+        try {
+          const response = await fetch("/api/residents", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ id: residentId, action: "reject" }),
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Rejected ${successCount} resident(s)`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to reject ${failCount} resident(s)`);
+      }
+
+      setSelectedResidents(new Set());
+      fetchResidents(activeTab);
+      fetchCounts();
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   useEffect(() => {
     initializeData();
   }, []);
@@ -855,6 +982,54 @@ export default function ResidentsPage() {
             </Select>
           </div>
 
+          {/* Batch Selection Controls */}
+          {activeTab === "pending" && residents.length > 0 && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedResidents.size} of {residents.length} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllResidents}
+                  className="text-xs"
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={deselectAllResidents}
+                  className="text-xs"
+                  disabled={selectedResidents.size === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleBatchApprove}
+                  disabled={selectedResidents.size === 0 || isBatchProcessing}
+                  className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
+                  size="sm"
+                >
+                  <Check className="h-4 w-4 mr-1" />
+                  Approve ({selectedResidents.size})
+                </Button>
+                <Button
+                  onClick={handleBatchReject}
+                  disabled={selectedResidents.size === 0 || isBatchProcessing}
+                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Reject ({selectedResidents.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Residents Table */}
           {activeTab === "pending" ? (
             <PendingResidentsTable
@@ -866,6 +1041,8 @@ export default function ResidentsPage() {
               handleDeleteResident={handleDeleteResident}
               getVaccineStatusBadge={getVaccineStatusBadge}
               formatDate={formatDate}
+              selectedResidents={selectedResidents}
+              onToggleSelection={toggleResidentSelection}
             />
           ) : (
             <ApprovedResidentsTable

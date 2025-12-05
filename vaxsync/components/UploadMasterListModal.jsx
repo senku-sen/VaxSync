@@ -317,18 +317,21 @@ export default function UploadMasterListModal({
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Preview */}
-          {preview && (
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
+            {/* CSV Preview */}
+            {preview && (
+              <div className="border rounded-lg p-4 space-y-4">
                 <div>
-                  <h3 className="font-semibold">Preview ({preview.totalRows} rows)</h3>
-                  {preview.detectedBarangay && (
-                    <p className="text-sm text-green-600 mt-1">
-                      Barangay: <span className="font-semibold">{preview.detectedBarangay}</span>
-                    </p>
+                  {preview.headers && preview.headers.length > 0 ? (
+                    <div className="flex items-center gap-2 text-blue-600">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm">Ready to upload ({preview.totalRows} data rows found)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-yellow-600">
+                      <AlertCircle className="h-4 w-4" />
+                      <span className="text-sm">Header row will be auto-detected during upload</span>
+                    </div>
                   )}
                 </div>
                 {preview.headers && preview.headers.length > 0 ? (
@@ -376,13 +379,47 @@ export default function UploadMasterListModal({
                         <td colSpan={preview.headers.length} className="p-4 text-center text-gray-500">
                           No data rows found (empty rows are skipped)
                         </td>
+                
+                <div className="overflow-x-auto">
+                  {preview.headerRowIndex > 0 && (
+                    <div className="mb-2 text-xs text-gray-500">
+                      Note: Header row found at row {preview.headerRowIndex + 1}. Previous rows will be skipped.
+                    </div>
+                  )}
+                  <table className="min-w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        {preview.headers.map((header, idx) => (
+                          <th key={idx} className="text-left p-2 font-semibold bg-gray-50">
+                            {header || `Column ${idx + 1}`}
+                          </th>
+                        ))}
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {preview.rows.length > 0 ? (
+                        preview.rows.map((row, rowIdx) => (
+                          <tr key={rowIdx} className="border-b">
+                            {preview.headers.map((_, cellIdx) => (
+                              <td key={cellIdx} className="p-2">
+                                {row[cellIdx] || '-'}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={preview.headers.length} className="p-4 text-center text-gray-500">
+                            No data rows found (empty rows are skipped)
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Errors */}
           {errors.length > 0 && (

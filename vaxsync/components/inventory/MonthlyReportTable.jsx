@@ -6,9 +6,47 @@
 // Calculates: Stock %, Status
 // ============================================
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { fetchMonthlyVaccineReport, getAvailableMonths } from "@/lib/vaccineMonthlyReport";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+// Memoized row component to prevent unnecessary re-renders
+const ReportRow = memo(({ report, index, getStatusBadge }) => (
+  <tr key={report.id || index} className="hover:bg-gray-50 transition-colors">
+    <td className="px-4 py-3 font-medium text-gray-900">
+      {report.vaccine?.name || 'Unknown'}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.initial_inventory || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_supplied || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_used || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_wastage || 0}
+    </td>
+    <td className="px-4 py-3 text-center font-medium text-gray-900 bg-blue-50">
+      {report.ending_inventory || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.vials_needed || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.max_allocation || 0}
+    </td>
+    <td className="px-4 py-3 text-center font-medium text-gray-900">
+      {report.stock_level_percentage || 0}%
+    </td>
+    <td className="px-4 py-3 text-center">
+      {getStatusBadge(report.status)}
+    </td>
+  </tr>
+));
+
+ReportRow.displayName = 'ReportRow';
 
 export default function MonthlyReportTable({ barangayId }) {
   // Monthly reports data
@@ -109,7 +147,8 @@ export default function MonthlyReportTable({ barangayId }) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
   };
 
-  const getStatusBadge = (status) => {
+  // Memoize status badge function to prevent recreating on every render
+  const getStatusBadge = useMemo(() => {
     const statusMap = {
       'OVERSTOCK': { color: 'bg-purple-100 text-purple-800', icon: '🟣' },
       'UNDERSTOCK': { color: 'bg-yellow-100 text-yellow-800', icon: '🟡' },
@@ -117,13 +156,15 @@ export default function MonthlyReportTable({ barangayId }) {
       'GOOD': { color: 'bg-green-100 text-green-800', icon: '🟢' }
     };
     
-    const statusInfo = statusMap[status] || statusMap['GOOD'];
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-        {statusInfo.icon} {status}
-      </span>
-    );
-  };
+    return (status) => {
+      const statusInfo = statusMap[status] || statusMap['GOOD'];
+      return (
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+          {statusInfo.icon} {status}
+        </span>
+      );
+    };
+  }, []);
 
   if (isLoading && reports.length === 0) {
     return (
@@ -224,38 +265,12 @@ export default function MonthlyReportTable({ barangayId }) {
             <tbody className="divide-y divide-gray-200">
               {reports.length > 0 ? (
                 reports.map((report, index) => (
-                  <tr key={report.id || index} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {report.vaccine?.name || 'Unknown'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.initial_inventory || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_supplied || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_used || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_wastage || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-900">
-                      {report.ending_inventory || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.vials_needed || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.max_allocation || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-900">
-                      {report.stock_level_percentage || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {getStatusBadge(report.status)}
-                    </td>
-                  </tr>
+                  <ReportRow 
+                    key={report.id || index} 
+                    report={report} 
+                    index={index} 
+                    getStatusBadge={getStatusBadge}
+                  />
                 ))
               ) : (
                 <tr>

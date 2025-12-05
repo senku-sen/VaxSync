@@ -150,3 +150,66 @@ export async function GET(request) {
     );
   }
 }
+
+/**
+ * PUT /api/monthly-reports
+ * Update/Save a monthly report record
+ * Body: { id, vaccine_id, month, initial_inventory, quantity_supplied, quantity_used, quantity_wastage, ending_inventory, vials_needed, max_allocation, stock_level_percentage, status }
+ */
+export async function PUT(request) {
+  try {
+    console.log('PUT /api/monthly-reports called');
+    
+    const body = await request.json();
+    const { id, vaccine_id, month, initial_inventory, quantity_supplied, quantity_used, quantity_wastage, ending_inventory, vials_needed, max_allocation, stock_level_percentage, status } = body;
+
+    if (!id) {
+      return Response.json(
+        { error: 'Record ID is required' },
+        { status: 400 }
+      );
+    }
+
+    console.log('Updating record:', id);
+
+    const updateData = {};
+    if (initial_inventory !== undefined) updateData.initial_inventory = initial_inventory;
+    if (quantity_supplied !== undefined) updateData.quantity_supplied = quantity_supplied;
+    if (quantity_used !== undefined) updateData.quantity_used = quantity_used;
+    if (quantity_wastage !== undefined) updateData.quantity_wastage = quantity_wastage;
+    if (ending_inventory !== undefined) updateData.ending_inventory = ending_inventory;
+    if (vials_needed !== undefined) updateData.vials_needed = vials_needed;
+    if (max_allocation !== undefined) updateData.max_allocation = max_allocation;
+    if (stock_level_percentage !== undefined) updateData.stock_level_percentage = stock_level_percentage;
+    if (status !== undefined) updateData.status = status;
+
+    const { data: updatedRecord, error } = await supabase
+      .from('vaccine_monthly_report')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return Response.json(
+        { error: 'Failed to update record', details: error },
+        { status: 500 }
+      );
+    }
+
+    console.log('Record updated successfully:', updatedRecord.id);
+
+    return Response.json({
+      success: true,
+      message: 'Monthly report updated successfully',
+      record: updatedRecord
+    });
+  } catch (err) {
+    console.error('Error updating monthly report:', err);
+    return Response.json(
+      { error: 'Internal server error', details: err.message },
+      { status: 500 }
+    );
+  }
+}

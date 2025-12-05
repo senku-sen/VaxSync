@@ -9,11 +9,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, AlertCircle, CheckCircle, Camera } from "lucide-react";
+import { X, AlertCircle, CheckCircle, Camera, Users } from "lucide-react";
 import PhotoUploadModal from "./PhotoUploadModal";
 import PhotoGallery from "./PhotoGallery";
 import { fetchSessionPhotos } from "@/lib/sessionPhotos";
 import { loadUserProfile } from "@/lib/vaccineRequest";
+import { fetchSessionBeneficiaries, updateMultipleBeneficiaries } from "@/lib/sessionBeneficiaries";
 
 export default function UpdateAdministeredModal({
   isOpen,
@@ -29,12 +30,16 @@ export default function UpdateAdministeredModal({
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [isLoadingBeneficiaries, setIsLoadingBeneficiaries] = useState(false);
+  const [showParticipants, setShowParticipants] = useState(false);
 
-  // Load user profile and photos when modal opens
+  // Load user profile, photos, and beneficiaries when modal opens
   useEffect(() => {
     if (isOpen && session?.id) {
       loadUserData();
       loadPhotos();
+      loadBeneficiaries();
     }
   }, [isOpen, session?.id]);
 
@@ -67,9 +72,34 @@ export default function UpdateAdministeredModal({
     setPhotos(photos.filter((p) => p.id !== photoId));
   };
 
+  const loadBeneficiaries = async () => {
+    if (!session?.id) return;
+    setIsLoadingBeneficiaries(true);
+    try {
+      const result = await fetchSessionBeneficiaries(session.id);
+      if (result.success) {
+        setBeneficiaries(result.data);
+      }
+    } catch (err) {
+      console.error("Error loading beneficiaries:", err);
+    } finally {
+      setIsLoadingBeneficiaries(false);
+    }
+  };
+
+  const handleBeneficiaryToggle = (beneficiaryId, field) => {
+    setBeneficiaries(beneficiaries.map(b => 
+      b.id === beneficiaryId ? { ...b, [field]: !b[field] } : b
+    ));
+  };
+
   if (!isOpen || !session) return null;
 
-  const administered = session.administered || 0;
+  const administeredFromBeneficiaries = beneficiaries.length > 0
+    ? beneficiaries.filter((b) => b.vaccinated).length
+    : (session.administered || 0);
+
+  const administered = administeredFromBeneficiaries;
   const target = session.target || 0;
   const progress = target > 0 ? Math.round((administered / target) * 100) : 0;
 
@@ -90,7 +120,7 @@ export default function UpdateAdministeredModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-opacity-50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
@@ -142,7 +172,7 @@ export default function UpdateAdministeredModal({
               />
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              {administered} of {target} people vaccinated
+              {administered} of {target} people vaccinated (includes walk-ins)
             </p>
           </div>
 
@@ -159,10 +189,33 @@ export default function UpdateAdministeredModal({
             </div>
           )}
 
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
             if (!isViewOnly) {
-              onSubmit(session, 'submit');
+              // Derive administered count from vaccinated participants
+              const vaccinatedCount = beneficiaries.length > 0
+                ? beneficiaries.filter((b) => b.vaccinated).length
+                : (session.administered || 0);
+
+              const updatedSession = {
+                ...session,
+                administered: vaccinatedCount
+              };
+
+              // Save beneficiary changes to database
+              if (beneficiaries.length > 0) {
+                console.log('Saving beneficiary changes:', beneficiaries);
+                const result = await updateMultipleBeneficiaries(beneficiaries);
+                if (!result.success) {
+                  console.error('Failed to save beneficiary changes:', result.error);
+                  alert('Failed to save participant changes: ' + result.error);
+                  return;
+                }
+                console.log('✅ Beneficiary changes saved successfully');
+              }
+
+              // Then submit the session update with derived administered count
+              onSubmit(updatedSession, 'submit');
             }
           }} className="space-y-4">
             {/* View Only Notice */}
@@ -176,68 +229,22 @@ export default function UpdateAdministeredModal({
               </div>
             )}
 
-            {/* Administered Count */}
+            {/* Administered Count - Read Only (Based on Participants) */}
             <div>
-              <label htmlFor="administered" className="block text-sm font-medium text-gray-700 mb-2">
-                Administered Count <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Administered Count
               </label>
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="number"
-                  id="administered"
-                  name="administered"
-                  value={session.administered || 0}
-                  onChange={handleChange}
-                  min="0"
-                  max={target}
-                  disabled={isViewOnly || session.status === "Scheduled" || session.status === "Cancelled"}
-                  className={`flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
-                    errors.administered ? 'border-red-500' : 'border-gray-300'
-                  } ${(isViewOnly || session.status === "Scheduled" || session.status === "Cancelled") ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
-                />
+              <div className="flex gap-2">
+                <div className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600 font-medium">
+                  {administered}
+                </div>
                 <span className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-gray-600 font-medium">
                   / {target}
                 </span>
               </div>
-
-              {/* Quick Add Buttons */}
-              {!isViewOnly && session.status !== "Scheduled" && session.status !== "Cancelled" && (
-                <div className="grid grid-cols-4 gap-2 mb-3">
-                  {[3, 5, 10, 20].map((increment) => (
-                    <button
-                      key={increment}
-                      type="button"
-                      onClick={() => {
-                        const newValue = Math.min((session.administered || 0) + increment, target);
-                        onSubmit({
-                          ...session,
-                          administered: newValue
-                        }, 'update');
-                      }}
-                      disabled={isViewOnly || (session.administered || 0) >= target}
-                      className="px-2 py-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      +{increment}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {isViewOnly && (
-                <p className="text-xs text-blue-500 mt-1">
-                  This is a read-only view
-                </p>
-              )}
-              {!isViewOnly && session.status === "Scheduled" && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Change status to "In progress" to edit administered count
-                </p>
-              )}
-              {!isViewOnly && session.status === "Cancelled" && (
-                <p className="text-xs text-red-500 mt-1">
-                  This session is cancelled - editing is disabled
-                </p>
-              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Based on session participants who attended
+              </p>
             </div>
 
             {/* Status */}
@@ -267,18 +274,6 @@ export default function UpdateAdministeredModal({
                   </span>
                 ) : null}
               </p>
-            </div>
-
-            {/* Status Info */}
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-              <p className="text-xs text-gray-600">
-                <span className="font-semibold">Current Status:</span> {session.status || "Scheduled"}
-              </p>
-              {progress === 100 && administered > 0 && (
-                <p className="text-xs text-green-600 mt-1">
-                  ✓ All vaccination targets have been met
-                </p>
-              )}
             </div>
 
             {/* Photo Upload Section */}

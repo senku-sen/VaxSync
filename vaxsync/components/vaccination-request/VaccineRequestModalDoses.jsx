@@ -305,7 +305,7 @@ export default function VaccineRequestModalDoses({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-opacity-50"
+      className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/30"
       onClick={onClose}
     >
       <div
