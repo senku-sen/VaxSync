@@ -10,17 +10,61 @@ import { supabase } from "./supabase";
 /**
  * Create a new vaccination session
  * @param {Object} sessionData - Session data to insert
+ *   - barangay_id: Barangay ID
+ *   - vaccine_id: Vaccine ID (will be converted to barangay_vaccine_inventory ID)
+ *   - session_date: Session date
+ *   - session_time: Session time
+ *   - target: Target number of people
+ *   - created_by: User ID who created the session
  * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
  */
 export const createVaccinationSession = async (sessionData) => {
   try {
     console.log('Creating vaccination session:', sessionData);
 
+    // sessionData.vaccine_id is vaccines.id
+    // We need to find vaccine_doses for this vaccine, then find barangay_vaccine_inventory
+    // that references those vaccine_doses
+    
+    // Step 1: Find vaccine_doses for this vaccine
+    const { data: vaccineDoses, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id')
+      .eq('vaccine_id', sessionData.vaccine_id);
+
+    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
+      console.error('No vaccine_doses found for vaccine:', sessionData.vaccine_id);
+      return {
+        success: false,
+        data: null,
+        error: 'No vaccine doses found for this vaccine. Please ensure the vaccine is properly configured.'
+      };
+    }
+
+    // Step 2: Find barangay_vaccine_inventory for any of these vaccine_doses
+    const vaccineDoseIds = vaccineDoses.map(d => d.id);
+    const { data: inventoryData, error: inventoryError } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select("id")
+      .eq("barangay_id", sessionData.barangay_id)
+      .in("vaccine_id", vaccineDoseIds)
+      .single();
+
+    if (inventoryError || !inventoryData) {
+      console.error('Error finding barangay vaccine inventory:', inventoryError);
+      return {
+        success: false,
+        data: null,
+        error: 'Vaccine not available in this barangay inventory. Please add this vaccine to the barangay inventory first through the Inventory Management page.'
+      };
+    }
+
+    // Now create the session with the barangay_vaccine_inventory ID
     const { data, error } = await supabase
       .from("vaccination_sessions")
       .insert({
         barangay_id: sessionData.barangay_id,
-        vaccine_id: sessionData.vaccine_id,
+        vaccine_id: inventoryData.id,  // Use barangay_vaccine_inventory ID
         session_date: sessionData.session_date,
         session_time: sessionData.session_time,
         target: parseInt(sessionData.target, 10),
@@ -84,20 +128,32 @@ export const fetchVaccinationSessions = async (userId) => {
 
     // Fetch vaccine and barangay details separately
     if (data && data.length > 0) {
-      const vaccineIds = [...new Set(data.map(s => s.vaccine_id))];
+      // session.vaccine_id references barangay_vaccine_inventory.id
+      // We need to fetch vaccine_doses and vaccines through that relationship
+      const inventoryIds = [...new Set(data.map(s => s.vaccine_id))];
       const barangayIds = [...new Set(data.map(s => s.barangay_id))];
 
-      const [vaccinesData, barangaysData] = await Promise.all([
-        vaccineIds.length > 0 ? supabase.from("vaccines").select("id, name").in("id", vaccineIds) : { data: [] },
+      // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
+      const { data: inventoryData } = inventoryIds.length > 0 
+        ? await supabase
+            .from("barangay_vaccine_inventory")
+            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .in("id", inventoryIds)
+        : { data: [] };
+
+      const [barangaysData] = await Promise.all([
         barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
       const vaccinesMap = {};
       const barangaysMap = {};
 
-      if (vaccinesData.data) {
-        vaccinesData.data.forEach(v => {
-          vaccinesMap[v.id] = v;
+      // Build vaccines map from inventory data
+      if (inventoryData) {
+        inventoryData.forEach(inv => {
+          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
+            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+          }
         });
       }
 
@@ -451,55 +507,88 @@ export const deleteVaccinationSession = async (sessionId) => {
 
     console.log('✅ Session deleted successfully');
 
-    // Restore inventory: add back the administered doses
-    if (session.administered && session.administered > 0) {
-      console.log('🟢 Restoring administered doses to inventory:', session.administered);
-      
-      // Import functions dynamically to avoid circular dependencies
-      const { addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
-      
-      // Add back to barangay inventory
-      const addBackResult = await addBackBarangayVaccineInventory(
-        session.barangay_id,
-        session.vaccine_id,
-        session.administered
-      );
-
-      if (addBackResult.success) {
-        console.log('✅ Barangay inventory restored');
-      } else {
-        console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
-      }
-
-      // Add back to main vaccine inventory
-      const mainAddBackResult = await addMainVaccineInventory(
-        session.vaccine_id,
-        session.administered
-      );
-
-      if (mainAddBackResult.success) {
-        console.log('✅ Main vaccine inventory restored');
-      } else {
-        console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
-      }
-    }
-
-    // Release reserved vials
-    console.log('🟢 Releasing reserved vaccine vials...');
-    const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
-    const vialsToRelease = session.target - (session.administered || 0);
+    // Resolve the vaccine ID chain:
+    // session.vaccine_id → barangay_vaccine_inventory.id
+    // barangay_vaccine_inventory.vaccine_id → vaccine_doses.id
+    // vaccine_doses.vaccine_id → vaccines.id
+    console.log('🔍 Resolving vaccine ID chain from barangay_vaccine_inventory.id:', session.vaccine_id);
     
-    if (vialsToRelease > 0) {
-      const releaseResult = await releaseBarangayVaccineReservation(
-        session.barangay_id,
-        session.vaccine_id,
-        vialsToRelease
-      );
-
-      if (releaseResult.success) {
-        console.log('✅ Reserved vaccine vials released');
+    const { data: inventoryRecord, error: inventoryError } = await supabase
+      .from('barangay_vaccine_inventory')
+      .select('vaccine_id')
+      .eq('id', session.vaccine_id);
+    
+    if (inventoryError || !inventoryRecord || inventoryRecord.length === 0) {
+      console.warn('⚠️ Warning: Could not find barangay_vaccine_inventory record:', inventoryError?.message);
+      // Continue anyway - inventory may have been deleted
+    } else {
+      const vaccineDoseId = inventoryRecord[0].vaccine_id;
+      console.log('  → vaccine_doses.id:', vaccineDoseId);
+      
+      // Now get the actual vaccines.id from vaccine_doses
+      const { data: doseRecord, error: doseError } = await supabase
+        .from('vaccine_doses')
+        .select('vaccine_id')
+        .eq('id', vaccineDoseId);
+      
+      if (doseError || !doseRecord || doseRecord.length === 0) {
+        console.warn('⚠️ Warning: Could not find vaccine_doses record:', doseError?.message);
+        // Continue anyway - vaccine_doses may have been deleted
       } else {
-        console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+        const actualVaccineId = doseRecord[0].vaccine_id;
+        console.log('  → vaccines.id:', actualVaccineId);
+
+        // Restore inventory: add back the administered doses
+        if (session.administered && session.administered > 0) {
+          console.log('🟢 Restoring administered doses to inventory:', session.administered);
+          
+          // Import functions dynamically to avoid circular dependencies
+          const { addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
+          
+          // Add back to barangay inventory (using barangay_vaccine_inventory.id)
+          const addBackResult = await addBackBarangayVaccineInventory(
+            session.barangay_id,
+            actualVaccineId,
+            session.administered
+          );
+
+          if (addBackResult.success) {
+            console.log('✅ Barangay inventory restored');
+          } else {
+            console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
+          }
+
+          // Add back to main vaccine inventory (using vaccines.id)
+          const mainAddBackResult = await addMainVaccineInventory(
+            actualVaccineId,
+            session.administered
+          );
+
+          if (mainAddBackResult.success) {
+            console.log('✅ Main vaccine inventory restored');
+          } else {
+            console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
+          }
+        }
+
+        // Release reserved vials
+        console.log('🟢 Releasing reserved vaccine vials...');
+        const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+        const vialsToRelease = session.target - (session.administered || 0);
+        
+        if (vialsToRelease > 0) {
+          const releaseResult = await releaseBarangayVaccineReservation(
+            session.barangay_id,
+            session.vaccine_id,
+            vialsToRelease
+          );
+
+          if (releaseResult.success) {
+            console.log('✅ Reserved vaccine vials released');
+          } else {
+            console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+          }
+        }
       }
     }
 

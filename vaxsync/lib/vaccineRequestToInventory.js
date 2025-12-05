@@ -38,10 +38,24 @@ export async function addApprovedRequestToInventory(
       return { success: false, inventoryId: null, error: 'Could not fetch vaccine details' };
     }
 
-    // Add to inventory
+    // NEW: Fetch the vaccine_doses record for this vaccine
+    // barangay_vaccine_inventory.vaccine_id now references vaccine_doses.id
+    const { data: vaccineDose, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id')
+      .eq('vaccine_id', vaccineId)
+      .limit(1)
+      .single();
+
+    if (dosesError || !vaccineDose) {
+      console.error('Error fetching vaccine dose:', dosesError);
+      return { success: false, inventoryId: null, error: 'No vaccine dose found. Please create vaccine doses first.' };
+    }
+
+    // Add to inventory using vaccine_doses.id
     const { data: inventoryData, error: inventoryError } = await addBarangayVaccineInventory({
       barangay_id: barangayId,
-      vaccine_id: vaccineId,
+      vaccine_id: vaccineDose.id,  // Use vaccine_doses.id, not vaccines.id
       quantity_vial: quantityVial,
       quantity_dose: quantityDose,
       batch_number: vaccine?.batch_number || null,

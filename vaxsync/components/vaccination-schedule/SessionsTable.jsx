@@ -40,7 +40,7 @@ export default function SessionsTable({
                   {session.session_date} {session.session_time}
                 </td>
                 <td className="px-6 py-4 text-gray-600">
-                  {session.vaccines?.name || "N/A"}
+                  {session.vaccine_name || session.vaccines?.name || "N/A"}
                 </td>
                 <td className="px-6 py-4 text-gray-600">
                   {session.target}

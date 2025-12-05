@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Edit, Trash2, CheckCircle } from "lucide-react";
+import { User, Edit, Trash2, CheckCircle, Eye, X } from "lucide-react";
 
 export default function PendingResidentsTable({
   residents,
@@ -19,6 +19,7 @@ export default function PendingResidentsTable({
   showApproveButton = true,
   selectedResidents = new Set(),
   onToggleSelection = () => {},
+  onViewDetails = () => {},
 }) {
   return (
     <Card>
@@ -53,7 +54,7 @@ export default function PendingResidentsTable({
                   <th className="text-left py-2 px-2 font-medium text-xs">Date of Vaccine</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Actions</th>
+                  <th className="text-center py-2 px-2 font-medium text-xs">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -124,32 +125,46 @@ export default function PendingResidentsTable({
                       {formatDate(resident.submitted_at)}
                     </td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openEditDialog(resident)}
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onViewDetails(resident)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors"
+                          title="View details"
                         >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                          <Eye size={16} />
+                        </button>
                         {showApproveButton && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleStatusChange(resident.id, "approve")}
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(resident.id, 'approve')}
+                              className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50 transition-colors"
+                              title="Approve resident"
+                            >
+                              <CheckCircle size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(resident.id, 'reject')}
+                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
+                              title="Reject resident"
+                            >
+                              <X size={16} />
+                            </button>
+                          </>
                         )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteResident(resident.id)}
-                          className="text-red-600 hover:text-red-700"
+                        <button
+                          onClick={() => openEditDialog(resident)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors"
+                          title="Edit resident"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteResident(resident.id)}
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Delete resident"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>

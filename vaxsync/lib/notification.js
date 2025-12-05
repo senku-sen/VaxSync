@@ -346,7 +346,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
         administered,
         status,
         created_at,
-        vaccines(name),
+        barangay_vaccine_inventory:vaccine_id(id, vaccine_id, vaccine_doses:vaccine_id(id, dose_code, vaccine:vaccine_id(id, name, doses))),
         barangays(name)
       `)
       .order("session_date", { ascending: true });
@@ -374,22 +374,27 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
       const isUpcoming = daysUntil > 0 && daysUntil <= 1;
       const isOverdue = daysUntil < 0;
 
+      const vaccine = session.barangay_vaccine_inventory?.vaccine_doses?.vaccine;
+      const vaccineName = vaccine?.name || "Unknown Vaccine";
+      const doses = vaccine?.doses || 10;
+      const vaccineDisplay = `${vaccineName} (${doses} doses)`;
+      
       const statusMessages = {
         scheduled: {
           title: isUpcoming ? "Upcoming Vaccination Session" : "Scheduled Session",
-          description: `${session.vaccines?.name || "Vaccine"} session on ${sessionDate.toLocaleDateString()}`,
+          description: `${vaccineName} session on ${sessionDate.toLocaleDateString()}`,
           icon: "scheduled",
           color: "blue",
         },
         "in-progress": {
           title: "Session In Progress",
-          description: `${session.vaccines?.name || "Vaccine"} session is currently active`,
+          description: `${vaccineName} session is currently active`,
           icon: "in-progress",
           color: "yellow",
         },
         completed: {
           title: "Session Completed",
-          description: `${session.vaccines?.name || "Vaccine"} session completed with ${session.administered}/${session.target} vaccinations`,
+          description: `${vaccineName} session completed with ${session.administered}/${session.target} vaccinations`,
           icon: "completed",
           color: "green",
         },
@@ -402,7 +407,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
         type: "vaccination-session",
         title: statusInfo.title,
         description: statusInfo.description,
-        vaccineName: session.vaccines?.name || "Unknown Vaccine",
+        vaccineName: vaccineDisplay,
         barangayName: session.barangays?.name || "Unknown Barangay",
         sessionDate: sessionDate.toLocaleDateString(),
         sessionTime: session.session_time,

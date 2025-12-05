@@ -490,7 +490,8 @@ export async function GET(request) {
 
     // Filter by search term (database-side for better performance)
     if (search) {
-      query = query.or(`name.ilike.%${search}%,barangay.ilike.%${search}%`);
+      const searchTerm = `%${search}%`;
+      query = query.or(`name.ilike.${searchTerm},barangay.ilike.${searchTerm}`);
     }
 
     const { data, error } = await query;

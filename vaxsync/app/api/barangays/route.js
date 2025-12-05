@@ -33,9 +33,32 @@ function createSupabaseAdminClient() {
   })
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url)
+    const nameParam = searchParams.get("name")
+
     const supabase = createSupabaseAdminClient()
+    
+    // If searching by name, return just that barangay
+    if (nameParam) {
+      const { data, error } = await supabase
+        .from("barangays")
+        .select("id, name")
+        .ilike("name", nameParam.trim())
+
+      if (error) {
+        console.error("Error fetching barangay by name:", error)
+        return NextResponse.json(
+          { data: [], error: error.message },
+          { status: 200 }
+        )
+      }
+
+      return NextResponse.json({ data: data || [] })
+    }
+
+    // Otherwise return all barangays
     const { data, error } = await supabase
       .from("barangays")
       .select("id, name")

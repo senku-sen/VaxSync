@@ -4,7 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Edit, Trash2 } from "lucide-react";
+import { User, Edit, Trash2, Eye } from "lucide-react";
 
 export default function ApprovedResidentsTable({
   residents,
@@ -14,6 +14,7 @@ export default function ApprovedResidentsTable({
   handleDeleteResident,
   getVaccineStatusBadge,
   formatDate,
+  onViewDetails = () => {},
 }) {
   return (
     <Card>
@@ -48,7 +49,7 @@ export default function ApprovedResidentsTable({
                   <th className="text-left py-2 px-2 font-medium text-xs">Date of Vaccine</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Actions</th>
+                  <th className="text-center py-2 px-2 font-medium text-xs">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -113,22 +114,28 @@ export default function ApprovedResidentsTable({
                       {formatDate(resident.submitted_at)}
                     </td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => onViewDetails(resident)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors"
+                          title="View details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
                           onClick={() => openEditDialog(resident)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition-colors"
+                          title="Edit resident"
                         >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                          <Edit size={16} />
+                        </button>
+                        <button
                           onClick={() => handleDeleteResident(resident.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Delete resident"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>

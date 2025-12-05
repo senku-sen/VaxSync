@@ -64,49 +64,67 @@ export default function ScheduleSessionModalWithParticipants({
   // Load vaccines with inventory when barangay changes
   useEffect(() => {
     const loadVaccinesWithInventory = async () => {
+      console.log('Loading vaccines for barangay:', effectiveBarangayId);
+      
       if (!effectiveBarangayId) {
+        console.log('No barangay ID, clearing vaccines');
         setVaccinesWithInventory([]);
         return;
       }
 
       try {
         const { data: inventory, error } = await fetchBarangayVaccineInventory(effectiveBarangayId);
+        console.log('Inventory fetch result:', { error, inventoryCount: inventory?.length });
+        console.log('Raw inventory data:', inventory);
 
         if (error || !inventory || inventory.length === 0) {
+          console.log('No inventory found');
           setVaccinesWithInventory([]);
           return;
         }
 
+        // Extract vaccine IDs from vaccine_doses (since vaccine_id now references vaccine_doses.id)
         const vaccineIdsWithInventory = inventory
           .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => item.vaccine_id);
+          .map(item => item.vaccine_doses?.vaccine_id);  // Get the actual vaccine ID from vaccine_doses
+
+        console.log('Vaccine IDs with inventory:', vaccineIdsWithInventory);
 
         const filteredVaccines = vaccines.filter(vaccine =>
           vaccineIdsWithInventory.includes(vaccine.id)
         );
 
+        console.log('Filtered vaccines from props:', filteredVaccines);
+
         let vaccinesWithQty = [];
 
         if (filteredVaccines.length > 0) {
+          // When we have vaccines from props, make sure each entry still exposes
+          // a consistent vaccine_id field (the vaccines table ID) so the
+          // select onChange handler can always use vaccine.vaccine_id.
           vaccinesWithQty = filteredVaccines.map(vaccine => {
-            const inventoryItem = inventory.find(item => item.vaccine_id === vaccine.id);
+            const inventoryItem = inventory.find(item => item.vaccine_doses?.vaccine_id === vaccine.id);
             return {
               ...vaccine,
+              vaccine_id: vaccine.id,
               availableQuantity: inventoryItem?.quantity_vial || 0
             };
           });
         } else {
+          console.log('Using inventory items directly as no matching vaccines in props');
           vaccinesWithQty = inventory
             .filter(item => (item.quantity_vial || 0) > 0)
             .map(item => ({
-              id: item.vaccine_id,
-              name: item.vaccine?.name || 'Unknown Vaccine',
-              batch_number: item.vaccine?.batch_number,
-              expiry_date: item.vaccine?.expiry_date,
+              id: item.id,  // Use barangay_vaccine_inventory.id as the unique key
+              vaccine_id: item.vaccine_doses?.vaccine_id,  // Store actual vaccine ID separately
+              name: item.vaccine_doses?.vaccine?.name || 'Unknown Vaccine',
+              batch_number: item.vaccine_doses?.vaccine?.batch_number,
+              expiry_date: item.vaccine_doses?.vaccine?.expiry_date,
               availableQuantity: item.quantity_vial || 0
             }));
         }
 
+        console.log('Final vaccines with quantity:', vaccinesWithQty);
         setVaccinesWithInventory(vaccinesWithQty);
       } catch (err) {
         console.error('Error loading vaccines with inventory:', err);
@@ -194,21 +212,24 @@ export default function ScheduleSessionModalWithParticipants({
         }
 
         try {
+          console.log('Validating vaccine:', vaccineItem.vaccine_id, 'for barangay:', effectiveBarangayId);
           const { isValid, availableQuantity, errors: validationErrors } = await validateVaccineForSchedule(
             vaccineItem.vaccine_id,
             effectiveBarangayId
           );
 
+          console.log('Validation result:', { isValid, availableQuantity, validationErrors });
           newInventoryMap[vaccineItem.vaccine_id] = {
             isValid,
             availableQuantity: availableQuantity || 0,
             validationErrors: validationErrors || []
           };
         } catch (err) {
+          console.error('Validation error:', err);
           newInventoryMap[vaccineItem.vaccine_id] = {
             isValid: false,
             availableQuantity: 0,
-            validationErrors: ['Error checking inventory']
+            validationErrors: ['Error checking inventory: ' + err.message]
           };
         }
       }
@@ -451,8 +472,29 @@ export default function ScheduleSessionModalWithParticipants({
                       <div>
                         <label className="block text-sm text-gray-600 mb-2">Select Vaccine</label>
                         <select
-                          value={vaccineItem.vaccine_id}
-                          onChange={(e) => handleVaccineChange(index, "vaccine_id", e.target.value)}
+                          value={vaccineItem.vaccine_id || ""}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            console.log('Vaccine dropdown changed:', { selectedId, index, currentVaccineId: vaccineItem.vaccine_id });
+
+                            // Build the updated vaccine item with both IDs
+                            const selectedVaccine = vaccinesWithInventory.find(
+                              (v) => v.vaccine_id === selectedId || v.id === selectedId
+                            );
+
+                            console.log('Selected vaccine found:', selectedVaccine);
+
+                            // Update the entire vaccine object in one go to avoid race conditions
+                            const newVaccines = [...formData.vaccines];
+                            newVaccines[index] = {
+                              ...newVaccines[index],
+                              vaccine_id: selectedId,
+                              inventory_id: selectedVaccine ? selectedVaccine.id : null
+                            };
+
+                            console.log('Updating formData with new vaccines:', newVaccines);
+                            onFormChange({ ...formData, vaccines: newVaccines });
+                          }}
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
                             errors[`vaccine_${index}`] ? 'border-red-500' : 'border-gray-300'
                           }`}
@@ -461,7 +503,7 @@ export default function ScheduleSessionModalWithParticipants({
                             {vaccinesWithInventory.length === 0 ? 'No vaccines in inventory' : 'Select vaccine'}
                           </option>
                           {vaccinesWithInventory.map((vaccine) => (
-                            <option key={vaccine.id} value={vaccine.id}>
+                            <option key={vaccine.id} value={vaccine.vaccine_id || vaccine.id}>
                               {vaccine.name}
                             </option>
                           ))}
@@ -475,12 +517,18 @@ export default function ScheduleSessionModalWithParticipants({
                           type="number"
                           value={vaccineItem.target ?? ""}
                           onChange={(e) => handleVaccineChange(index, "target", e.target.value)}
-                          placeholder={inventory.isValid ? `Max: ${inventory.availableQuantity} people` : 'Select vaccine first'}
+                          placeholder={
+                            !vaccineItem.vaccine_id
+                              ? 'Select vaccine first'
+                              : inventory.isValid
+                                ? `Max: ${inventory.availableQuantity} people`
+                                : 'Inventory validation failed, proceed with caution'
+                          }
                           min="1"
-                          disabled={!inventory.isValid}
+                          disabled={!vaccineItem.vaccine_id}
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent placeholder:text-gray-600 ${
                             errors[`target_${index}`] ? 'border-red-500' : 'border-gray-300'
-                          } ${!inventory.isValid ? 'bg-gray-50 text-gray-400' : ''}`}
+                          } ${!vaccineItem.vaccine_id ? 'bg-gray-50 text-gray-400' : ''}`}
                         />
                         {inventory.isValid && vaccineItem.target && parseInt(vaccineItem.target) > inventory.availableQuantity && (
                           <p className="text-xs text-amber-600 mt-1">
@@ -488,6 +536,16 @@ export default function ScheduleSessionModalWithParticipants({
                           </p>
                         )}
                       </div>
+
+                      {/* Inventory Status - Show validation errors if any */}
+                      {vaccineItem.vaccine_id && !inventory.isValid && inventory.validationErrors.length > 0 && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-sm text-red-900 font-semibold">Validation Issues:</p>
+                          {inventory.validationErrors.map((error, idx) => (
+                            <p key={idx} className="text-sm text-red-700">{error}</p>
+                          ))}
+                        </div>
+                      )}
 
                       {/* Inventory Status */}
                       {vaccineItem.vaccine_id && inventory.isValid && (

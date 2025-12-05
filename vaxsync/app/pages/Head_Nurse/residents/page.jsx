@@ -27,6 +27,8 @@ import { loadUserProfile } from "@/lib/vaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
+import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
+import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
 import { useOfflineResidents } from "@/hooks/useOfflineResidents";
 import { useOffline } from "@/components/OfflineProvider";
 
@@ -34,7 +36,7 @@ export default function ResidentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("pending");
   const [selectedBarangay, setSelectedBarangay] = useState("all");
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAddWizardOpen, setIsAddWizardOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
@@ -77,6 +79,10 @@ export default function ResidentsPage() {
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+
+  // Details modal state
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [detailsResident, setDetailsResident] = useState(null);
 
   // Available vaccine types
   const VACCINE_TYPES = [
@@ -661,287 +667,13 @@ export default function ResidentsPage() {
                 <Upload className="mr-2 h-4 w-4" />
                 Upload Master List
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-                setIsAddDialogOpen(open);
-                if (open) {
-                  // Reset form data when opening add dialog
-                  setFormData({
-                    name: "",
-                    birthday: "",
-                    sex: "",
-                    vaccine_status: "not_vaccinated",
-                    administered_date: "",
-                    barangay: "",
-                    vaccines_given: [],
-                    missed_schedule_of_vaccine: []
-                  });
-                }
-              }}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Resident
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Add New Resident</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateResident} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Full Name *</Label>
-                      <Input
-                        id="name"
-                        placeholder="Enter full name"
-                        value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="birthday">Birthday *</Label>
-                        <Input
-                          id="birthday"
-                          type="date"
-                          value={formData.birthday}
-                          onChange={(e) => setFormData({...formData, birthday: e.target.value})}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="sex">Sex *</Label>
-                        <Select value={formData.sex || ""} onValueChange={(value) => setFormData({...formData, sex: value})}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select sex" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Male">Male</SelectItem>
-                            <SelectItem value="Female">Female</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="administered_date">Vaccination Date *</Label>
-                      <Input
-                        id="administered_date"
-                        type="date"
-                        value={formData.administered_date}
-                        onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="vaccine_status">Vaccine Status</Label>
-                      <Select value={formData.vaccine_status || "not_vaccinated"} onValueChange={(value) => setFormData({...formData, vaccine_status: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select vaccine status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="not_vaccinated">Not Vaccinated</SelectItem>
-                          <SelectItem value="partially_vaccinated">Partially Vaccinated</SelectItem>
-                          <SelectItem value="fully_vaccinated">Fully Vaccinated</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="barangay">Barangay *</Label>
-                      <Select value={formData.barangay} onValueChange={(value) => setFormData({...formData, barangay: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select barangay" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BARANGAYS.map((b) => (
-                            <SelectItem key={b} value={b}>{b}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label>Vaccines Given</Label>
-                      <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {VACCINE_TYPES.map((vaccine) => (
-                            <div key={vaccine} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`vaccine-${vaccine}`}
-                                checked={formData.vaccines_given.includes(vaccine)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setFormData({
-                                      ...formData,
-                                      vaccines_given: [...formData.vaccines_given, vaccine]
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      vaccines_given: formData.vaccines_given.filter(v => v !== vaccine)
-                                    });
-                                  }
-                                }}
-                              />
-                              <Label
-                                htmlFor={`vaccine-${vaccine}`}
-                                className="text-sm font-normal cursor-pointer"
-                              >
-                                {vaccine.toUpperCase()}
-                              </Label>
-                            </div>
-                          ))}
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="vaccine-other"
-                              checked={formData.vaccines_given.includes("other")}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setFormData({
-                                    ...formData,
-                                    vaccines_given: [...formData.vaccines_given, "other"]
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    vaccines_given: formData.vaccines_given.filter(v => v !== "other")
-                                  });
-                                }
-                              }}
-                            />
-                            <Label
-                              htmlFor="vaccine-other"
-                              className="text-sm font-normal cursor-pointer"
-                            >
-                              Other
-                            </Label>
-                          </div>
-                        </div>
-                        {formData.vaccines_given.includes("other") && (
-                          <Input
-                            type="text"
-                            placeholder="Specify other"
-                            className="mt-3"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                const otherVaccine = e.target.value;
-                                if (otherVaccine.trim()) {
-                                  setFormData({
-                                    ...formData,
-                                    vaccines_given: formData.vaccines_given.map(v => v === "other" ? otherVaccine : v)
-                                  });
-                                  e.target.value = "";
-                                }
-                              }
-                            }}
-                          />
-                        )}
-                        {formData.vaccines_given.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-3">
-                            Selected: {formData.vaccines_given.join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label>Missed Schedule of Vaccine</Label>
-                      <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {VACCINE_TYPES.map((vaccine) => (
-                            <div key={vaccine} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`missed-vaccine-${vaccine}`}
-                                checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setFormData({
-                                      ...formData,
-                                      missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
-                                    });
-                                  } else {
-                                    setFormData({
-                                      ...formData,
-                                      missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
-                                    });
-                                  }
-                                }}
-                              />
-                              <Label
-                                htmlFor={`missed-vaccine-${vaccine}`}
-                                className="text-sm font-normal cursor-pointer"
-                              >
-                                {vaccine.toUpperCase()}
-                              </Label>
-                            </div>
-                          ))}
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="missed-vaccine-other"
-                              checked={formData.missed_schedule_of_vaccine.includes("other")}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setFormData({
-                                    ...formData,
-                                    missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, "other"]
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== "other")
-                                  });
-                                }
-                              }}
-                            />
-                            <Label
-                              htmlFor="missed-vaccine-other"
-                              className="text-sm font-normal cursor-pointer"
-                            >
-                              Other
-                            </Label>
-                          </div>
-                        </div>
-                        {formData.missed_schedule_of_vaccine.includes("other") && (
-                          <Input
-                            type="text"
-                            placeholder="Specify other"
-                            className="mt-3"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                const otherVaccine = e.target.value;
-                                if (otherVaccine.trim()) {
-                                  setFormData({
-                                    ...formData,
-                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.map(v => v === "other" ? otherVaccine : v)
-                                  });
-                                  e.target.value = "";
-                                }
-                              }
-                            }}
-                          />
-                        )}
-                        {formData.missed_schedule_of_vaccine.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-3">
-                            Selected: {formData.missed_schedule_of_vaccine.join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end space-x-2">
-                      <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
-                        Create Resident
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <Button 
+                variant="outline"
+                onClick={() => setIsAddWizardOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Resident
+              </Button>
               
               <Button variant="outline" onClick={handleExport}>
                 <Download className="mr-2 h-4 w-4" />
@@ -1047,8 +779,13 @@ export default function ResidentsPage() {
               handleDeleteResident={handleDeleteResident}
               getVaccineStatusBadge={getVaccineStatusBadge}
               formatDate={formatDate}
+              showApproveButton={true}
               selectedResidents={selectedResidents}
               onToggleSelection={toggleResidentSelection}
+              onViewDetails={(resident) => {
+                setDetailsResident(resident);
+                setIsDetailsModalOpen(true);
+              }}
             />
           ) : (
             <ApprovedResidentsTable
@@ -1059,6 +796,10 @@ export default function ResidentsPage() {
               handleDeleteResident={handleDeleteResident}
               getVaccineStatusBadge={getVaccineStatusBadge}
               formatDate={formatDate}
+              onViewDetails={(resident) => {
+                setDetailsResident(resident);
+                setIsDetailsModalOpen(true);
+              }}
             />
           )}
 
@@ -1246,6 +987,28 @@ export default function ResidentsPage() {
             }}
             userProfile={userProfile}
             selectedBarangay={selectedBarangay === "all" ? "" : selectedBarangay}
+          />
+
+          {/* Resident Details Modal */}
+          <ResidentDetailsModal
+            isOpen={isDetailsModalOpen}
+            onClose={() => {
+              setIsDetailsModalOpen(false);
+              setDetailsResident(null);
+            }}
+            resident={detailsResident}
+          />
+
+          {/* Add Resident Wizard */}
+          <AddResidentWizard
+            isOpen={isAddWizardOpen}
+            onClose={() => setIsAddWizardOpen(false)}
+            selectedBarangay={selectedBarangay === "all" ? "" : selectedBarangay}
+            userId={userProfile?.id}
+            onSuccess={() => {
+              refreshResidents();
+              fetchCounts();
+            }}
           />
           
         </main>

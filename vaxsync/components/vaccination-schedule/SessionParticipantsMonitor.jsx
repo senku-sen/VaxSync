@@ -7,7 +7,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Check, X, Edit2, Trash2, Plus, CheckCircle, XCircle } from "lucide-react";
+import { Check, X, Edit2, Trash2, Plus, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import {
   fetchSessionBeneficiaries,
   updateBeneficiaryStatus,
@@ -37,12 +38,32 @@ export default function SessionParticipantsMonitor({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState(null);
+  const [actualVaccineId, setActualVaccineId] = useState(null);
 
   useEffect(() => {
     if (sessionId) {
       loadData();
+      // Fetch the actual vaccine ID from the session
+      fetchActualVaccineId();
     }
   }, [sessionId]);
+
+  const fetchActualVaccineId = async () => {
+    try {
+      const { data: session, error: sessionError } = await supabase
+        .from('vaccination_sessions')
+        .select('barangay_vaccine_inventory:vaccine_id(vaccine_doses:vaccine_id(vaccine_id))')
+        .eq('id', sessionId)
+        .single();
+
+      if (!sessionError && session?.barangay_vaccine_inventory?.vaccine_doses?.vaccine_id) {
+        setActualVaccineId(session.barangay_vaccine_inventory.vaccine_doses.vaccine_id);
+        console.log('Actual vaccine ID:', session.barangay_vaccine_inventory.vaccine_doses.vaccine_id);
+      }
+    } catch (err) {
+      console.error('Error fetching actual vaccine ID:', err);
+    }
+  };
 
   const loadData = async () => {
     setIsLoading(true);
@@ -150,24 +171,30 @@ export default function SessionParticipantsMonitor({
   // Approve both attended and vaccinated
   const handleApprove = async (beneficiary) => {
     try {
-      // Update beneficiary status
+      // Update beneficiary status with vaccine name
       const result = await updateBeneficiaryStatus(beneficiary.id, {
         attended: true,
-        vaccinated: true
+        vaccinated: true,
+        vaccine_name: vaccineName || beneficiary.vaccine_name
       });
 
       if (result.success) {
         // Also update resident's vaccine status and add vaccine to vaccines_given
-        if (beneficiary.resident_id && vaccineName) {
+        // Use vaccine_name from beneficiary record if vaccineName prop is not provided
+        const vaccineToRecord = vaccineName || beneficiary.vaccine_name;
+        
+        if (beneficiary.resident_id && vaccineToRecord) {
           const residentUpdateResult = await updateResidentVaccineStatus(
             beneficiary.resident_id,
-            vaccineName
+            vaccineToRecord
           );
 
           if (!residentUpdateResult.success) {
             console.warn('Warning: Failed to update resident vaccine status:', residentUpdateResult.error);
             // Don't fail the approval if resident update fails - just warn
           }
+        } else if (beneficiary.resident_id && !vaccineToRecord) {
+          console.warn('Warning: No vaccine name available to record for resident');
         }
 
         // Increment administered count and update database
@@ -181,10 +208,10 @@ export default function SessionParticipantsMonitor({
             console.log('✅ Session administered count updated');
             
             // Deduct from inventory
-            if (barangayId && vaccineId) {
+            if (barangayId && actualVaccineId) {
               const deductResult = await deductBarangayVaccineInventory(
                 barangayId,
-                vaccineId,
+                actualVaccineId,
                 1
               );
               
@@ -195,7 +222,7 @@ export default function SessionParticipantsMonitor({
               }
               
               // Also deduct from main vaccine inventory
-              const mainDeductResult = await deductMainVaccineInventory(vaccineId, 1);
+              const mainDeductResult = await deductMainVaccineInventory(actualVaccineId, 1);
               
               if (mainDeductResult.success) {
                 console.log('✅ Main vaccine inventory deducted');
@@ -258,7 +285,7 @@ export default function SessionParticipantsMonitor({
             if (barangayId && vaccineId) {
               const addBackResult = await addBackBarangayVaccineInventory(
                 barangayId,
-                vaccineId,
+                actualVaccineId,
                 1
               );
               
@@ -269,7 +296,7 @@ export default function SessionParticipantsMonitor({
               }
               
               // Also add back to main vaccine inventory
-              const mainAddBackResult = await addMainVaccineInventory(vaccineId, 1);
+              const mainAddBackResult = await addMainVaccineInventory(actualVaccineId, 1);
               
               if (mainAddBackResult.success) {
                 console.log('✅ Main vaccine inventory added back');
@@ -333,7 +360,7 @@ export default function SessionParticipantsMonitor({
             if (barangayId && vaccineId) {
               const addBackResult = await addBackBarangayVaccineInventory(
                 barangayId,
-                vaccineId,
+                actualVaccineId,
                 1
               );
               
@@ -344,7 +371,7 @@ export default function SessionParticipantsMonitor({
               }
               
               // Also add back to main vaccine inventory
-              const mainAddBackResult = await addMainVaccineInventory(vaccineId, 1);
+              const mainAddBackResult = await addMainVaccineInventory(actualVaccineId, 1);
               
               if (mainAddBackResult.success) {
                 console.log('✅ Main vaccine inventory added back');
@@ -446,7 +473,10 @@ export default function SessionParticipantsMonitor({
                   Birthday
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
-                  Status
+                  Approval Status
+                </th>
+                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
+                  Vaccination Status
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
                   Actions
@@ -454,25 +484,51 @@ export default function SessionParticipantsMonitor({
               </tr>
             </thead>
             <tbody>
-              {beneficiaries.map((beneficiary, index) => (
+              {beneficiaries.map((beneficiary, index) => {
+                const isResidentApproved = beneficiary.residents?.status === "approved";
+                const isUnapproved = beneficiary.residents?.status === "pending";
+                
+                return (
                 <tr
                   key={beneficiary.id}
-                  className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  className={`${index % 2 === 0 ? "bg-white" : "bg-gray-50"} ${isUnapproved ? "border-l-4 border-yellow-400" : ""}`}
                 >
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                    {beneficiary.residents?.name || "Unknown"}
+                    <div className="flex items-center gap-2">
+                      {isUnapproved && (
+                        <AlertCircle size={18} className="text-yellow-600 flex-shrink-0" title="Resident not yet approved by Head Nurse" />
+                      )}
+                      {beneficiary.residents?.name || "Unknown"}
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {beneficiary.residents?.birthday || "N/A"}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center">
-                      {getOverallStatus(beneficiary) === "approved" ? (
-                        <Check size={28} className="text-green-600" />
-                      ) : getOverallStatus(beneficiary) === "rejected" ? (
-                        <X size={28} className="text-red-600" />
+                      {isUnapproved ? (
+                        <span className="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-1 rounded">Pending</span>
                       ) : (
-                        <span className="text-3xl text-gray-400">?</span>
+                        <>
+                          {getOverallStatus(beneficiary) === "approved" ? (
+                            <Check size={28} className="text-green-600" />
+                          ) : getOverallStatus(beneficiary) === "rejected" ? (
+                            <X size={28} className="text-red-600" />
+                          ) : (
+                            <span className="text-3xl text-gray-400">?</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center">
+                      {getOverallStatus(beneficiary) === "approved" ? (
+                        <Check size={20} className="text-green-600" />
+                      ) : getOverallStatus(beneficiary) === "rejected" ? (
+                        <X size={20} className="text-red-600" />
+                      ) : (
+                        <span className="text-2xl text-gray-400">?</span>
                       )}
                     </div>
                   </td>
@@ -480,25 +536,25 @@ export default function SessionParticipantsMonitor({
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleApprove(beneficiary)}
-                        disabled={!areActionsEnabled()}
+                        disabled={!areActionsEnabled() || isUnapproved}
                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                          areActionsEnabled()
+                          areActionsEnabled() && !isUnapproved
                             ? "bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer"
                             : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                         }`}
-                        title={areActionsEnabled() ? "Approve (Attended & Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
+                        title={isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Approve (Attended & Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <Check size={18} />
                       </button>
                       <button
                         onClick={() => handleReject(beneficiary)}
-                        disabled={!areActionsEnabled()}
+                        disabled={!areActionsEnabled() || isUnapproved}
                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                          areActionsEnabled()
+                          areActionsEnabled() && !isUnapproved
                             ? "bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer"
                             : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                         }`}
-                        title={areActionsEnabled() ? "Reject (Not Attended & Not Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
+                        title={isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Reject (Not Attended & Not Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <X size={18} />
                       </button>
@@ -517,7 +573,8 @@ export default function SessionParticipantsMonitor({
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         ) : (

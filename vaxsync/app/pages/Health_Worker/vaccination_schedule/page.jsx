@@ -498,38 +498,10 @@ export default function VaccinationSchedule() {
             }
           }
 
-          // Reserve vaccine vials for this session
-          // Calculate vials needed based on vaccine type and target people
-          const vaccineName = getVaccineName(vaccine.vaccine_id, vaccines);
-          const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 10;
-          const vialsNeeded = calculateVialsNeeded(vaccineName, parseInt(vaccine.target));
-
-          console.log(`Attempting to reserve vials for ${vaccineName}:`, {
-            barangayId: userProfile.barangays.id,
-            vaccineId: vaccine.vaccine_id,
-            target: vaccine.target,
-            dosesPerVial,
-            vialsNeeded
-          });
-
-          const reserveResult = await reserveBarangayVaccineInventory(
-            userProfile.barangays.id,
-            vaccine.vaccine_id,
-            vialsNeeded
-          );
-
-          if (reserveResult.success) {
-            console.log(`✅ Vaccine vials reserved for ${vaccineName}: ${vialsNeeded} vials`);
-          } else {
-            console.warn(`⚠️ Warning: Failed to reserve vaccine vials for ${vaccineName}:`, {
-              error: reserveResult.error,
-              vialsNeeded,
-              barangayId: userProfile.barangays.id,
-              vaccineId: vaccine.vaccine_id
-            });
-            // Don't fail session creation if reservation fails
-            // Reservation is optional - session can still be created
-          }
+          // NOTE: Vaccine reservation is disabled
+          // The target does NOT deduct from inventory
+          // Inventory is only deducted when doses are actually administered
+          console.log(`Session created for vaccine. Inventory will be deducted only when doses are administered.`);
         } else {
           throw new Error(`Failed to create session for ${getVaccineName(vaccine.vaccine_id, vaccines)}: ${result.error}`);
         }
@@ -707,7 +679,9 @@ export default function VaccinationSchedule() {
             formData={formData}
             errors={errors}
             onFormChange={(newFormData) => {
+              console.log('Parent onFormChange called with:', newFormData);
               setFormData(newFormData);
+              console.log('Parent formData state updated to:', newFormData);
               // Clear errors when user starts typing
               Object.keys(newFormData).forEach(key => {
                 if (errors[key] && newFormData[key]) {

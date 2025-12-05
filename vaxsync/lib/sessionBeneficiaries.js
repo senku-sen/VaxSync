@@ -11,11 +11,12 @@ import { supabase } from "./supabase";
  * Add residents to a vaccination session
  * @param {string} sessionId - Session ID
  * @param {Array} residentIds - Array of resident IDs to add
+ * @param {string} vaccineName - Optional vaccine name for custom vaccines (when session_id is null)
  * @returns {Promise<Object>} - { success: boolean, data: Array, error: string }
  */
-export const addBeneficiariesToSession = async (sessionId, residentIds) => {
+export const addBeneficiariesToSession = async (sessionId, residentIds, vaccineName = null) => {
   try {
-    console.log('Adding beneficiaries to session:', { sessionId, residentIds });
+    console.log('Adding beneficiaries to session:', { sessionId, residentIds, vaccineName });
 
     if (!sessionId || !residentIds || residentIds.length === 0) {
       return {
@@ -29,6 +30,7 @@ export const addBeneficiariesToSession = async (sessionId, residentIds) => {
     const beneficiaries = residentIds.map(residentId => ({
       session_id: sessionId,
       resident_id: residentId,
+      vaccine_name: vaccineName,  // Store vaccine name for custom vaccines
       attended: null,
       vaccinated: null
     }));
@@ -37,7 +39,7 @@ export const addBeneficiariesToSession = async (sessionId, residentIds) => {
     const { data, error } = await supabase
       .from('session_beneficiaries')
       .insert(beneficiaries)
-      .select('id, session_id, resident_id, attended, vaccinated, created_at');
+      .select('id, session_id, resident_id, vaccine_name, attended, vaccinated, created_at');
 
     if (error) {
       console.error('Error adding beneficiaries:', error);
@@ -76,7 +78,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
     // Fetch beneficiaries with resident data using a simpler approach
     const { data, error } = await supabase
       .from('session_beneficiaries')
-      .select('id, session_id, resident_id, attended, vaccinated, created_at')
+      .select('id, session_id, resident_id, vaccine_name, attended, vaccinated, created_at')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
 
@@ -94,7 +96,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
       const residentIds = data.map(b => b.resident_id);
       const { data: residents, error: residentsError } = await supabase
         .from('residents')
-        .select('id, name, contact, birthday, sex')
+        .select('id, name, birthday, sex, status')
         .in('id', residentIds);
 
       if (residentsError) {
@@ -128,7 +130,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
 /**
  * Update beneficiary vaccination status
  * @param {string} beneficiaryId - Beneficiary record ID
- * @param {Object} updateData - { attended, vaccinated, notes }
+ * @param {Object} updateData - { attended, vaccinated, notes, vaccine_name }
  * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
  */
 export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
@@ -146,6 +148,9 @@ export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
     }
     if (updateData.notes !== undefined) {
       updateObject.notes = updateData.notes;
+    }
+    if (updateData.vaccine_name !== undefined) {
+      updateObject.vaccine_name = updateData.vaccine_name;
     }
 
     const { data, error } = await supabase

@@ -174,7 +174,7 @@ export async function validateVaccineForRequest(vaccineId) {
  * 1. Vaccine ID exists and is valid
  * 2. Vaccine is not expired
  * 3. Vaccine has inventory in the barangay
- * @param {string} vaccineId - The vaccine ID to validate
+ * @param {string} vaccineId - The vaccine_doses ID (from barangay_vaccine_inventory.vaccine_id)
  * @param {string} barangayId - The barangay ID (required for inventory check)
  * @returns {Promise<{isValid: boolean, vaccine: Object|null, availableQuantity: number, errors: Array}>}
  */
@@ -196,8 +196,32 @@ export async function validateVaccineForSchedule(vaccineId, barangayId) {
       return { isValid: false, vaccine: null, availableQuantity: 0, errors };
     }
 
-    // Fetch vaccine details
-    const { data: vaccine, error: vaccineError } = await getVaccineById(vaccineId);
+    // vaccineId could be either:
+    // 1. vaccine_doses.id (from barangay_vaccine_inventory.vaccine_id)
+    // 2. vaccines.id (from form submission)
+    // Try to fetch as vaccine_doses first, if that fails, treat it as vaccines.id
+    
+    let actualVaccineId = vaccineId;
+    
+    console.log('Checking if vaccineId is vaccine_doses.id:', vaccineId);
+    const { data: vaccineDose, error: doseError } = await supabase
+      .from('vaccine_doses')
+      .select('vaccine_id')
+      .eq('id', vaccineId)
+      .single();
+
+    if (!doseError && vaccineDose) {
+      // It was a vaccine_doses.id, extract the actual vaccine ID
+      actualVaccineId = vaccineDose.vaccine_id;
+      console.log('Actual vaccine ID from vaccine_doses:', actualVaccineId);
+    } else {
+      // It's likely already a vaccines.id, use it directly
+      console.log('vaccineId is already a vaccines.id, using directly:', vaccineId);
+      actualVaccineId = vaccineId;
+    }
+
+    // Fetch vaccine details using the actual vaccine ID
+    const { data: vaccine, error: vaccineError } = await getVaccineById(actualVaccineId);
 
     if (vaccineError || !vaccine) {
       errors.push('Vaccine not found in database');
@@ -216,25 +240,50 @@ export async function validateVaccineForSchedule(vaccineId, barangayId) {
     }
 
     // Check if vaccine has inventory in barangay
-    const { total: inventoryTotal, error: inventoryError } = await getBarangayVaccineTotal(barangayId, vaccineId);
+    // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
+    // So we need to find vaccine_doses records for this vaccine and check inventory
+    console.log('Checking inventory for vaccine:', { actualVaccineId, barangayId });
+    
+    const { data: vaccineDoses, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id')
+      .eq('vaccine_id', actualVaccineId);
 
-    if (inventoryError) {
-      errors.push('Could not check inventory availability');
-    }
-
-    if (!inventoryTotal || inventoryTotal === 0) {
-      errors.push('No vaccine inventory available in this barangay');
+    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
+      console.warn('No vaccine_doses found for vaccine:', actualVaccineId);
+      errors.push('No vaccine doses found for this vaccine');
     } else {
-      // Calculate reserved vials from existing scheduled sessions
-      const { totalReserved, error: reservedError } = await getReservedVialsByScheduledSessions(vaccineId, barangayId);
+      // Get inventory for all vaccine_doses of this vaccine
+      let totalInventory = 0;
+      
+      for (const dose of vaccineDoses) {
+        const { total: inventoryTotal, error: inventoryError } = await getBarangayVaccineTotal(barangayId, dose.id);
+        
+        if (!inventoryError && inventoryTotal) {
+          totalInventory += inventoryTotal;
+        }
+      }
 
-      if (reservedError) {
-        console.warn('Could not calculate reserved vials, proceeding with total inventory:', reservedError);
-        availableQuantity = inventoryTotal;
+      console.log('Total inventory across all doses:', totalInventory);
+
+      if (totalInventory === 0) {
+        errors.push('No vaccine inventory available in this barangay');
       } else {
+        // Calculate reserved vials from existing scheduled sessions
+        // We need to sum reserved vials across all vaccine_doses for this vaccine
+        let totalReserved = 0;
+        
+        for (const dose of vaccineDoses) {
+          const { totalReserved: reserved, error: reservedError } = await getReservedVialsByScheduledSessions(dose.id, barangayId);
+          
+          if (!reservedError && reserved) {
+            totalReserved += reserved;
+          }
+        }
+
         // Available = Total - Reserved
-        availableQuantity = Math.max(0, inventoryTotal - totalReserved);
-        console.log('Inventory calculation:', { inventoryTotal, totalReserved, availableQuantity });
+        availableQuantity = Math.max(0, totalInventory - totalReserved);
+        console.log('Inventory calculation:', { totalInventory, totalReserved, availableQuantity });
       }
     }
 

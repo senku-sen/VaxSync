@@ -15,10 +15,9 @@ import { useState, useEffect } from "react";
 import { fetchBarangayVaccineInventory } from "@/lib/barangayVaccineInventory";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 
-export default function Inventory({
-  title = "Inventory Management",
-  subtitle = "View vaccine stock and supplies",
-}) {
+export default function Inventory() {
+  const title = "Inventory Management";
+  const subtitle = "View vaccine stock and supplies";
   // List of all vaccines in barangay inventory
   const [vaccines, setVaccines] = useState([]);
   
@@ -55,7 +54,7 @@ export default function Inventory({
       }
     } catch (err) {
       console.error('Error initializing data:', err);
-      setError(err.message);
+      setError(err.message || "Failed to load inventory");
     } finally {
       setIsLoading(false);
     }
@@ -67,30 +66,34 @@ export default function Inventory({
       const { data, error } = await fetchBarangayVaccineInventory(barangayId);
       if (error) {
         console.error("Error fetching barangay vaccines:", error);
-        setError(error);
+        // Extract error message properly
+        const errorMsg = error?.message || error?.details || JSON.stringify(error);
+        setError(errorMsg);
       } else {
         setVaccines(data || []);
       }
     } catch (err) {
       console.error('Error in fetchList:', err);
-      setError(err.message);
+      setError(err.message || "Failed to load inventory");
     }
   };
 
   // Filter vaccines based on search term
   const filtered = vaccines.filter((v) => {
     const term = searchTerm.toLowerCase();
+    const vaccineName = v.vaccine_doses?.vaccine?.name || "";
+    const doseCode = v.vaccine_doses?.dose_code || "";
     return (
-      (v.vaccine?.name || "").toLowerCase().includes(term) ||
+      vaccineName.toLowerCase().includes(term) ||
       (v.batch_number || "").toLowerCase().includes(term) ||
-      (v.dose_code || "").toLowerCase().includes(term)
+      doseCode.toLowerCase().includes(term)
     );
   });
 
   // Determine vaccine status based on expiry date and quantity
   const getVaccineStatus = (vaccine) => {
     const today = new Date();
-    const expiryDate = vaccine.vaccine?.expiry_date ? new Date(vaccine.vaccine.expiry_date) : null;
+    const expiryDate = vaccine.expiry_date ? new Date(vaccine.expiry_date) : null;
     const quantity = vaccine.quantity_vial || 0;
 
     // Check if expired
@@ -177,8 +180,8 @@ export default function Inventory({
                       >
                         <td className="px-6 py-4 font-medium text-gray-900">
                           <div>
-                            <p>{v.vaccine?.name || "N/A"}</p>
-                            <p className="text-xs text-gray-500 font-normal">{v.dose_code || "N/A"}</p>
+                            <p>{v.vaccine_doses?.vaccine?.name || "N/A"}</p>
+                            <p className="text-xs text-gray-500 font-normal">{v.vaccine_doses?.dose_code || "N/A"}</p>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-gray-600">
@@ -191,7 +194,7 @@ export default function Inventory({
                           {v.quantity_dose ?? "N/A"}
                         </td>
                         <td className="px-6 py-4 text-gray-600">
-                          {v.vaccine?.expiry_date || "N/A"}
+                          {v.expiry_date || "N/A"}
                         </td>
                         <td className="px-6 py-4">
                           {(() => {
@@ -225,8 +228,8 @@ export default function Inventory({
                       <div key={v.id || i} className="bg-white border border-gray-200 rounded-lg p-4">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <h3 className="font-semibold text-gray-900">{v.vaccine?.name || "N/A"}</h3>
-                            <p className="text-xs text-gray-500 font-normal">Dose: {v.dose_code || "N/A"}</p>
+                            <h3 className="font-semibold text-gray-900">{v.vaccine_doses?.vaccine?.name || "N/A"}</h3>
+                            <p className="text-xs text-gray-500 font-normal">Dose: {v.vaccine_doses?.dose_code || "N/A"}</p>
                             <p className="text-sm text-gray-500">Batch: {v.batch_number || "N/A"}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
@@ -244,7 +247,7 @@ export default function Inventory({
                           </div>
                           <div>
                             <p className="text-gray-500">Expiry</p>
-                            <p className="font-medium">{v.vaccine?.expiry_date || "N/A"}</p>
+                            <p className="font-medium">{v.expiry_date || "N/A"}</p>
                           </div>
                         </div>
                       </div>

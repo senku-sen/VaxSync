@@ -13,12 +13,29 @@ export async function fetchBarangayVaccineInventory(barangayId) {
     const { data, error } = await supabase
       .from('barangay_vaccine_inventory')
       .select(`
-        *,
-        vaccine:vaccine_id (
+        id,
+        barangay_id,
+        vaccine_id,
+        quantity_vial,
+        quantity_dose,
+        reserved_vial,
+        batch_number,
+        expiry_date,
+        received_date,
+        created_at,
+        updated_at,
+        vaccine_doses:vaccine_id (
           id,
-          name,
-          batch_number,
-          expiry_date
+          vaccine_id,
+          dose_code,
+          dose_label,
+          dose_number,
+          quantity_available,
+          vaccine:vaccine_id (
+            id,
+            name,
+            doses
+          )
         )
       `)
       .eq('barangay_id', barangayId)
@@ -157,12 +174,27 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
     console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
 
-    // Get ALL inventory records for this vaccine in this barangay - FIFO (oldest first)
+    // Find all vaccine_doses for this vaccine
+    // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
+    const { data: vaccineDoses, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id')
+      .eq('vaccine_id', vaccineId);
+
+    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
+      console.error('No vaccine_doses found for vaccine:', vaccineId);
+      return { success: false, error: 'No vaccine doses found', deductedRecords: [] };
+    }
+
+    const vaccineDoseIds = vaccineDoses.map(d => d.id);
+    console.log('Vaccine dose IDs:', vaccineDoseIds);
+
+    // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
     const { data: inventory, error: fetchError } = await supabase
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
-      .eq('vaccine_id', vaccineId)
+      .in('vaccine_id', vaccineDoseIds)
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
       .order('id', { ascending: true });  // Secondary sort by ID for consistency
 
@@ -265,22 +297,43 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
     console.log('🟢 FIFO Adding back vaccine to inventory:', { barangayId, vaccineId, quantityToAdd });
 
     // Get vaccine name to look up doses per vial
-    const { data: vaccineData } = await supabase
+    // Fetch vaccine with error handling
+    const { data: vaccineData, error: vaccineError } = await supabase
       .from('vaccines')
-      .select('name')
-      .eq('id', vaccineId)
-      .single();
+      .select('id, name')
+      .eq('id', vaccineId);
 
-    const vaccineName = vaccineData?.name || '';
+    if (vaccineError || !vaccineData || vaccineData.length === 0) {
+      console.warn('⚠️ Warning: Vaccine not found (may have been deleted):', vaccineError?.message);
+      return { success: false, error: 'Vaccine not found', addedRecords: [] };
+    }
+
+    const vaccineName = vaccineData[0]?.name || '';
     const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
     console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
 
-    // Get ALL inventory records for this vaccine in this barangay - FIFO (oldest first)
+    // Find all vaccine_doses for this vaccine
+    // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
+    const { data: vaccineDoses, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id')
+      .eq('vaccine_id', vaccineId);
+
+    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
+      console.warn('⚠️ Warning: No vaccine_doses found for vaccine:', vaccineId);
+      // Don't fail - vaccine_doses may not exist, just skip this step
+      return { success: true, error: null, addedRecords: [] };
+    }
+
+    const vaccineDoseIds = vaccineDoses.map(d => d.id);
+    console.log('Vaccine dose IDs:', vaccineDoseIds);
+
+    // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
     const { data: inventory, error: fetchError } = await supabase
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
-      .eq('vaccine_id', vaccineId)
+      .in('vaccine_id', vaccineDoseIds)
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
       .order('id', { ascending: true });  // Secondary sort by ID for consistency
 
@@ -497,30 +550,32 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
 /**
  * Release reserved vaccine vials (when session is cancelled)
  * @param {string} barangayId - The barangay ID
- * @param {string} vaccineId - The vaccine ID
+ * @param {string} inventoryId - The inventory ID
  * @param {number} quantityToRelease - Number of vials to release
  * @returns {Promise<{success: boolean, error: Object|null}>}
  */
-export async function releaseBarangayVaccineReservation(barangayId, vaccineId, quantityToRelease) {
+export async function releaseBarangayVaccineReservation(barangayId, inventoryId, quantityToRelease) {
   try {
-    console.log('Releasing vaccine reservation:', { barangayId, vaccineId, quantityToRelease });
+    console.log('Releasing vaccine reservation:', { barangayId, inventoryId, quantityToRelease });
 
-    // Get current inventory
+    if (!inventoryId) {
+      console.warn('⚠️ Warning: No inventory ID provided');
+      return { success: true, error: null }; // Gracefully skip
+    }
+
+    // Get current inventory directly using the inventory ID
     const { data: inventory, error: fetchError } = await supabase
       .from('barangay_vaccine_inventory')
       .select('id, reserved_vial')
-      .eq('barangay_id', barangayId)
-      .eq('vaccine_id', vaccineId)
-      .order('created_at', { ascending: true })
-      .limit(1);
+      .eq('id', inventoryId)
+      .single();
 
-    if (fetchError || !inventory || inventory.length === 0) {
-      console.error('Inventory not found:', fetchError);
-      return { success: false, error: 'Inventory not found' };
+    if (fetchError || !inventory) {
+      console.warn('⚠️ Warning: Inventory not found (may have been deleted):', fetchError?.message);
+      return { success: true, error: null }; // Gracefully skip
     }
 
-    const currentInventory = inventory[0];
-    const currentReserved = currentInventory.reserved_vial || 0;
+    const currentReserved = inventory.reserved_vial || 0;
     const newReservedQuantity = Math.max(0, currentReserved - quantityToRelease);
 
     // Update inventory
@@ -530,7 +585,7 @@ export async function releaseBarangayVaccineReservation(barangayId, vaccineId, q
         reserved_vial: newReservedQuantity,
         updated_at: new Date().toISOString()
       })
-      .eq('id', currentInventory.id);
+      .eq('id', inventory.id);
 
     if (updateError) {
       console.error('Error releasing reservation:', updateError);
@@ -588,17 +643,24 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
   try {
     console.log('🟢 FIFO Adding back to main vaccine inventory:', { vaccineId, quantityToAdd });
 
+    if (!vaccineId) {
+      console.warn('⚠️ Warning: No vaccine ID provided');
+      return { success: false, error: 'Vaccine ID is required' };
+    }
+
     // Add back to vaccines table
-    const { data: vaccine, error: vaccineError } = await supabase
+    const { data: vaccineData, error: vaccineError } = await supabase
       .from('vaccines')
       .select('id, quantity_available, name')
-      .eq('id', vaccineId)
-      .single();
+      .eq('id', vaccineId);
 
-    if (vaccineError || !vaccine) {
-      console.error('Vaccine not found:', vaccineError);
-      return { success: false, error: 'Vaccine not found' };
+    if (vaccineError || !vaccineData || vaccineData.length === 0) {
+      console.warn('⚠️ Warning: Vaccine not found (may have been deleted):', vaccineError?.message);
+      // Don't fail - vaccine may have been deleted, just skip main inventory update
+      return { success: true, error: null };
     }
+
+    const vaccine = vaccineData[0];
 
     // Get doses per vial from mapping
     const vaccineName = vaccine.name || '';
@@ -694,6 +756,11 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
   try {
     console.log('🔴 FIFO Deducting from main vaccine inventory:', { vaccineId, quantityToDeduct });
 
+    if (!vaccineId) {
+      console.warn('⚠️ Warning: No vaccine ID provided');
+      return { success: false, error: 'Vaccine ID is required' };
+    }
+
     // Deduct from vaccines table
     const { data: vaccine, error: vaccineError } = await supabase
       .from('vaccines')
@@ -702,8 +769,9 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
       .single();
 
     if (vaccineError || !vaccine) {
-      console.error('Vaccine not found:', vaccineError);
-      return { success: false, error: 'Vaccine not found' };
+      console.warn('⚠️ Warning: Vaccine not found (may have been deleted):', vaccineError?.message);
+      // Don't fail - vaccine may have been deleted, just skip main inventory update
+      return { success: true, error: null };
     }
 
     // Get doses per vial from mapping
