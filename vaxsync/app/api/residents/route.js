@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Use service role key for backend operations (bypasses RLS)
+// Fallback to anon key if service role key is not available
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  supabaseKey
+);
 
 // Parse CSV line (handles quoted fields)
 function parseCSVLine(line) {
@@ -193,63 +201,24 @@ function determineVaccineStatus(vaccines) {
   return vaccines.length > 3 ? 'fully_vaccinated' : 'partially_vaccinated';
 }
 
+// POST - Create new resident (JSON only, CSV uploads go to /api/residents/upload)
 export async function POST(request) {
   try {
-    // Check if this is a JSON request (for adding single resident) or FormData (for CSV upload)
+    const body = await request.json();
     const contentType = request.headers.get('content-type') || '';
     
     if (contentType.includes('application/json')) {
       // Handle JSON request for adding a single resident
-      const body = await request.json();
-      const { name, birthday, sex, address, contact, barangay_id, submitted_by, barangay, municipality, barangay_municipality } = body;
-
-      // Resolve barangay_id if not provided but barangay name is
-      let resolvedBarangayId = barangay_id || null;
-      if (!resolvedBarangayId && barangay) {
-        // Try to find existing barangay by name
-        const { data: foundBarangay, error: findBarangayError } = await supabase
-          .from('barangays')
-          .select('id')
-          .eq('name', barangay)
-          .maybeSingle();
-        
-        if (findBarangayError) {
-          console.error('Supabase error (find barangay):', findBarangayError);
-        }
-        
-        if (foundBarangay?.id) {
-          resolvedBarangayId = foundBarangay.id;
-        } else {
-          // If not found, create new barangay
-          const { data: newBarangay, error: insertBarangayError } = await supabase
-            .from('barangays')
-            .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
-            .select('id')
-            .single();
-          
-          if (insertBarangayError) {
-            console.error('Supabase error (create barangay):', insertBarangayError);
-            return NextResponse.json(
-              {
-                success: false,
-                error: 'Failed to resolve barangay',
-                details: process.env.NODE_ENV === 'development' ? insertBarangayError.message : undefined
-              },
-              { status: 500 }
-            );
-          }
-          resolvedBarangayId = newBarangay.id;
-        }
-      }
+      const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
+         submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
 
       // Validate required fields with detailed error messages
       const missingFields = [];
       if (!name) missingFields.push('name');
       if (!birthday) missingFields.push('birthday');
       if (!sex) missingFields.push('sex');
-      if (!address) missingFields.push('address');
-      if (!contact) missingFields.push('contact');
-      if (!resolvedBarangayId) missingFields.push('barangay_id');
+      if (!administered_date) missingFields.push('administered_date');
+      if (!barangay_id) missingFields.push('barangay_id');
       if (!submitted_by) missingFields.push('submitted_by');
 
       if (missingFields.length > 0) {
@@ -264,38 +233,50 @@ export async function POST(request) {
         );
       }
 
-      // Create resident object
+      // Create resident object with new schema
       const resident = {
-        name: name.trim(),
+        name: name.trim().toUpperCase(),
         birthday,
-        sex,
-        address: address.trim(),
-        contact: contact.trim(),
-        barangay_id: resolvedBarangayId,
+        sex: normalizeSex(sex),
+        administered_date,
+        vaccine_status: vaccine_status || 'not_vaccinated',
+        barangay_id,
         barangay: barangay || null,
         submitted_by,
+        vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
+        missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
         status: 'pending',
         submitted_at: new Date().toISOString()
       };
 
       // Insert resident
+      console.log('Inserting resident:', JSON.stringify(resident, null, 2));
+      
       const { data, error } = await supabase
         .from('residents')
         .insert([resident])
-        .select('id');
+        .select('*');
 
       if (error) {
-        console.error('Error inserting resident:', error);
+        console.error('❌ Error inserting resident:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
+        console.error('Error hint:', error.hint);
+        console.error('Full error object:', JSON.stringify(error, null, 2));
         return NextResponse.json(
           { 
             success: false, 
             error: error.message || 'Failed to add resident',
-            details: error.details || null
+            details: error.details || null,
+            code: error.code,
+            hint: error.hint
           },
           { status: 400 }
         );
       }
 
+      console.log('✅ Resident inserted successfully:', JSON.stringify(data, null, 2));
       return NextResponse.json({
         success: true,
         data: data?.[0] || {},
@@ -428,89 +409,28 @@ export async function POST(request) {
       }
     }
 
-    // If header row not found, return error
-    if (headerRowIndex === -1) {
+    // Validate required fields
+    if (!name || !birthday || !sex || !administered_date) {
       return NextResponse.json(
-        { success: false, error: 'Could not find required columns (NAME, SEX, BIRTHDAY) in the CSV file. Please check the file format.' },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Detect barangay from CSV file (check rows before header)
-    const detectedBarangay = detectBarangayFromCSV(lines, headerRowIndex);
-    
-    // Use detected barangay from CSV, fallback to provided barangay, then 'Unknown'
-    const effectiveBarangayName = detectedBarangay || barangayName || 'Unknown';
-    
-    // Log detected barangay for debugging
-    if (detectedBarangay) {
-      console.log(`Detected barangay from CSV: ${detectedBarangay}`);
-    }
-
-    // Resolve barangay_id
-    let barangayId = null;
-    
-    const { data: foundBarangay, error: findBarangayError } = await supabase
-      .from('barangays')
-      .select('id')
-      .eq('name', effectiveBarangayName)
-      .maybeSingle();
-    
-    // Check if we got a valid barangay or if there was a connection error
-    if (findBarangayError) {
-      // If it's a fetch/network error, provide better error message
-      if (findBarangayError.message?.includes('fetch failed') || findBarangayError.message?.includes('TypeError')) {
-        console.error('Supabase connection error:', findBarangayError);
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
-          },
-          { status: 503 }
-        );
-      }
-      // Other errors, continue to try creating
-      console.error('Error finding barangay:', findBarangayError);
-    }
-    
-    if (foundBarangay?.id) {
-      barangayId = foundBarangay.id;
-    } else {
-      // Create new barangay if not found
-      const { data: newBarangay, error: insertBarangayError } = await supabase
+    // Resolve barangay_id: accept explicit barangay_id, otherwise map from barangay name (and create if missing)
+    let resolvedBarangayId = barangay_id || null;
+    if (!resolvedBarangayId && barangay) {
+      // Try get existing
+      const { data: foundBarangay, error: findBarangayError } = await supabase
         .from('barangays')
-        .insert([{ name: effectiveBarangayName, municipality: 'Unknown' }])
         .select('id')
-        .single();
+        .eq('name', barangay)
+        .maybeSingle();
       
-      if (insertBarangayError) {
-        // If it's a fetch/network error, provide better error message
-        if (insertBarangayError.message?.includes('fetch failed') || insertBarangayError.message?.includes('TypeError')) {
-          console.error('Supabase connection error:', insertBarangayError);
-          return NextResponse.json(
-            { 
-              success: false, 
-              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' 
-            },
-            { status: 503 }
-          );
-        }
-        console.error('Failed to create/find barangay:', insertBarangayError);
-        return NextResponse.json(
-          { success: false, error: 'Failed to resolve barangay. Please ensure a valid barangay is selected.' },
-          { status: 400 }
-        );
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+        // Continue to try creating if lookup fails (could be network issue)
       }
-      
-      if (newBarangay?.id) {
-        barangayId = newBarangay.id;
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Failed to create barangay. Please try again.' },
-          { status: 500 }
-        );
-      }
-    }
 
     // Parse data rows (start after header row, skip empty rows)
     const residents = [];
@@ -628,11 +548,10 @@ export async function POST(request) {
           return NextResponse.json(
             {
               success: false,
-              error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.',
-              successCount, // Return count of successfully inserted before error
-              errors: [...errors, ...batchErrors, `Batch ${Math.floor(i / batchSize) + 1}: Connection failed`]
+              error: 'Failed to resolve barangay',
+              details: process.env.NODE_ENV === 'development' ? insertBarangayError : undefined
             },
-            { status: 503 }
+            { status: 500 }
           );
         }
         
@@ -655,17 +574,55 @@ export async function POST(request) {
       }
     }
 
-    // Combine parsing errors with batch errors
-    const allErrors = [...errors, ...batchErrors];
+    // Create new resident in Supabase
+    const { data: newResident, error } = await supabase
+      .from('residents')
+      .insert([
+        {
+          name: name.toUpperCase(),
+          birthday: birthday || null,
+          sex: sex || null,
+          administered_date,
+          vaccine_status: vaccine_status || 'not_vaccinated',
+          status: 'pending',
+          barangay: barangay || null,
+          barangay_id: resolvedBarangayId, // satisfy NOT NULL when required
+          submitted_by: submitted_by || 'system',
+          vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
+          missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
+          submitted_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error (create resident):', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.'
+          },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to create resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      successCount,
-      totalRows: residents.length, // Count of parsed residents, not total file rows
-      processedRows: lines.length - headerRowIndex - 1, // Rows processed after header
-      errors: allErrors.length > 0 ? allErrors : undefined
+      resident: newResident,
+      message: 'Resident created successfully'
     });
-
   } catch (error) {
     console.error('Error processing CSV upload:', error);
     console.error('Error stack:', error.stack);
@@ -737,8 +694,7 @@ export async function GET(request) {
       const searchLower = search.toLowerCase();
       filtered = filtered.filter(r =>
         r.name?.toLowerCase().includes(searchLower) ||
-        r.address?.toLowerCase().includes(searchLower) ||
-        r.contact?.toLowerCase().includes(searchLower)
+        r.barangay?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -763,6 +719,11 @@ export async function PUT(request) {
         { error: 'Resident ID is required' },
         { status: 400 }
       );
+    }
+
+    // Convert name to uppercase if it's being updated
+    if (updateData.name) {
+      updateData.name = updateData.name.toUpperCase();
     }
 
     const { data, error } = await supabase

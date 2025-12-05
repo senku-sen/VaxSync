@@ -325,6 +325,22 @@ export const updateSessionStatus = async (sessionId, status) => {
   try {
     console.log('Updating session status:', { sessionId, status });
 
+    // Fetch session to get current data
+    const { data: session, error: fetchError } = await supabase
+      .from("vaccination_sessions")
+      .select('id, vaccine_id, barangay_id, target, administered, status')
+      .eq("id", sessionId)
+      .single();
+
+    if (fetchError || !session) {
+      console.error('Error fetching session:', fetchError);
+      return {
+        success: false,
+        data: null,
+        error: 'Session not found'
+      };
+    }
+
     const { data, error } = await supabase
       .from("vaccination_sessions")
       .update({
@@ -344,6 +360,29 @@ export const updateSessionStatus = async (sessionId, status) => {
     }
 
     console.log('Session status updated successfully');
+
+    // If session is being completed or cancelled, release reserved vials
+    if ((status === 'Completed' || status === 'Cancelled') && session.status !== status) {
+      console.log('🟢 Releasing reserved vaccine vials for', status, 'session...');
+      
+      const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+      const vialsToRelease = session.target - (session.administered || 0);
+      
+      if (vialsToRelease > 0) {
+        const releaseResult = await releaseBarangayVaccineReservation(
+          session.barangay_id,
+          session.vaccine_id,
+          vialsToRelease
+        );
+
+        if (releaseResult.success) {
+          console.log('✅ Reserved vaccine vials released');
+        } else {
+          console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+        }
+      }
+    }
+
     return {
       success: true,
       data: data?.[0] || null,
@@ -384,6 +423,17 @@ export const deleteVaccinationSession = async (sessionId) => {
     }
 
     console.log('Session found:', session);
+
+    // Reset resident vaccine data before deleting session
+    console.log('🔄 Resetting resident vaccine data for session...');
+    const { resetSessionResidentVaccineData } = await import('./sessionBeneficiaries.js');
+    const resetResult = await resetSessionResidentVaccineData(sessionId);
+    
+    if (resetResult.success) {
+      console.log('✅ Resident vaccine data reset successfully');
+    } else {
+      console.warn('⚠️ Warning: Failed to reset resident vaccine data:', resetResult.error);
+    }
 
     // Delete the session
     const { error: deleteError } = await supabase
@@ -431,6 +481,25 @@ export const deleteVaccinationSession = async (sessionId) => {
         console.log('✅ Main vaccine inventory restored');
       } else {
         console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
+      }
+    }
+
+    // Release reserved vials
+    console.log('🟢 Releasing reserved vaccine vials...');
+    const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+    const vialsToRelease = session.target - (session.administered || 0);
+    
+    if (vialsToRelease > 0) {
+      const releaseResult = await releaseBarangayVaccineReservation(
+        session.barangay_id,
+        session.vaccine_id,
+        vialsToRelease
+      );
+
+      if (releaseResult.success) {
+        console.log('✅ Reserved vaccine vials released');
+      } else {
+        console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
       }
     }
 

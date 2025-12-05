@@ -56,7 +56,8 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     contact: "",
     barangay: "",
-    vaccines_given: []
+    vaccines_given: [],
+    missed_schedule_of_vaccine: []
   });
 
   // Get offline status
@@ -192,12 +193,55 @@ export default function ResidentsPage() {
         r.contact || "",
         r.vaccine_status || "not_vaccinated",
         r.status || "pending",
+        "Sex",
+        "Birthday",
+        "Barangay",
+        "Defaulters",
+        "Date of Vaccine",
+        "Vaccines Given",
+        "Submitted"
+      ];
+
+      const rows = residents.map((r) => [
+        r.name,
+        r.sex || "",
+        r.birthday ? new Date(r.birthday).toLocaleDateString() : "",
+        r.barangay || "",
+        Array.isArray(r.missed_schedule_of_vaccine) ? r.missed_schedule_of_vaccine.join(", ") : "",
+        r.administered_date ? new Date(r.administered_date).toLocaleDateString() : "",
+        Array.isArray(r.vaccines_given) ? r.vaccines_given.join(", ") : "",
         r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : ""
       ]);
 
-      const csv = [headers, ...rows]
-        .map((row) => row.map(escapeCell).join(","))
-        .join("\n");
+      // Helper function to count defaulters by month
+      const getDefaultersByMonth = (residentsArray) => {
+        const monthlyDefaulters = {};
+        residentsArray.forEach((r) => {
+          if (Array.isArray(r.missed_schedule_of_vaccine) && r.missed_schedule_of_vaccine.length > 0) {
+            const date = r.administered_date ? new Date(r.administered_date) : null;
+            if (date) {
+              const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+              monthlyDefaulters[monthKey] = (monthlyDefaulters[monthKey] || 0) + r.missed_schedule_of_vaccine.length;
+            }
+          }
+        });
+        return monthlyDefaulters;
+      };
+
+      // Single barangay export with monthly summary
+      const monthlyDefaulters = getDefaultersByMonth(residents);
+      const monthlyHeaders = ["Month", "Total Defaulters"];
+      const monthlyRows = Object.entries(monthlyDefaulters)
+        .sort()
+        .map(([month, count]) => [month, count]);
+
+      let csv = "SUMMARY - Total Defaulters by Month\n";
+      csv += monthlyHeaders.map(escapeCell).join(",") + "\n";
+      csv += monthlyRows.map((row) => row.map(escapeCell).join(",")).join("\n");
+      csv += "\n\n";
+
+      csv += headers.map(escapeCell).join(",") + "\n";
+      csv += rows.map((row) => row.map(escapeCell).join(",")).join("\n");
 
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -298,7 +342,6 @@ export default function ResidentsPage() {
       }
       const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
       const approvedData = await approvedResponse.json();
-      
       if (pendingResponse.ok) {
         setPendingCount(pendingData.residents?.length || 0);
       }
@@ -308,43 +351,29 @@ export default function ResidentsPage() {
       }
     } catch (error) {
       console.error("Error fetching counts:", error);
-    }
+    };
   };
 
   // Create new resident
   const handleCreateResident = async (e) => {
     e.preventDefault();
-    
-    console.log("=== Add Resident Debug ===");
-    console.log("User Profile:", userProfile);
-    console.log("Selected Barangay ID:", selectedBarangayId);
-    console.log("Form Data:", formData);
-    
+
     // Validate user profile is loaded
     if (!userProfile || !userProfile.id) {
-      console.error("User profile missing");
       toast.error("User profile not loaded. Please refresh the page.");
       return;
     }
 
-    // Validate barangay is selected
+    // Validate health worker has an assigned barangay ID
     if (!selectedBarangayId) {
       console.error("Barangay ID missing:", selectedBarangayId);
       toast.error("Barangay is not assigned. Please contact your head nurse.");
       return;
     }
 
-    // Validate required fields
-    const missingFields = [];
-    if (!formData.name) missingFields.push("name");
-    if (!formData.birthday) missingFields.push("birthday");
-    if (!formData.sex) missingFields.push("sex");
-    if (!formData.address) missingFields.push("address");
-    if (!formData.contact) missingFields.push("contact");
-
-    if (missingFields.length > 0) {
-      console.error("Missing fields:", missingFields);
-      toast.error(`Please fill in all required fields: ${missingFields.join(", ")}`);
+    // Validate required fields for new schema
+    if (!formData.name || !formData.birthday || !formData.sex || !formData.administered_date || !formData.barangay) {
+      toast.error("Please fill in all required fields including Barangay");
       return;
     }
     
@@ -408,6 +437,27 @@ export default function ResidentsPage() {
           tempId
         });
 
+    try {
+      const payload = {
+        ...formData,
+        barangay_id: selectedBarangayId,
+        submitted_by: userProfile.id,
+      };
+
+      console.log("Sending payload:", JSON.stringify(payload, null, 2));
+      
+      const response = await fetch("/api/residents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      console.log("API Response Status:", response.status);
+      console.log("API Response Data:", data);
+
         // Optimistic update
         setResidents(prev => [...prev, { ...payload, id: tempId, _pending: true }]);
 
@@ -417,16 +467,29 @@ export default function ResidentsPage() {
           name: "",
           birthday: "",
           sex: "",
-          address: "",
           vaccine_status: "not_vaccinated",
-          contact: "",
+          administered_date: "",
           barangay: "",
-          vaccines_given: []
+          vaccines_given: [],
+          missed_schedule_of_vaccine: [],
         });
       } catch (error) {
         console.error("Error saving offline:", error);
         toast.error("Error saving resident offline");
       }
+        // Add delay to allow Supabase to sync before fetching
+        setTimeout(() => {
+          fetchResidents(activeTab);
+          fetchCounts();
+        }, 500);
+      } else {
+        console.error("API Error Status:", response.status);
+        console.error("API Error Data:", data);
+        toast.error(data.error || "Failed to create resident");
+      }
+    } catch (error) {
+      console.error("Error creating resident:", error);
+      toast.error("Error creating resident");
     }
   };
 
@@ -600,11 +663,11 @@ export default function ResidentsPage() {
       name: resident.name || "",
       birthday: resident.birthday || "",
       sex: resident.sex || "",
-      address: resident.address || "",
       vaccine_status: resident.vaccine_status || "not_vaccinated",
-      contact: resident.contact || "",
+      administered_date: resident.administered_date || "",
       barangay: resident.barangay || "",
-      vaccines_given: resident.vaccines_given || []
+      vaccines_given: resident.vaccines_given || [],
+      missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
     });
     setIsEditDialogOpen(true);
   };
@@ -706,11 +769,11 @@ export default function ResidentsPage() {
                     name: "",
                     birthday: "",
                     sex: "",
-                    address: "",
                     vaccine_status: "not_vaccinated",
-                    contact: "",
+                    administered_date: "",
                     barangay: selectedBarangay || "",
-                    vaccines_given: []
+                    vaccines_given: [],
+                    missed_schedule_of_vaccine: []
                   });
                 }
               }}>
@@ -725,6 +788,7 @@ export default function ResidentsPage() {
                     <DialogTitle>Add New Resident</DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleCreateResident} className="space-y-4">
+                    
                     <div>
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
@@ -732,17 +796,6 @@ export default function ResidentsPage() {
                         placeholder="Enter full name"
                         value={formData.name}
                         onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="address">Address *</Label>
-                      <Input
-                        id="address"
-                        placeholder="Enter address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({...formData, address: e.target.value})}
                         required
                       />
                     </div>
@@ -773,12 +826,12 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label htmlFor="contact">Contact Number *</Label>
+                      <Label htmlFor="administered_date">Vaccination Date *</Label>
                       <Input
-                        id="contact"
-                        placeholder="09XXXXXXXXX"
-                        value={formData.contact}
-                        onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                        id="administered_date"
+                        type="date"
+                        value={formData.administered_date}
+                        onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
                         required
                       />
                     </div>
@@ -798,7 +851,7 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label htmlFor="barangay">Barangay</Label>
+                      <Label htmlFor="barangay">Barangay *</Label>
                       <Select 
                         value={formData.barangay || selectedBarangay} 
                         onValueChange={(value) => setFormData({...formData, barangay: value})}
@@ -823,7 +876,8 @@ export default function ResidentsPage() {
                     </div>
                     
                     <div>
-                      <Label>Vaccines Given</Label>
+                      <Label>Vaccines Given (Optional)</Label>
+                      <p className="text-xs text-gray-500 mb-2">Select vaccines that have been administered to this resident</p>
                       <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                           {VACCINE_TYPES.map((vaccine) => (
@@ -853,10 +907,139 @@ export default function ResidentsPage() {
                               </Label>
                             </div>
                           ))}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="vaccine-other"
+                              checked={formData.vaccines_given.includes("other")}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: [...formData.vaccines_given, "other"]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: formData.vaccines_given.filter(v => v !== "other")
+                                  });
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor="vaccine-other"
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              Other
+                            </Label>
+                          </div>
                         </div>
+                        {formData.vaccines_given.includes("other") && (
+                          <Input
+                            type="text"
+                            placeholder="Specify other"
+                            className="mt-3"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const otherVaccine = e.target.value;
+                                if (otherVaccine.trim()) {
+                                  setFormData({
+                                    ...formData,
+                                    vaccines_given: formData.vaccines_given.map(v => v === "other" ? otherVaccine : v)
+                                  });
+                                  e.target.value = "";
+                                }
+                              }
+                            }}
+                          />
+                        )}
                         {formData.vaccines_given.length > 0 && (
                           <p className="text-xs text-gray-500 mt-3">
                             Selected: {formData.vaccines_given.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label>Missed Schedule of Vaccine (Optional)</Label>
+                      <p className="text-xs text-gray-500 mb-2">Select vaccines that the resident missed during their scheduled vaccination dates</p>
+                      <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {VACCINE_TYPES.map((vaccine) => (
+                            <div key={vaccine} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`missed-vaccine-${vaccine}`}
+                                checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    setFormData({
+                                      ...formData,
+                                      missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
+                                    });
+                                  } else {
+                                    setFormData({
+                                      ...formData,
+                                      missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
+                                    });
+                                  }
+                                }}
+                              />
+                              <Label
+                                htmlFor={`missed-vaccine-${vaccine}`}
+                                className="text-sm font-normal cursor-pointer"
+                              >
+                                {vaccine.toUpperCase()}
+                              </Label>
+                            </div>
+                          ))}
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="missed-vaccine-other"
+                              checked={formData.missed_schedule_of_vaccine.includes("other")}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, "other"]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== "other")
+                                  });
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor="missed-vaccine-other"
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              Other
+                            </Label>
+                          </div>
+                        </div>
+                        {formData.missed_schedule_of_vaccine.includes("other") && (
+                          <Input
+                            type="text"
+                            placeholder="Specify other"
+                            className="mt-3"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const otherVaccine = e.target.value;
+                                if (otherVaccine.trim()) {
+                                  setFormData({
+                                    ...formData,
+                                    missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.map(v => v === "other" ? otherVaccine : v)
+                                  });
+                                  e.target.value = "";
+                                }
+                              }
+                            }}
+                          />
+                        )}
+                        {formData.missed_schedule_of_vaccine.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-3">
+                            Selected: {formData.missed_schedule_of_vaccine.join(", ")}
                           </p>
                         )}
                       </div>
@@ -960,17 +1143,6 @@ export default function ResidentsPage() {
                   />
                 </div>
                 
-                <div>
-                  <Label htmlFor="edit-address">Address *</Label>
-                  <Input
-                    id="edit-address"
-                    placeholder="Enter address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({...formData, address: e.target.value})}
-                    required
-                  />
-                </div>
-                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-birthday">Birthday *</Label>
@@ -997,12 +1169,12 @@ export default function ResidentsPage() {
                 </div>
                 
                 <div>
-                  <Label htmlFor="edit-contact">Contact Number *</Label>
+                  <Label htmlFor="edit-administered_date">Vaccination Date *</Label>
                   <Input
-                    id="edit-contact"
-                    placeholder="09XXXXXXXXX"
-                    value={formData.contact}
-                    onChange={(e) => setFormData({...formData, contact: e.target.value})}
+                    id="edit-administered_date"
+                    type="date"
+                    value={formData.administered_date}
+                    onChange={(e) => setFormData({...formData, administered_date: e.target.value})}
                     required
                   />
                 </div>
@@ -1047,7 +1219,8 @@ export default function ResidentsPage() {
                 </div>
                 
                 <div>
-                  <Label>Vaccines Given</Label>
+                  <Label>Vaccines Given (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">Select vaccines that have been administered to this resident</p>
                   <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {VACCINE_TYPES.map((vaccine) => (
@@ -1081,6 +1254,47 @@ export default function ResidentsPage() {
                     {formData.vaccines_given.length > 0 && (
                       <p className="text-xs text-gray-500 mt-3">
                         Selected: {formData.vaccines_given.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Missed Schedule of Vaccine (Optional)</Label>
+                  <p className="text-xs text-gray-500 mb-2">Select vaccines that the resident missed during their scheduled vaccination dates</p>
+                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {VACCINE_TYPES.map((vaccine) => (
+                        <div key={vaccine} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`edit-missed-vaccine-${vaccine}`}
+                            checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setFormData({
+                                  ...formData,
+                                  missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
+                                });
+                              }
+                            }}
+                          />
+                          <Label
+                            htmlFor={`edit-missed-vaccine-${vaccine}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {vaccine.toUpperCase()}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                    {formData.missed_schedule_of_vaccine.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-3">
+                        Selected: {formData.missed_schedule_of_vaccine.join(", ")}
                       </p>
                     )}
                   </div>
