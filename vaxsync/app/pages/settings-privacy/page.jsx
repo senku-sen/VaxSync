@@ -143,20 +143,20 @@ export default function SettingsPrivacyPage() {
   return (
     <div className="min-h-screen bg-white">
       <Sidebar />
-      <div className="lg:ml-64">
+      <div className="lg:ml-72">
         <Header title="Settings & Privacy" subtitle="Configure system preferences" />
         <div className="px-8 py-6">
 
           {/* Top Controls */}
-          <div className="flex items-center gap-4 mt-4">
+          <div className="flex items-center gap-4 mt-4 flex-wrap">
             <Button
-              className={`w-72 border ${activeTab === "account" ? "bg-[#3E5F44] text-white border-[#3E5F44] hover:bg-[#3E5F44]/90" : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200"}`}
+              className={`px-6 py-2 border rounded-lg font-medium transition-colors ${activeTab === "account" ? "bg-[#3E5F44] text-white border-[#3E5F44] hover:bg-[#3E5F44]/90" : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200"}`}
               onClick={() => setActiveTab("account")}
             >
               Account Information
             </Button>
             <Button
-              className={`w-72 border ${activeTab === "org" ? "bg-[#3E5F44] text-white border-[#3E5F44] hover:bg-[#3E5F44]/90" : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200"}`}
+              className={`px-6 py-2 border rounded-lg font-medium transition-colors ${activeTab === "org" ? "bg-[#3E5F44] text-white border-[#3E5F44] hover:bg-[#3E5F44]/90" : "bg-gray-100 text-gray-800 border-gray-300 hover:bg-gray-200"}`}
               onClick={() => setActiveTab("org")}
             >
               Organization Information
@@ -230,7 +230,7 @@ export default function SettingsPrivacyPage() {
         </Card>
 
         {/* Account & Security Card */}
-            <Card className="border border-[#3E5F44] rounded-md lg:col-span-4 w-[500px]">
+            <Card className="border border-[#3E5F44] rounded-md lg:col-span-5">
               <div className="p-4">
             <h2 className="font-semibold text-gray-900 mb-1">Account & Security</h2>
             <p className="text-sm text-gray-600 mb-4">Update your password and security settings</p>

@@ -264,7 +264,7 @@ export default function NotificationsPage() {
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header title="Notification History" subtitle="View all notifications and past alerts" />
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">

@@ -100,6 +100,22 @@ export default function ResidentDetailsModal({
   const vaccinesGiven = Array.isArray(resident.vaccines_given) ? resident.vaccines_given : [];
   const missedVaccines = Array.isArray(resident.missed_schedule_of_vaccine) ? resident.missed_schedule_of_vaccine : [];
 
+  // Get the most recent vaccination date from history
+  const getMostRecentVaccinationDate = () => {
+    if (vaccineHistory.length === 0) return null;
+    
+    // Find the most recent vaccinated record (attended=true and vaccinated=true)
+    const vaccinatedRecords = vaccineHistory.filter(v => v.attended === true && v.vaccinated === true);
+    if (vaccinatedRecords.length === 0) return null;
+    
+    // Get the first one (since history is ordered by created_at descending)
+    const mostRecent = vaccinatedRecords[0];
+    const sessionDate = mostRecent.vaccination_sessions?.session_date || mostRecent.created_at;
+    return sessionDate;
+  };
+
+  const mostRecentVaccineDate = getMostRecentVaccinationDate();
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -140,7 +156,7 @@ export default function ResidentDetailsModal({
             <div className="bg-gray-50 p-4 rounded-lg">
               <p className="text-xs text-gray-600 font-medium">Date of Vaccine</p>
               <p className="text-sm font-semibold text-gray-900 mt-1">
-                {resident.administered_date ? new Date(resident.administered_date).toLocaleDateString() : "N/A"}
+                {mostRecentVaccineDate ? new Date(mostRecentVaccineDate).toLocaleDateString() : "N/A"}
               </p>
             </div>
           </div>
@@ -193,17 +209,17 @@ export default function ResidentDetailsModal({
               </div>
             ) : missedVaccines.length > 0 ? (
               <div className="space-y-2">
-                {missedVaccines.map((date, index) => (
+                {missedVaccines.map((vaccine, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-3 bg-orange-50 border border-orange-200 rounded-lg"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-orange-900">
-                        Missed Vaccine
+                      <p className="text-sm font-semibold text-orange-900 capitalize">
+                        {vaccine}
                       </p>
                       <p className="text-xs text-orange-700 mt-1">
-                        {new Date(date).toLocaleDateString()}
+                        Added to missed schedule
                       </p>
                     </div>
                   </div>

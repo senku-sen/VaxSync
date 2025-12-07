@@ -18,7 +18,7 @@ export async function POST(request) {
       );
     }
 
-    // If session_id is provided, validate it exists
+    // If session_id is provided, validate it exists (but don't fail if it doesn't)
     if (session_id) {
       const { data: sessionExists, error: sessionError } = await supabase
         .from("vaccination_sessions")
@@ -26,11 +26,13 @@ export async function POST(request) {
         .eq("id", session_id)
         .single();
 
-      if (sessionError || !sessionExists) {
-        return NextResponse.json(
-          { error: "Session not found" },
-          { status: 404 }
-        );
+      if (sessionError) {
+        console.warn(`⚠️ Warning checking session ${session_id}:`, sessionError.message);
+        // Log the warning but continue - the session might exist but query failed
+      } else if (!sessionExists) {
+        console.warn(`⚠️ Session ${session_id} not found. Beneficiary will be created with this session_id anyway.`);
+        // Continue - allow creating beneficiary even if session doesn't exist
+        // This handles cases where sessions are being created/updated
       }
     }
 

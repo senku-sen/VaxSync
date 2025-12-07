@@ -14,6 +14,7 @@ import Header from "../../../../components/shared/Header";
 import VaccineRequestModalDoses from "../../../../components/vaccination-request/VaccineRequestModalDoses";
 import VaccineSummaryCards from "../../../../components/vaccination-request/VaccineSummaryCards";
 import VaccineRequestsTable from "../../../../components/vaccination-request/VaccineRequestsTable";
+import Pagination from "../../../../components/shared/Pagination";
 import {
   loadUserProfile,
   loadVaccineRequestsData,
@@ -61,6 +62,10 @@ export default function VaccinationRequest() {
 
   // Status filter state
   const [statusFilter, setStatusFilter] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     initializeData();
@@ -145,7 +150,7 @@ export default function VaccinationRequest() {
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header 
           title={title} 
           subtitle={barangayName ? `Barangay: ${barangayName}` : subtitle} 
@@ -223,7 +228,7 @@ export default function VaccinationRequest() {
             </div>
 
             {/* Requests Table Card */}
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-md overflow-hidden">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-md overflow-hidden flex flex-col">
               <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900">My Vaccine Requests</h3>
                 {!isLoadingProfile && userProfile && userProfile.barangays && (
@@ -243,18 +248,54 @@ export default function VaccinationRequest() {
                 )}
               </div>
               
-              <div className="overflow-x-auto">
-                <VaccineRequestsTable
-                  requests={requests}
-                  vaccines={vaccines}
-                  isLoading={isLoading}
-                  error={error}
-                  searchQuery={searchQuery}
-                  statusFilter={statusFilter}
-                  onDelete={handleDeleteRequest}
-                  onRetry={loadRequests}
-                />
+              <div className="overflow-x-auto flex-1">
+                {(() => {
+                  // Calculate pagination
+                  const totalRecords = requests.length;
+                  const totalPages = Math.ceil(totalRecords / rowsPerPage);
+                  const startIndex = (currentPage - 1) * rowsPerPage;
+                  const endIndex = startIndex + rowsPerPage;
+                  const paginatedRequests = requests.slice(startIndex, endIndex);
+
+                  return (
+                    <VaccineRequestsTable
+                      requests={paginatedRequests}
+                      vaccines={vaccines}
+                      isLoading={isLoading}
+                      error={error}
+                      searchQuery={searchQuery}
+                      statusFilter={statusFilter}
+                      onDelete={handleDeleteRequest}
+                      onRetry={loadRequests}
+                    />
+                  );
+                })()}
               </div>
+
+              {/* Pagination Control */}
+              {(() => {
+                const totalRecords = requests.length;
+                const totalPages = Math.ceil(totalRecords / rowsPerPage);
+
+                return (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalRecords={totalRecords}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(page) => {
+                      if (page >= 1 && page <= totalPages) {
+                        setCurrentPage(page);
+                      }
+                    }}
+                    onRowsPerPageChange={(newRowsPerPage) => {
+                      setRowsPerPage(newRowsPerPage);
+                      setCurrentPage(1); // Reset to first page
+                    }}
+                    isLoading={isLoading}
+                  />
+                );
+              })()}
             </div>
 
             {/* Vaccine Request Modal - Dose Based */}

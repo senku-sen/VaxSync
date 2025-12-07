@@ -278,7 +278,7 @@ export default function BarangayManagement({
     <div className="flex min-h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
           <Header title={title} subtitle={subtitle} />
           

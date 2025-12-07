@@ -256,12 +256,21 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
     let inventoryAdded = false;
     if (status === 'approved' && requestDetails) {
       console.log('Status is approved, adding to inventory...');
+      
+      // Extract dose code from notes (format: "Dose: TT1")
+      let doseCode = null;
+      if (requestDetails.notes && requestDetails.notes.includes('Dose:')) {
+        doseCode = requestDetails.notes.split('Dose:')[1].trim();
+        console.log('Extracted dose code from notes:', doseCode);
+      }
+      
       const { success: inventorySuccess, error: inventoryError } = await addApprovedRequestToInventory(
         requestId,
         requestDetails.vaccine_id,
         requestDetails.barangay_id,
         requestDetails.quantity_vial || 0,
-        requestDetails.quantity_dose || 0
+        requestDetails.quantity_dose || 0,
+        doseCode  // Pass the specific dose code
       );
       
       if (inventorySuccess) {

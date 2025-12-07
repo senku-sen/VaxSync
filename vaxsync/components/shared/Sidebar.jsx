@@ -21,12 +21,24 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState } from "react";
-import NotificationBadge from "@/components/NotificationBadge";
+import { useState, useEffect } from "react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+
+  // Load user role from localStorage on mount
+  useEffect(() => {
+    try {
+      const cachedUser = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
+      if (cachedUser?.user_role) {
+        setUserRole(cachedUser.user_role);
+      }
+    } catch (err) {
+      console.error('Error loading user role:', err);
+    }
+  }, []);
 
   const isHealthWorker = pathname.includes("Health_Worker");
   const isHeadNurse = pathname.includes("Head_Nurse");
@@ -34,7 +46,16 @@ export default function Sidebar() {
 
   if (!isHealthWorker && !isHeadNurse && !isSettingsStandalone) return null;
 
-  const basePath = isHealthWorker ? "/pages/Health_Worker" : isHeadNurse ? "/pages/Head_Nurse" : "/pages/Head_Nurse";
+  // Determine base path: use pathname if available, otherwise use cached user role
+  let basePath = "/pages/Head_Nurse"; // default
+  if (isHealthWorker) {
+    basePath = "/pages/Health_Worker";
+  } else if (isHeadNurse) {
+    basePath = "/pages/Head_Nurse";
+  } else if (isSettingsStandalone && userRole) {
+    // Use cached user role for settings page
+    basePath = userRole === "Health Worker" ? "/pages/Health_Worker" : "/pages/Head_Nurse";
+  }
 
   // Full list of items
   const allMenuItems = [
@@ -48,7 +69,6 @@ export default function Sidebar() {
     { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
    
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
-    { name: "Notifications", icon: Bell, path: `${basePath}/notifications` },
     { name: "User Management", icon: UserCog, path: `${basePath}/usermanagement`, adminOnly: true },
   
   ];
@@ -56,7 +76,6 @@ export default function Sidebar() {
   // Filter: Health Worker = no admin items | Head Nurse = all
   const menuItems = allMenuItems.filter(item => !item.adminOnly || isHeadNurse);
 
-  
 
   return (
     <>
@@ -71,18 +90,18 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 w-64 bg-[#F2F2F2] text-gray-800 flex flex-col border-r border-gray-300 transform transition-transform duration-300 z-40
+        className={`fixed inset-y-0 left-0 w-72 bg-[#F2F2F2] text-gray-800 flex flex-col border-r border-gray-300 transform transition-transform duration-300 z-40
           ${isOpen ? "translate-x-0" : "-translate-x-full"} 
           lg:translate-x-0`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-20 px-4 border-b border-gray-300 overflow-hidden">
+        <div className="flex items-center justify-center h-20 px-4 border-b border-gray-300 overflow-hidden relative">
           <div className="flex items-center h-full">
-            <img src="/VSyncLogo.png" alt="VaxSync" className="h-25 w-auto" />
+            <img src="/VSyncLogo.png" alt="VaxSync" className="h-24 w-auto" />
           </div>
           <Button
             variant="ghost"
-            className="lg:hidden text-gray-700 p-1"
+            className="lg:hidden text-gray-700 p-1 absolute right-4"
             onClick={() => setIsOpen(false)}
           >
             <X className="h-5 w-5" />
@@ -95,7 +114,6 @@ export default function Sidebar() {
             {menuItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.path;
-              const isNotifications = item.name === "Notifications";
 
               return (
                 <div key={item.name} className="relative">
@@ -114,7 +132,6 @@ export default function Sidebar() {
                       {item.name}
                     </Link>
                   </Button>
-                  {isNotifications && <NotificationBadge />}
                 </div>
               );
             })}

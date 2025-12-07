@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "../../../../components/shared/Sidebar";
 import Header from "../../../../components/shared/Header";
 import VaccineRequestsTable from "../../../../components/vaccination-request/VaccineRequestsTable";
+import Pagination from "../../../../components/shared/Pagination";
 import { Search } from "lucide-react";
 import {
   loadUserProfile,
@@ -50,6 +51,10 @@ export default function VaccinationRequest() {
 
   // Barangay filter state
   const [barangayFilter, setBarangayFilter] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   useEffect(() => {
     initializeData();
@@ -103,7 +108,7 @@ export default function VaccinationRequest() {
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header title={title} />
 
         <main className="p-3 sm:p-4 md:p-6 lg:p-8 flex-1 overflow-auto bg-gray-50">
@@ -217,7 +222,7 @@ export default function VaccinationRequest() {
             </div>
             
             {/* Pending Requests Table */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-base font-semibold text-gray-900">
                   Pending Requests
@@ -227,20 +232,60 @@ export default function VaccinationRequest() {
                 </p>
               </div>
 
-              <div className="overflow-x-auto">
-                <VaccineRequestsTable
-                  requests={requests.filter(r => !barangayFilter || r.barangays?.name === barangayFilter)}
-                  vaccines={vaccines}
-                  isLoading={isLoading}
-                  error={error}
-                  searchQuery={searchQuery}
-                  statusFilter={statusFilter}
-                  onDelete={handleDeleteRequest}
-                  onUpdateStatus={handleUpdateStatus}
-                  onRetry={loadRequests}
-                  isAdmin={true}
-                />
+              <div className="overflow-x-auto flex-1">
+                {(() => {
+                  // Filter requests
+                  const filteredRequests = requests.filter(r => !barangayFilter || r.barangays?.name === barangayFilter);
+                  
+                  // Calculate pagination
+                  const totalRecords = filteredRequests.length;
+                  const totalPages = Math.ceil(totalRecords / rowsPerPage);
+                  const startIndex = (currentPage - 1) * rowsPerPage;
+                  const endIndex = startIndex + rowsPerPage;
+                  const paginatedRequests = filteredRequests.slice(startIndex, endIndex);
+
+                  return (
+                    <VaccineRequestsTable
+                      requests={paginatedRequests}
+                      vaccines={vaccines}
+                      isLoading={isLoading}
+                      error={error}
+                      searchQuery={searchQuery}
+                      statusFilter={statusFilter}
+                      onDelete={handleDeleteRequest}
+                      onUpdateStatus={handleUpdateStatus}
+                      onRetry={loadRequests}
+                      isAdmin={true}
+                    />
+                  );
+                })()}
               </div>
+
+              {/* Pagination Control */}
+              {(() => {
+                const filteredRequests = requests.filter(r => !barangayFilter || r.barangays?.name === barangayFilter);
+                const totalRecords = filteredRequests.length;
+                const totalPages = Math.ceil(totalRecords / rowsPerPage);
+
+                return (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalRecords={totalRecords}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(page) => {
+                      if (page >= 1 && page <= totalPages) {
+                        setCurrentPage(page);
+                      }
+                    }}
+                    onRowsPerPageChange={(newRowsPerPage) => {
+                      setRowsPerPage(newRowsPerPage);
+                      setCurrentPage(1); // Reset to first page
+                    }}
+                    isLoading={isLoading}
+                  />
+                );
+              })()}
             </div>
           </div>
         </main>

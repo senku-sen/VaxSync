@@ -536,6 +536,70 @@ export const removeVaccineFromResident = async (residentId, vaccineName) => {
 };
 
 /**
+ * Add vaccine to resident's missed_schedule_of_vaccine
+ * @param {string} residentId - Resident ID
+ * @param {string} vaccineName - Name of vaccine missed
+ * @returns {Promise<Object>} - { success: boolean, error: string }
+ */
+export const addMissedVaccineToResident = async (residentId, vaccineName) => {
+  try {
+    console.log('Adding missed vaccine to resident:', { residentId, vaccineName });
+
+    // Fetch current resident data
+    const { data: resident, error: fetchError } = await supabase
+      .from('residents')
+      .select('id, missed_schedule_of_vaccine')
+      .eq('id', residentId)
+      .single();
+
+    if (fetchError || !resident) {
+      console.error('Error fetching resident:', fetchError);
+      return {
+        success: false,
+        error: fetchError?.message || 'Resident not found'
+      };
+    }
+
+    // Add vaccine to missed_schedule_of_vaccine if not already present
+    const currentMissed = resident.missed_schedule_of_vaccine || [];
+    const updatedMissed = Array.isArray(currentMissed) ? [...currentMissed] : [];
+    
+    if (!updatedMissed.includes(vaccineName)) {
+      updatedMissed.push(vaccineName);
+    }
+
+    // Update resident with new missed_schedule_of_vaccine
+    const { error: updateError } = await supabase
+      .from('residents')
+      .update({
+        missed_schedule_of_vaccine: updatedMissed,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', residentId);
+
+    if (updateError) {
+      console.error('Error updating resident:', updateError);
+      return {
+        success: false,
+        error: updateError.message || 'Failed to update resident'
+      };
+    }
+
+    console.log('✅ Missed vaccine added to resident successfully');
+    return {
+      success: true,
+      error: null
+    };
+  } catch (err) {
+    console.error('Unexpected error in addMissedVaccineToResident:', err);
+    return {
+      success: false,
+      error: err.message || 'Unexpected error'
+    };
+  }
+};
+
+/**
  * Reset all resident vaccine data for a session (when session is deleted)
  * @param {string} sessionId - Session ID
  * @returns {Promise<Object>} - { success: boolean, error: string }
@@ -619,5 +683,6 @@ export default {
   getAvailableResidentsForSession,
   updateResidentVaccineStatus,
   removeVaccineFromResident,
+  addMissedVaccineToResident,
   resetSessionResidentVaccineData
 };

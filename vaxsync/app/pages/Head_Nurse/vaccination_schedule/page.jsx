@@ -28,11 +28,12 @@ import {
 } from "@/lib/vaccinationSession";
 import { deductBarangayVaccineInventory } from "@/lib/barangayVaccineInventory";
 import { supabase } from "@/lib/supabase";
+import SessionParticipantsMonitor from "../../../../components/vaccination-schedule/SessionParticipantsMonitor";
+import { X } from "lucide-react";
 
-export default function HeadNurseVaccinationSchedule({
-  title = "Vaccination Schedule",
-  subtitle = "View and manage all vaccination sessions across barangays",
-}) {
+export default function HeadNurseVaccinationSchedule() {
+  const title = "Vaccination Schedule";
+  const subtitle = "View and manage all vaccination sessions across barangays";
   // Modal visibility state
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -48,6 +49,9 @@ export default function HeadNurseVaccinationSchedule({
   
   // Confirmation modal data
   const [confirmationData, setConfirmationData] = useState(null);
+
+  // State to track which session is selected for participant management
+  const [selectedSessionForParticipants, setSelectedSessionForParticipants] = useState(null);
   
   // Current logged in user profile
   const [userProfile, setUserProfile] = useState(null);
@@ -378,11 +382,16 @@ export default function HeadNurseVaccinationSchedule({
     setIsModalOpen(false);
   };
 
+  // Handle manage participants
+  const handleManageParticipants = (session) => {
+    setSelectedSessionForParticipants(session);
+  };
+
   return (
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header title={title} subtitle={subtitle} />
 
         <main className="p-4 md:p-6 lg:p-9 flex-1 overflow-auto">
@@ -515,6 +524,7 @@ export default function HeadNurseVaccinationSchedule({
               <SessionsContainer
                 sessions={filteredSessions}
                 onUpdateProgress={handleUpdateProgress}
+                onManageParticipants={handleManageParticipants}
                 isHeadNurse={true}
               />
             </>
@@ -579,6 +589,47 @@ export default function HeadNurseVaccinationSchedule({
             errors={{}}
             isViewOnly={true}
           />
+
+          {/* Session Participants Monitor Modal */}
+          {selectedSessionForParticipants && (
+            <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                {/* Close Button */}
+                <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-900">Manage Participants</h2>
+                  <button
+                    onClick={() => setSelectedSessionForParticipants(null)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                {/* Monitor Component */}
+                <div className="p-6">
+                  <SessionParticipantsMonitor
+                    sessionId={selectedSessionForParticipants.id}
+                    barangayName={selectedSessionForParticipants.barangays?.name}
+                    barangayId={selectedSessionForParticipants.barangay_id}
+                    vaccineName={selectedSessionForParticipants.vaccines?.name}
+                    vaccineId={selectedSessionForParticipants.vaccine_id}
+                    sessionDate={selectedSessionForParticipants.session_date}
+                    target={selectedSessionForParticipants.target}
+                    sessionStatus={selectedSessionForParticipants.status}
+                    isHeadNurse={true}
+                    onAdministeredCountChange={(newCount) => {
+                      // Update the session's administered count
+                      setSessions(sessions.map(s => 
+                        s.id === selectedSessionForParticipants.id 
+                          ? { ...s, administered: newCount }
+                          : s
+                      ));
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
         </main>
       </div>

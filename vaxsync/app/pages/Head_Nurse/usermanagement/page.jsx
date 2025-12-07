@@ -55,6 +55,7 @@ const defaultPermissionsForRole = (role) => {
 export default function HeadNurseUserManagement() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState(""); // New role filter state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
@@ -284,16 +285,22 @@ export default function HeadNurseUserManagement() {
   }, [users, barangayLabelMap, rhuBarangayId]);
 
   const filteredUsers = useMemo(() => {
-    if (!search.trim()) return displayUsers;
+    let result = displayUsers;
+    
+    // Apply role filter
+    if (roleFilter) {
+      result = result.filter(user => user.role === roleFilter);
+    }
+    
+    // Apply search filter
+    if (!search.trim()) return result;
     const term = search.toLowerCase();
-    return displayUsers.filter(
+    return result.filter(
       (user) =>
         user.name.toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term) ||
-        user.role.toLowerCase().includes(term) ||
-        (user.assignedBarangayLabel || "").toLowerCase().includes(term)
+        user.email.toLowerCase().includes(term)
     );
-  }, [search, displayUsers]);
+  }, [displayUsers, search, roleFilter]);
 
   const handleDeleteClick = (user) => {
     console.log('Delete button clicked for user:', user);
@@ -630,14 +637,14 @@ export default function HeadNurseUserManagement() {
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header
           title="User Management"
           subtitle="Manage system users and permissions"
         />
 
         <main className="flex-1 p-6 lg:p-10">
-          <div className="mx-auto max-w-6xl space-y-6">
+          <div className="w-full space-y-6">
             {/* Offline Cache Indicator */}
             {isFromCache && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -647,15 +654,53 @@ export default function HeadNurseUserManagement() {
               </div>
             )}
 
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name or email..."
-                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30"
-              />
+            {/* Search and Filter Section */}
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name or email..."
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-[#3E5F44] focus:ring-2 focus:ring-[#3E5F44]/30"
+                />
+              </div>
+
+              {/* Role Filter */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setRoleFilter("")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    roleFilter === ""
+                      ? "bg-[#4A7C59] text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  All Users
+                </button>
+                <button
+                  onClick={() => setRoleFilter("Head Nurse")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    roleFilter === "Head Nurse"
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  }`}
+                >
+                  Head Nurse
+                </button>
+                <button
+                  onClick={() => setRoleFilter("Health Worker")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                    roleFilter === "Health Worker"
+                      ? "bg-green-600 text-white"
+                      : "bg-green-100 text-green-700 hover:bg-green-200"
+                  }`}
+                >
+                  Health Worker
+                </button>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">

@@ -144,7 +144,7 @@ export default function Page() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
-        <div className="flex-1 lg:ml-64 p-8">
+        <div className="flex-1 lg:ml-72 p-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-700">Error loading dashboard: {error}</p>
           </div>
@@ -156,7 +156,7 @@ export default function Page() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <div className="flex-1 lg:ml-64">
+      <div className="flex-1 lg:ml-72">
       <Header title="Dashboard" subtitle="Real-time vaccine program overview" />
 
       <div className="p-8">

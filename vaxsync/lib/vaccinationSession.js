@@ -219,20 +219,32 @@ export const fetchAllVaccinationSessions = async () => {
 
     // Fetch vaccine and barangay details separately
     if (data && data.length > 0) {
-      const vaccineIds = [...new Set(data.map(s => s.vaccine_id))];
+      // session.vaccine_id references barangay_vaccine_inventory.id
+      // We need to fetch vaccine_doses and vaccines through that relationship
+      const inventoryIds = [...new Set(data.map(s => s.vaccine_id))];
       const barangayIds = [...new Set(data.map(s => s.barangay_id))];
 
-      const [vaccinesData, barangaysData] = await Promise.all([
-        vaccineIds.length > 0 ? supabase.from("vaccines").select("id, name").in("id", vaccineIds) : { data: [] },
+      // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
+      const { data: inventoryData } = inventoryIds.length > 0 
+        ? await supabase
+            .from("barangay_vaccine_inventory")
+            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .in("id", inventoryIds)
+        : { data: [] };
+
+      const [barangaysData] = await Promise.all([
         barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
       const vaccinesMap = {};
       const barangaysMap = {};
 
-      if (vaccinesData.data) {
-        vaccinesData.data.forEach(v => {
-          vaccinesMap[v.id] = v;
+      // Build vaccines map from inventory data
+      if (inventoryData) {
+        inventoryData.forEach(inv => {
+          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
+            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+          }
         });
       }
 

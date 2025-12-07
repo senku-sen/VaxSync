@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Check } from "lucide-react";
+import { X, Plus, Check, AlertCircle } from "lucide-react";
 import { getAvailableResidentsForSession, addBeneficiariesToSession } from "@/lib/sessionBeneficiaries";
 
 export default function AddParticipantsModal({
@@ -15,7 +15,9 @@ export default function AddParticipantsModal({
   onClose,
   sessionId,
   barangayName,
-  onSuccess
+  onSuccess,
+  target = 0,
+  currentBeneficiaryCount = 0
 }) {
   const [availableResidents, setAvailableResidents] = useState([]);
   const [selectedResidents, setSelectedResidents] = useState(new Set());
@@ -23,6 +25,10 @@ export default function AddParticipantsModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Calculate remaining slots
+  const remainingSlots = Math.max(0, target - currentBeneficiaryCount);
+  const canAddMore = remainingSlots > 0;
 
   useEffect(() => {
     if (isOpen && sessionId && barangayName) {
@@ -50,9 +56,17 @@ export default function AddParticipantsModal({
   const handleToggleResident = (residentId) => {
     const newSelected = new Set(selectedResidents);
     if (newSelected.has(residentId)) {
+      // Always allow deselection
       newSelected.delete(residentId);
     } else {
+      // Only allow selection if we have remaining slots
+      const totalWillBe = currentBeneficiaryCount + newSelected.size + 1;
+      if (totalWillBe > target) {
+        setError(`Cannot add more participants. Maximum target is ${target}, current is ${currentBeneficiaryCount}.`);
+        return;
+      }
       newSelected.add(residentId);
+      setError(null);
     }
     setSelectedResidents(newSelected);
   };
@@ -60,8 +74,16 @@ export default function AddParticipantsModal({
   const handleSelectAll = () => {
     if (selectedResidents.size === filteredResidents.length) {
       setSelectedResidents(new Set());
+      setError(null);
     } else {
-      setSelectedResidents(new Set(filteredResidents.map(r => r.id)));
+      // Only select as many as we can fit
+      const availableToSelect = filteredResidents.slice(0, remainingSlots);
+      if (availableToSelect.length < filteredResidents.length) {
+        setError(`Only ${remainingSlots} more participant(s) can be added to reach the target of ${target}.`);
+      } else {
+        setError(null);
+      }
+      setSelectedResidents(new Set(availableToSelect.map(r => r.id)));
     }
   };
 
@@ -112,6 +134,15 @@ export default function AddParticipantsModal({
             <p className="text-sm text-gray-600 mt-1">
               Select residents to add to this vaccination session
             </p>
+            {target > 0 && (
+              <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded inline-block">
+                <p className="text-sm text-blue-900">
+                  <span className="font-semibold">Target:</span> {target} | 
+                  <span className="font-semibold ml-2">Current:</span> {currentBeneficiaryCount} | 
+                  <span className="font-semibold ml-2">Remaining Slots:</span> <span className={remainingSlots > 0 ? 'text-green-600' : 'text-red-600'}>{remainingSlots}</span>
+                </p>
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -123,6 +154,19 @@ export default function AddParticipantsModal({
 
         {/* Content */}
         <div className="p-6 space-y-4">
+          {/* Target Reached Message */}
+          {!canAddMore && target > 0 && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Target Reached</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  This session has reached its maximum target of {target} participants. You cannot add more participants.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg">

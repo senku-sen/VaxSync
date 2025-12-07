@@ -32,6 +32,7 @@ import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTabl
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
+import Pagination from "../../../../components/shared/Pagination";
 import { useOffline } from "@/components/OfflineProvider";
 import { cacheData, getCachedData, generateTempId } from "@/lib/offlineStorage";
 import { queueOperation } from "@/lib/syncManager";
@@ -57,6 +58,10 @@ export default function ResidentsPage() {
   // Details modal state
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [detailsResident, setDetailsResident] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
@@ -802,7 +807,7 @@ export default function ResidentsPage() {
     <div className="flex h-screen flex-col lg:flex-row">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col w-full lg:ml-64">
+      <div className="flex-1 flex flex-col w-full lg:ml-72">
         <Header 
           title="Resident Information Management" 
           subtitle={`Assigned Barangay: ${selectedBarangay || "Not Assigned"}`} 
@@ -943,40 +948,75 @@ export default function ResidentsPage() {
             </div>
           )}
 
-          {/* Residents Table */}
-          {activeTab === "pending" ? (
-            <PendingResidentsTable
-              residents={residents}
-              loading={loading}
-              selectedBarangay={selectedBarangay}
-              openEditDialog={openEditDialog}
-              handleStatusChange={handleStatusChange}
-              handleDeleteResident={handleDeleteResident}
-              getVaccineStatusBadge={getVaccineStatusBadge}
-              formatDate={formatDate}
-              showApproveButton={false}
-              selectedResidents={selectedResidents}
-              onToggleSelection={toggleResidentSelection}
-              onViewDetails={(resident) => {
-                setDetailsResident(resident);
-                setIsDetailsModalOpen(true);
-              }}
-            />
-          ) : (
-            <ApprovedResidentsTable
-              residents={residents}
-              loading={loading}
-              selectedBarangay={selectedBarangay}
-              openEditDialog={openEditDialog}
-              handleDeleteResident={handleDeleteResident}
-              getVaccineStatusBadge={getVaccineStatusBadge}
-              formatDate={formatDate}
-              onViewDetails={(resident) => {
-                setDetailsResident(resident);
-                setIsDetailsModalOpen(true);
-              }}
-            />
-          )}
+          {/* Residents Table with Pagination */}
+          <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
+            {(() => {
+              // Calculate pagination
+              const totalRecords = residents.length;
+              const totalPages = Math.ceil(totalRecords / rowsPerPage);
+              const startIndex = (currentPage - 1) * rowsPerPage;
+              const endIndex = startIndex + rowsPerPage;
+              const paginatedResidents = residents.slice(startIndex, endIndex);
+
+              return (
+                <>
+                  <div className="flex-1 overflow-x-auto">
+                    {activeTab === "pending" ? (
+                      <PendingResidentsTable
+                        residents={paginatedResidents}
+                        loading={loading}
+                        selectedBarangay={selectedBarangay}
+                        openEditDialog={openEditDialog}
+                        handleStatusChange={handleStatusChange}
+                        handleDeleteResident={handleDeleteResident}
+                        getVaccineStatusBadge={getVaccineStatusBadge}
+                        formatDate={formatDate}
+                        showApproveButton={false}
+                        selectedResidents={selectedResidents}
+                        onToggleSelection={toggleResidentSelection}
+                        onViewDetails={(resident) => {
+                          setDetailsResident(resident);
+                          setIsDetailsModalOpen(true);
+                        }}
+                      />
+                    ) : (
+                      <ApprovedResidentsTable
+                        residents={paginatedResidents}
+                        loading={loading}
+                        selectedBarangay={selectedBarangay}
+                        openEditDialog={openEditDialog}
+                        handleDeleteResident={handleDeleteResident}
+                        getVaccineStatusBadge={getVaccineStatusBadge}
+                        formatDate={formatDate}
+                        onViewDetails={(resident) => {
+                          setDetailsResident(resident);
+                          setIsDetailsModalOpen(true);
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Pagination Control */}
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalRecords={totalRecords}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(page) => {
+                      if (page >= 1 && page <= totalPages) {
+                        setCurrentPage(page);
+                      }
+                    }}
+                    onRowsPerPageChange={(newRowsPerPage) => {
+                      setRowsPerPage(newRowsPerPage);
+                      setCurrentPage(1); // Reset to first page
+                    }}
+                    isLoading={loading}
+                  />
+                </>
+              );
+            })()}
+          </div>
 
           {/* Edit Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

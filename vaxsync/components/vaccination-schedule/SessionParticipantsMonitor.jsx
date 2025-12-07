@@ -15,7 +15,8 @@ import {
   removeBeneficiaryFromSession,
   getSessionStatistics,
   updateResidentVaccineStatus,
-  removeVaccineFromResident
+  removeVaccineFromResident,
+  addMissedVaccineToResident
 } from "@/lib/sessionBeneficiaries";
 import { updateSessionAdministered } from "@/lib/vaccinationSession";
 import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, deductMainVaccineInventory, addMainVaccineInventory } from "@/lib/barangayVaccineInventory";
@@ -30,7 +31,8 @@ export default function SessionParticipantsMonitor({
   vaccineId,
   target = 0,
   sessionStatus = "Scheduled",
-  onAdministeredCountChange = null
+  onAdministeredCountChange = null,
+  isHeadNurse = false
 }) {
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [statistics, setStatistics] = useState(null);
@@ -258,6 +260,19 @@ export default function SessionParticipantsMonitor({
       });
 
       if (result.success) {
+        // Add vaccine to missed_schedule_of_vaccine for the resident
+        if (beneficiary.resident_id && vaccineName) {
+          const missedVaccineResult = await addMissedVaccineToResident(
+            beneficiary.resident_id,
+            vaccineName
+          );
+
+          if (!missedVaccineResult.success) {
+            console.warn('Warning: Failed to add vaccine to missed schedule:', missedVaccineResult.error);
+            // Don't fail the rejection if resident update fails - just warn
+          }
+        }
+
         // Also remove vaccine from resident if it was previously approved
         if (beneficiary.resident_id && vaccineName && beneficiary.vaccinated === true) {
           const residentUpdateResult = await removeVaccineFromResident(
@@ -419,7 +434,13 @@ export default function SessionParticipantsMonitor({
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-2 bg-white text-[#4A7C59] px-4 py-2 rounded-lg hover:bg-green-50 transition-colors font-medium"
+            disabled={isHeadNurse}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium ${
+              isHeadNurse
+                ? "bg-gray-300 text-gray-600 cursor-not-allowed opacity-50"
+                : "bg-white text-[#4A7C59] hover:bg-green-50 cursor-pointer"
+            }`}
+            title={isHeadNurse ? "Head Nurse can only view participant details" : "Add participants to this session"}
           >
             <Plus size={18} />
             Add Participants
@@ -536,37 +557,37 @@ export default function SessionParticipantsMonitor({
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => handleApprove(beneficiary)}
-                        disabled={!areActionsEnabled() || isUnapproved}
+                        disabled={!areActionsEnabled() || isUnapproved || isHeadNurse}
                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                          areActionsEnabled() && !isUnapproved
+                          areActionsEnabled() && !isUnapproved && !isHeadNurse
                             ? "bg-green-100 text-green-600 hover:bg-green-200 cursor-pointer"
                             : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                         }`}
-                        title={isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Approve (Attended & Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
+                        title={isHeadNurse ? "Head Nurse can only view participant details" : isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Approve (Attended & Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <Check size={18} />
                       </button>
                       <button
                         onClick={() => handleReject(beneficiary)}
-                        disabled={!areActionsEnabled() || isUnapproved}
+                        disabled={!areActionsEnabled() || isUnapproved || isHeadNurse}
                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                          areActionsEnabled() && !isUnapproved
+                          areActionsEnabled() && !isUnapproved && !isHeadNurse
                             ? "bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer"
                             : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                         }`}
-                        title={isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Reject (Not Attended & Not Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
+                        title={isHeadNurse ? "Head Nurse can only view participant details" : isUnapproved ? "Resident must be approved by Head Nurse first" : areActionsEnabled() ? "Reject (Not Attended & Not Vaccinated)" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <X size={18} />
                       </button>
                       <button
                         onClick={() => handleRemove(beneficiary.id)}
-                        disabled={!areActionsEnabled()}
+                        disabled={!areActionsEnabled() || isHeadNurse}
                         className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                          areActionsEnabled()
+                          areActionsEnabled() && !isHeadNurse
                             ? "bg-gray-100 text-gray-600 hover:bg-gray-200 cursor-pointer"
                             : "bg-gray-100 text-gray-400 cursor-not-allowed opacity-50"
                         }`}
-                        title={areActionsEnabled() ? "Remove participant" : "Session must be 'In progress' or 'Completed'"}
+                        title={isHeadNurse ? "Head Nurse can only view participant details" : areActionsEnabled() ? "Remove participant" : "Session must be 'In progress' or 'Completed'"}
                       >
                         <Trash2 size={18} />
                       </button>
@@ -598,6 +619,8 @@ export default function SessionParticipantsMonitor({
         sessionId={sessionId}
         barangayName={barangayName}
         onSuccess={loadData}
+        target={target}
+        currentBeneficiaryCount={beneficiaries?.length || 0}
       />
     </div>
   );
