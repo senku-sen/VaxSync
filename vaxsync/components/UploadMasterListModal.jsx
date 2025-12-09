@@ -56,10 +56,20 @@ export default function UploadMasterListModal({
 
   // Detect barangay name from CSV (usually in first few rows, before header)
   const detectBarangayFromCSV = (lines, headerRowIndex) => {
-    // Known barangay names for validation
-    const knownBarangays = [
+    // Known barangay names for validation (lowercase for matching)
+    const knownBarangaysLower = [
       'mancruz', 'alawihao', 'bibirao', 'calasgasan', 'camambugan',
-      'dogongan', 'magang', 'pamorangan', 'barangay ii'
+      'dogongan', 'magang', 'pamorangan', 'barangay ii', 'bunawan',
+      'consuelo', 'imelda', 'la paz', 'libuan', 'loreto', 'mahayag',
+      'new visayas', 'poblacion', 'san andres', 'san marcos', 'tagbay'
+    ];
+    
+    // Uppercase versions to return (matching order with lowercase)
+    const knownBarangaysUpper = [
+      'MANCRUZ', 'ALAWIHAO', 'BIBIRAO', 'CALASGASAN', 'CAMAMBUGAN',
+      'DOGONGAN', 'MAGANG', 'PAMORANGAN', 'BARANGAY II', 'BUNAWAN',
+      'CONSUELO', 'IMELDA', 'LA PAZ', 'LIBUAN', 'LORETO', 'MAHAYAG',
+      'NEW VISAYAS', 'POBLACION', 'SAN ANDRES', 'SAN MARCOS', 'TAGBAY'
     ];
     
     // Check rows before the header row
@@ -76,15 +86,10 @@ export default function UploadMasterListModal({
         if (!cleaned || cleaned.length < 3) continue;
         
         // Check if it matches a known barangay (case-insensitive)
-        const matchedBarangay = knownBarangays.find(b => cleaned.includes(b) || b.includes(cleaned));
-        if (matchedBarangay) {
-          // Return proper case version
-          const index = knownBarangays.indexOf(matchedBarangay);
-          const properCaseBarangays = [
-            'Mancruz', 'Alawihao', 'Bibirao', 'Calasgasan', 'Camambugan',
-            'Dogongan', 'Magang', 'Pamorangan', 'Barangay II'
-          ];
-          return properCaseBarangays[index];
+        const matchIndex = knownBarangaysLower.findIndex(b => cleaned.includes(b) || b.includes(cleaned));
+        if (matchIndex !== -1) {
+          // Return UPPERCASE version
+          return knownBarangaysUpper[matchIndex];
         }
         
         // Also check if it's a single word that looks like a barangay name
@@ -92,10 +97,8 @@ export default function UploadMasterListModal({
             !cleaned.match(/^\d+$/) && 
             !cleaned.includes('name') && !cleaned.includes('sex') && 
             !cleaned.includes('birthday') && !cleaned.includes('vaccine')) {
-          // Return with proper capitalization
-          return cleaned.split(' ').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          ).join(' ');
+          // Return in UPPERCASE
+          return cleaned.toUpperCase();
         }
       }
     }

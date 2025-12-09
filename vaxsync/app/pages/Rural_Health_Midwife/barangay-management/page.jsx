@@ -18,8 +18,10 @@ import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import { useOffline } from "@/components/OfflineProvider";
 import { queueOperation } from "@/lib/syncManager";
-import { generateTempId } from "@/lib/offlineStorage";
+import { generateTempId, cacheData, getCachedData } from "@/lib/offlineStorage";
 import { toast } from "sonner";
+
+const BARANGAYS_CACHE_KEY = 'barangays_list';
 
 // PAGE COMPONENT: Handles UI rendering and state management
 export default function BarangayManagement({
@@ -83,10 +85,20 @@ export default function BarangayManagement({
       } else {
         // Offline - queue the operation
         const tempId = generateTempId();
+        // Only send the fields the API expects for PUT
+        const updatePayload = {
+          id: selectedBarangay.id,
+          name: formData.name?.trim() || '',
+          municipality: formData.municipality?.trim() || 'Daet',
+          population: parseInt(formData.population) || 0
+        };
+        
+        console.log('Queueing barangay update:', updatePayload);
+        
         await queueOperation({
           endpoint: '/api/barangays',
           method: 'PUT',
-          body: { id: selectedBarangay.id, ...payload },
+          body: updatePayload,
           type: 'update',
           description: `Update barangay: ${formData.name}`,
           cacheKey: 'barangays_list',
@@ -96,7 +108,7 @@ export default function BarangayManagement({
         // Optimistic update
         setBarangays(barangays.map((b) => 
           b.id === selectedBarangay.id 
-            ? { ...b, ...payload, _pending: true } 
+            ? { ...b, ...updatePayload, _pending: true } 
             : b
         ));
         setSuccessMessage(`Barangay "${formData.name}" changes saved locally. Will sync when online.`);
@@ -122,10 +134,19 @@ export default function BarangayManagement({
       } else {
         // Offline - queue the operation
         const tempId = generateTempId();
+        // Only send the fields the API expects for POST
+        const createPayload = {
+          name: formData.name?.trim() || '',
+          municipality: formData.municipality?.trim() || 'Daet',
+          population: parseInt(formData.population) || 0
+        };
+        
+        console.log('Queueing barangay create:', createPayload);
+        
         await queueOperation({
           endpoint: '/api/barangays',
           method: 'POST',
-          body: payload,
+          body: createPayload,
           type: 'create',
           description: `Create barangay: ${formData.name}`,
           cacheKey: 'barangays_list',
@@ -133,7 +154,7 @@ export default function BarangayManagement({
         });
 
         // Optimistic update
-        setBarangays([{ id: tempId, ...payload, _pending: true }, ...barangays]);
+        setBarangays([{ id: tempId, ...createPayload, _pending: true }, ...barangays]);
         setSuccessMessage(`Barangay "${formData.name}" saved locally. Will sync when online.`);
         toast.info("Barangay saved locally. Will sync when online.");
       }
@@ -142,17 +163,11 @@ export default function BarangayManagement({
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), editMode ? 6000 : 3000);
     
-    // Reset form if operation succeeded (or was queued offline)
-    if (actuallyOnline) {
-      // Only reset if we got a successful result online
-      // For offline, we already showed success message
-    } else {
-      // Offline - reset form since we queued it
-      setFormData({ name: "", municipality: "Daet", population: 0 });
-      setIsOpen(false);
-      setEditMode(false);
-      setSelectedBarangay(null);
-    }
+    // Reset form after operation (both online and offline)
+    setFormData({ name: "", municipality: "Daet", population: 0 });
+    setIsOpen(false);
+    setEditMode(false);
+    setSelectedBarangay(null);
     
     setIsLoading(false);
   };
@@ -255,12 +270,46 @@ export default function BarangayManagement({
   // ========== FETCH BARANGAYS ==========
   const loadBarangays = async () => {
     setIsLoading(true);
-    const { data, error } = await fetchBarangays();
-    if (error) {
-      console.error('Error fetching barangays:', error);
+    
+    // Check if online
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine && isOnline) 
+      : isOnline;
+
+    if (actuallyOnline) {
+      // Online: fetch from API and cache
+      const { data, error } = await fetchBarangays();
+      if (error) {
+        console.error('Error fetching barangays:', error);
+        // Try to load from cache as fallback
+        const cached = await getCachedData(BARANGAYS_CACHE_KEY);
+        if (cached && cached.length > 0) {
+          setBarangays(cached);
+          toast.info('Loaded barangays from cache');
+        }
+      } else {
+        setBarangays(data || []);
+        // Cache the data for offline use
+        if (data && data.length > 0) {
+          await cacheData(BARANGAYS_CACHE_KEY, data, 'barangays');
+        }
+      }
     } else {
-      setBarangays(data || []);
+      // Offline: load from cache
+      try {
+        const cached = await getCachedData(BARANGAYS_CACHE_KEY);
+        if (cached && cached.length > 0) {
+          setBarangays(cached);
+          console.log('Loaded barangays from cache (offline):', cached.length);
+        } else {
+          console.log('No cached barangays found');
+          toast.warning('No cached barangay data available offline');
+        }
+      } catch (err) {
+        console.error('Error loading barangays from cache:', err);
+      }
     }
+    
     setIsLoading(false);
   };
 

@@ -21,7 +21,8 @@ import {
   MapPin,
   User,
   Syringe,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
@@ -63,8 +64,10 @@ export default function ResidentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Batch selection state
+  // Batch selection state for pending residents
   const [selectedResidents, setSelectedResidents] = useState(new Set());
+  // Batch selection state for approved residents
+  const [selectedApprovedResidents, setSelectedApprovedResidents] = useState(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   // Add vaccine state
@@ -603,6 +606,83 @@ export default function ResidentsPage() {
     setSelectedResidents(new Set());
   };
 
+  // Toggle approved resident selection
+  const toggleApprovedResidentSelection = (residentId) => {
+    const newSelected = new Set(selectedApprovedResidents);
+    if (newSelected.has(residentId)) {
+      newSelected.delete(residentId);
+    } else {
+      newSelected.add(residentId);
+    }
+    setSelectedApprovedResidents(newSelected);
+  };
+
+  // Select all approved residents
+  const selectAllApprovedResidents = () => {
+    if (residents.length === 0) return;
+    const allIds = new Set(residents.map(r => r.id));
+    setSelectedApprovedResidents(allIds);
+  };
+
+  // Deselect all approved residents
+  const deselectAllApprovedResidents = () => {
+    setSelectedApprovedResidents(new Set());
+  };
+
+  // Handle select all toggle for approved residents
+  const handleApprovedSelectAll = () => {
+    if (selectedApprovedResidents.size === residents.length) {
+      deselectAllApprovedResidents();
+    } else {
+      selectAllApprovedResidents();
+    }
+  };
+
+  // Batch delete approved residents
+  const handleBatchDeleteApproved = async () => {
+    if (selectedApprovedResidents.size === 0) {
+      toast.error("Please select residents to delete");
+      return;
+    }
+
+    if (!confirm(`Delete ${selectedApprovedResidents.size} resident(s)? This action cannot be undone.`)) return;
+
+    setIsBatchProcessing(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const residentId of selectedApprovedResidents) {
+        try {
+          const response = await fetch(`/api/residents?id=${residentId}`, {
+            method: "DELETE",
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Deleted ${successCount} resident(s)`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} resident(s)`);
+      }
+
+      setSelectedApprovedResidents(new Set());
+      fetchCounts();
+      fetchResidents(activeTab);
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   // Batch delete residents
   const handleBatchDelete = async () => {
     if (selectedResidents.size === 0) {
@@ -910,7 +990,7 @@ export default function ResidentsPage() {
             )}
           </div>
 
-          {/* Batch Selection Controls */}
+          {/* Batch Selection Controls - Pending Tab */}
           {activeTab === "pending" && residents.length > 0 && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
@@ -942,7 +1022,47 @@ export default function ResidentsPage() {
                   className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
                   size="sm"
                 >
+                  <Trash2 className="h-4 w-4 mr-1" />
                   Delete ({selectedResidents.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Batch Selection Controls - Approved Tab */}
+          {activeTab === "approved" && residents.length > 0 && (
+            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedApprovedResidents.size} of {residents.length} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllApprovedResidents}
+                  className="text-xs"
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={deselectAllApprovedResidents}
+                  className="text-xs"
+                  disabled={selectedApprovedResidents.size === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleBatchDeleteApproved}
+                  disabled={selectedApprovedResidents.size === 0 || isBatchProcessing}
+                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete ({selectedApprovedResidents.size})
                 </Button>
               </div>
             </div>
@@ -992,6 +1112,10 @@ export default function ResidentsPage() {
                           setDetailsResident(resident);
                           setIsDetailsModalOpen(true);
                         }}
+                        showSelection={true}
+                        selectedResidents={selectedApprovedResidents}
+                        onToggleSelection={toggleApprovedResidentSelection}
+                        onSelectAll={handleApprovedSelectAll}
                       />
                     )}
                   </div>

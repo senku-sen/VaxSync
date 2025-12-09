@@ -15,7 +15,7 @@ export default function SignUp() {
     year: "",
     sex: "Male",
     address: "",
-    userRole: "Health Worker",
+    userRole: "Public Health Nurse",
     authCode: ""
   });
   const [error, setError] = useState("");
@@ -219,18 +219,22 @@ export default function SignUp() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('=== handleSubmit called ===');
+    console.log('Form data:', formData);
     setError("");
     setIsSubmitting(true);
 
     if (!validateStep3()) {
+      console.log('Step 3 validation failed');
       setIsSubmitting(false);
       return;
     }
+    console.log('Step 3 validation passed');
 
     // Validate authentication code
     const validAuthCodes = {
-      'Health Worker': 'HW-6A9F',
-      'RHM/HRH': 'HN-4Z7Q'
+      'Public Health Nurse': 'PHN-6A9F',
+      'Rural Health Midwife (RHM)': 'RHM-4Z7Q'
     };
 
     if (formData.authCode && validAuthCodes[formData.userRole] !== formData.authCode) {
@@ -248,32 +252,59 @@ export default function SignUp() {
     }
 
     try {
+      console.log('Submitting signup form...');
+      
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
+        signal: controller.signal
       });
-      const data = await res.json();
       
-      if (!res.ok) {
-        const message = (data && data.error) || 'Failed to create account';
-        if (/already\s+(registered|been registered|exists)/i.test(message)) {
-          setFieldErrors(prev => ({ ...prev, email: message }));
-        } else {
-          setError(message);
-        }
-        setIsSubmitting(false);
+      clearTimeout(timeoutId);
+      console.log('Signup response status:', res.status);
+      
+      let data;
+      try {
+        data = await res.json();
+        console.log('Signup response data:', data);
+      } catch (jsonErr) {
+        console.error('Failed to parse response JSON:', jsonErr);
+        setError('Server returned invalid response. Please try again.');
         return;
       }
       
+      if (!res.ok) {
+        const message = (data && data.error) || 'Failed to create account';
+        console.log('Signup error:', message);
+        // Show error prominently - go back to step 1 if it's an email issue
+        if (/already\s+(registered|been registered|exists)/i.test(message)) {
+          setFieldErrors(prev => ({ ...prev, email: message }));
+          setCurrentStep(1); // Go back to step 1 to show the email error
+        }
+        setError(message); // Always show in the error banner too
+        return;
+      }
+      
+      console.log('Signup successful, redirecting...');
       setSuccess(true);
       localStorage.setItem('registeredEmail', formData.email);
+      
+      // Redirect to registration success page
       setTimeout(() => {
         window.location.href = '/pages/registration-success';
-      }, 2000);
+      }, 1500);
     } catch (err) {
-      setError(err.message || 'An error occurred');
-      setError(err.message || "Failed to create account. Please try again.");
+      console.error('Signup fetch error:', err);
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please check your internet connection and try again.');
+      } else {
+        setError(err.message || "Failed to create account. Please check your connection and try again.");
+      }
       setSuccess(false);
     } finally {
       setIsSubmitting(false);
@@ -571,23 +602,23 @@ export default function SignUp() {
                       <input
                         type="radio"
                         name="userRole"
-                        value="Health Worker"
-                        checked={formData.userRole === "Health Worker"}
+                        value="Public Health Nurse"
+                        checked={formData.userRole === "Public Health Nurse"}
                         onChange={handleInputChange}
                         style={{ accentColor: '#3E5F44' }}
                       />
-                      <span className="ml-2 text-sm text-gray-700 font-medium">Health Worker</span>
+                      <span className="ml-2 text-sm text-gray-700 font-medium">Public Health Nurse</span>
                     </label>
                     <label className="flex items-center p-2.5 rounded-lg border border-gray-300 cursor-pointer transition-colors" style={{ '--hover-border': '#3E5F44', '--hover-bg': '#f0f9f4' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3E5F44'; e.currentTarget.style.backgroundColor = '#f0f9f4'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
                       <input
                         type="radio"
                         name="userRole"
-                        value="RHM/HRH"
-                        checked={formData.userRole === "RHM/HRH"}
+                        value="Rural Health Midwife (RHM)"
+                        checked={formData.userRole === "Rural Health Midwife (RHM)"}
                         onChange={handleInputChange}
                         style={{ accentColor: '#3E5F44' }}
                       />
-                      <span className="ml-2 text-sm text-gray-700 font-medium">RHM/HRH (Head Nurse)</span>
+                      <span className="ml-2 text-sm text-gray-700 font-medium">Rural Health Midwife (RHM)</span>
                     </label>
                   </div>
                 </div>
@@ -633,6 +664,7 @@ export default function SignUp() {
               <button
                 type="submit"
                 disabled={isSubmitting}
+                onClick={() => console.log('Button clicked, currentStep:', currentStep)}
                 className={`flex-1 text-white py-2.5 px-4 rounded-lg font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 text-sm ${
                   isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
                 }`}

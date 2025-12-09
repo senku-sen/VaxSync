@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-const ROLE_OPTIONS = ['Head Nurse', 'Health Worker', 'Supervisor', 'Administrator'];
+const ROLE_OPTIONS = ['Rural Health Midwife (RHM)', 'Public Health Nurse', 'Supervisor', 'Administrator'];
 const STATUS_OPTIONS = ['Active', 'Inactive', 'Pending', 'Suspended'];
 
 const buildInitialForm = (user) => {

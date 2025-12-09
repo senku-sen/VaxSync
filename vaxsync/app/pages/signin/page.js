@@ -146,6 +146,9 @@ export default function SignIn() {
         throw new Error(authError.message || 'Failed to establish client session');
       }
 
+      // Set a cookie to help middleware detect auth
+      document.cookie = 'vaxsync_authenticated=true; path=/; max-age=86400; SameSite=Lax';
+
       // Cache minimal profile for client-only pages
       const userCache = {
         id: data.id,
@@ -164,16 +167,19 @@ export default function SignIn() {
         throw new Error('Failed to cache user data');
       }
       
+      // Small delay to ensure cookies are set
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Redirect based on user role
       console.log('Redirecting based on role:', data.userRole);
-      if (data.userRole === 'Health Worker') {
-        window.location.href = '/pages/Health_Worker/dashboard';
-      } else if (data.userRole === 'Head Nurse') {
-        window.location.href = '/pages/Head_Nurse/dashboard';
+      if (data.userRole === 'Public Health Nurse') {
+        window.location.href = '/pages/Public_Health_Nurse/dashboard';
+      } else if (data.userRole === 'Rural Health Midwife (RHM)') {
+        window.location.href = '/pages/Rural_Health_Midwife/dashboard';
       } else {
-        // Fallback for unknown roles
+        // Fallback for unknown roles - default to Rural Health Midwife dashboard
         console.warn('Unknown user role:', data.userRole);
-        window.location.href = '/inventory';
+        window.location.href = '/pages/Rural_Health_Midwife/dashboard';
       }
     } catch (err) {
       console.error('Sign in error:', err);
