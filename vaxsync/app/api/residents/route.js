@@ -277,21 +277,18 @@ export async function POST(request) {
       const resident = {
         name: name.trim().toUpperCase(),
         birthday,
-        sex: normalizeSex(sex),
+        sex,
         administered_date,
         vaccine_status: vaccine_status || 'not_vaccinated',
+        barangay: barangay && barangay.trim() ? barangay.trim() : null,
         barangay_id,
-        barangay: barangay || null,
         submitted_by,
         vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
         missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
-        mother: mother && mother.trim() ? mother.trim() : null,
-        status: 'approved',
-        submitted_at: new Date().toISOString()
+        mother: mother && typeof mother === 'string' && mother.trim() ? mother.trim() : null,
+        status: 'approved'
       };
 
-      console.log('Inserting resident:', JSON.stringify(resident, null, 2));
-      
       const { data, error } = await supabase
         .from('residents')
         .insert([resident])
@@ -512,7 +509,7 @@ export async function POST(request) {
           sex: normalizedSex || 'Male',
           administered_date: dateOfVaccine || new Date().toISOString().split('T')[0],
           vaccine_status: vaccineStatus,
-          status: 'pending',
+          status: 'approved',
           barangay: effectiveBarangay || null,
           barangay_id: resolvedBarangayId,
           submitted_by: submittedBy,

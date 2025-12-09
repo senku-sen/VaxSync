@@ -20,14 +20,18 @@ import {
   Clock,
   Check,
   X,
-  Trash2
+  Trash2,
+  User,
+  Syringe,
+  MapPin,
+  AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
-import ResidentsCardView from "../../../../components/ResidentsCardView";
+import ResidentsTableView from "../../../../components/ResidentsTableView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
@@ -85,6 +89,11 @@ export default function ResidentsPage() {
   // Details modal state
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [detailsResident, setDetailsResident] = useState(null);
+
+  // Vaccine form state for edit modal
+  const [newVaccine, setNewVaccine] = useState("");
+  const [newVaccineDate, setNewVaccineDate] = useState("");
+  const [vaccineType, setVaccineType] = useState("given");
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -379,6 +388,7 @@ export default function ResidentsPage() {
           vaccine_status: "not_vaccinated",
           administered_date: "",
           barangay: "",
+          mother: "",
           vaccines_given: [],
           missed_schedule_of_vaccine: []
         });
@@ -442,10 +452,44 @@ export default function ResidentsPage() {
       vaccine_status: resident.vaccine_status || "not_vaccinated",
       administered_date: resident.administered_date || "",
       barangay: resident.barangay || "",
+      mother: resident.mother || "",
       vaccines_given: resident.vaccines_given || [],
       missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
     });
+    setNewVaccine("");
+    setNewVaccineDate("");
+    setVaccineType("given");
     setIsEditDialogOpen(true);
+  };
+
+  // Handle adding vaccine
+  const handleAddVaccine = () => {
+    if (!newVaccine || !newVaccineDate) {
+      toast.error("Please fill in vaccine name and date");
+      return;
+    }
+
+    const vaccineEntry = {
+      name: newVaccine,
+      date: newVaccineDate
+    };
+
+    if (vaccineType === "given") {
+      setFormData({
+        ...formData,
+        vaccines_given: [...formData.vaccines_given, vaccineEntry]
+      });
+    } else {
+      setFormData({
+        ...formData,
+        missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccineEntry]
+      });
+    }
+
+    setNewVaccine("");
+    setNewVaccineDate("");
+    setVaccineType("given");
+    toast.success("Vaccine added successfully");
   };
 
   // Get vaccine status badge
@@ -796,6 +840,45 @@ export default function ResidentsPage() {
           </div>
 
 
+          {/* Batch Selection Controls */}
+          {residents.length > 0 && (
+            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {selectedResidents.size} of {residents.length} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={selectAllResidents}
+                  className="text-xs"
+                >
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={deselectAllResidents}
+                  className="text-xs"
+                  disabled={selectedResidents.size === 0}
+                >
+                  Clear
+                </Button>
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleBatchDeletePending}
+                  disabled={selectedResidents.size === 0 || isBatchProcessing}
+                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete ({selectedResidents.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Residents Card View with Pagination */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
             {(() => {
@@ -808,8 +891,8 @@ export default function ResidentsPage() {
 
               return (
                 <>
-                  <div className="flex-1">
-                    <ResidentsCardView
+                  <div className="flex-1 overflow-x-auto">
+                    <ResidentsTableView
                       residents={paginatedResidents}
                       loading={loading}
                       selectedBarangay={selectedBarangay}
@@ -820,6 +903,10 @@ export default function ResidentsPage() {
                         setDetailsResident(resident);
                         setIsDetailsModalOpen(true);
                       }}
+                      showSelection={true}
+                      selectedResidents={selectedResidents}
+                      onToggleSelection={toggleResidentSelection}
+                      onSelectAll={selectAllResidents}
                     />
                   </div>
 
@@ -847,11 +934,12 @@ export default function ResidentsPage() {
 
           {/* Edit Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Edit Resident</DialogTitle>
+            <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="bg-gradient-to-r from-[#4A7C59] to-[#3E6B4D] -mx-6 -mt-6 px-6 py-4 text-white rounded-t-lg">
+                <DialogTitle className="text-xl font-bold text-white">Edit Resident Information</DialogTitle>
+                <p className="text-sm text-green-100 mt-1">{selectedResident?.name || "Resident"}</p>
               </DialogHeader>
-              <form onSubmit={handleUpdateResident} className="space-y-4">
+              <form onSubmit={handleUpdateResident} className="space-y-6 pt-4">
                 <div>
                   <Label htmlFor="edit-name">Full Name *</Label>
                   <Input
@@ -926,92 +1014,199 @@ export default function ResidentsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div>
-                  <Label>Vaccines Given</Label>
-                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {VACCINE_TYPES.map((vaccine) => (
-                        <div key={vaccine} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-vaccine-${vaccine}`}
-                            checked={formData.vaccines_given.includes(vaccine)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFormData({
+                  <Label htmlFor="edit-mother">Mother's Name</Label>
+                  <Input
+                    id="edit-mother"
+                    placeholder="Enter mother's name"
+                    value={formData.mother || ""}
+                    onChange={(e) => setFormData({...formData, mother: e.target.value})}
+                    className="mt-1"
+                  />
+                </div>
+                
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <CheckCircle size={20} className="text-green-600" />
+                    Vaccines Given
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Vaccines administered to this resident</p>
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    {formData.vaccines_given.length > 0 ? (
+                      <div className="space-y-2">
+                        {formData.vaccines_given.map((vaccine, index) => {
+                          const isObject = typeof vaccine === 'object' && vaccine !== null;
+                          const vaccineName = isObject ? vaccine.name : vaccine;
+                          const vaccineDate = isObject ? vaccine.date : '';
+                          
+                          return (
+                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-green-200 rounded">
+                              <div className="flex items-center gap-3">
+                                <CheckCircle size={18} className="text-green-600" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{vaccineName.toUpperCase()}</p>
+                                  {vaccineDate && <p className="text-sm text-gray-600">{new Date(vaccineDate).toLocaleDateString()}</p>}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({
                                   ...formData,
-                                  vaccines_given: [...formData.vaccines_given, vaccine]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  vaccines_given: formData.vaccines_given.filter(v => v !== vaccine)
-                                });
-                              }
-                            }}
-                          />
-                          <Label
-                            htmlFor={`edit-vaccine-${vaccine}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {vaccine.toUpperCase()}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                    {formData.vaccines_given.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-3">
-                        Selected: {formData.vaccines_given.join(", ")}
-                      </p>
+                                  vaccines_given: formData.vaccines_given.filter((_, i) => i !== index)
+                                })}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No vaccines added yet</p>
                     )}
+                  </div>
+
+                  {/* Add Vaccine Form */}
+                  <div className="mt-4 p-4 bg-white border border-green-200 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-gray-900">Add Vaccine</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="vaccine-name" className="text-sm">Vaccine Name *</Label>
+                        <Input
+                          id="vaccine-name"
+                          placeholder="Enter vaccine name"
+                          value={vaccineType === "given" ? newVaccine : ""}
+                          onChange={(e) => {
+                            setVaccineType("given");
+                            setNewVaccine(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="vaccine-date" className="text-sm">Date *</Label>
+                        <Input
+                          id="vaccine-date"
+                          type="date"
+                          value={vaccineType === "given" ? newVaccineDate : ""}
+                          onChange={(e) => {
+                            setVaccineType("given");
+                            setNewVaccineDate(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setVaccineType("given");
+                            handleAddVaccine();
+                          }}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <Label>Missed Schedule of Vaccine</Label>
-                  <div className="mt-2 p-4 border rounded-md max-h-60 overflow-y-auto">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {VACCINE_TYPES.map((vaccine) => (
-                        <div key={vaccine} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`edit-missed-vaccine-${vaccine}`}
-                            checked={formData.missed_schedule_of_vaccine.includes(vaccine)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setFormData({
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <AlertCircle size={20} className="text-orange-600" />
+                    Missed Schedule of Vaccine
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">Vaccines missed during scheduled vaccination dates</p>
+                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    {formData.missed_schedule_of_vaccine.length > 0 ? (
+                      <div className="space-y-2">
+                        {formData.missed_schedule_of_vaccine.map((item, index) => {
+                          const isObject = typeof item === 'object' && item !== null;
+                          const vaccineName = isObject ? item.name : 'Unknown Vaccine';
+                          const vaccineDate = isObject ? item.date : item;
+                          
+                          return (
+                            <div key={index} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded">
+                              <div className="flex items-center gap-3">
+                                <AlertCircle size={18} className="text-orange-600" />
+                                <div>
+                                  <p className="font-medium text-gray-900">{vaccineName.toUpperCase()}</p>
+                                  <p className="text-sm text-gray-600">{new Date(vaccineDate).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFormData({
                                   ...formData,
-                                  missed_schedule_of_vaccine: [...formData.missed_schedule_of_vaccine, vaccine]
-                                });
-                              } else {
-                                setFormData({
-                                  ...formData,
-                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter(v => v !== vaccine)
-                                });
-                              }
-                            }}
-                          />
-                          <Label
-                            htmlFor={`edit-missed-vaccine-${vaccine}`}
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            {vaccine.toUpperCase()}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                    {formData.missed_schedule_of_vaccine.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-3">
-                        Selected: {formData.missed_schedule_of_vaccine.join(", ")}
-                      </p>
+                                  missed_schedule_of_vaccine: formData.missed_schedule_of_vaccine.filter((_, i) => i !== index)
+                                })}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No missed vaccines recorded</p>
                     )}
+                  </div>
+
+                  {/* Add Missed Vaccine Form */}
+                  <div className="mt-4 p-4 bg-white border border-orange-200 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-gray-900">Add Missed Vaccine</h4>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="missed-vaccine-name" className="text-sm">Vaccine Name *</Label>
+                        <Input
+                          id="missed-vaccine-name"
+                          placeholder="Enter vaccine name"
+                          value={vaccineType === "missed" ? newVaccine : ""}
+                          onChange={(e) => {
+                            setVaccineType("missed");
+                            setNewVaccine(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="missed-vaccine-date" className="text-sm">Date *</Label>
+                        <Input
+                          id="missed-vaccine-date"
+                          type="date"
+                          value={vaccineType === "missed" ? newVaccineDate : ""}
+                          onChange={(e) => {
+                            setVaccineType("missed");
+                            setNewVaccineDate(e.target.value);
+                          }}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setVaccineType("missed");
+                            handleAddVaccine();
+                          }}
+                          className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex justify-end space-x-2">
+                <div className="border-t pt-6 flex justify-end gap-3">
                   <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-[#3E5F44] hover:bg-[#3E5F44]/90">
+                  <Button type="submit" className="bg-[#4A7C59] hover:bg-[#3E6B4D] text-white">
                     Update Resident
                   </Button>
                 </div>

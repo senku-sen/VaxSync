@@ -30,7 +30,7 @@ import { loadUserProfile } from "@/lib/vaccineRequest";
 import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
-import ResidentsCardView from "../../../../components/ResidentsCardView";
+import ResidentsTableView from "../../../../components/ResidentsTableView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
@@ -84,7 +84,7 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     contact: "",
     barangay: "",
-    mother: "",
+    mother_name: "",
     vaccines_given: [],
     missed_schedule_of_vaccine: []
   });
@@ -805,6 +805,7 @@ export default function ResidentsPage() {
       vaccine_status: resident.vaccine_status || "not_vaccinated",
       administered_date: resident.administered_date || "",
       barangay: resident.barangay || "",
+      mother: resident.mother || "",
       vaccines_given: resident.vaccines_given || [],
       missed_schedule_of_vaccine: resident.missed_schedule_of_vaccine || []
     });
@@ -941,8 +942,8 @@ export default function ResidentsPage() {
             )}
           </div>
 
-          {/* Batch Selection Controls - Pending Tab */}
-          {activeTab === "pending" && residents.length > 0 && (
+          {/* Batch Selection Controls */}
+          {residents.length > 0 && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">
@@ -980,46 +981,7 @@ export default function ResidentsPage() {
             </div>
           )}
 
-          {/* Batch Selection Controls - Approved Tab */}
-          {activeTab === "approved" && residents.length > 0 && (
-            <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {selectedApprovedResidents.size} of {residents.length} selected
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={selectAllApprovedResidents}
-                  className="text-xs"
-                >
-                  Select All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={deselectAllApprovedResidents}
-                  className="text-xs"
-                  disabled={selectedApprovedResidents.size === 0}
-                >
-                  Clear
-                </Button>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  onClick={handleBatchDeleteApproved}
-                  disabled={selectedApprovedResidents.size === 0 || isBatchProcessing}
-                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
-                  size="sm"
-                >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete ({selectedApprovedResidents.size})
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Residents Table with Pagination */}
+          {/* Residents Table View with Pagination */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
             {(() => {
               // Calculate pagination
@@ -1032,43 +994,22 @@ export default function ResidentsPage() {
               return (
                 <>
                   <div className="flex-1 overflow-x-auto">
-                    {activeTab === "pending" ? (
-                      <PendingResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleStatusChange={handleStatusChange}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        showApproveButton={false}
-                        selectedResidents={selectedResidents}
-                        onToggleSelection={toggleResidentSelection}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      />
-                    ) : (
-                      <ApprovedResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                        showSelection={true}
-                        selectedResidents={selectedApprovedResidents}
-                        onToggleSelection={toggleApprovedResidentSelection}
-                        onSelectAll={handleApprovedSelectAll}
-                      />
-                    )}
+                    <ResidentsTableView
+                      residents={paginatedResidents}
+                      loading={loading}
+                      selectedBarangay={selectedBarangay}
+                      openEditDialog={openEditDialog}
+                      handleDeleteResident={handleDeleteResident}
+                      formatDate={formatDate}
+                      onViewDetails={(resident) => {
+                        setDetailsResident(resident);
+                        setIsDetailsModalOpen(true);
+                      }}
+                      showSelection={true}
+                      selectedResidents={selectedResidents}
+                      onToggleSelection={toggleResidentSelection}
+                      onSelectAll={selectAllResidents}
+                    />
                   </div>
 
                   {/* Pagination Control */}
@@ -1145,6 +1086,17 @@ export default function ResidentsPage() {
                       </Select>
                     </div>
                   </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-mother">Mother's Name</Label>
+                  <Input
+                    id="edit-mother"
+                    placeholder="Enter mother's name"
+                    value={formData.mother || ""}
+                    onChange={(e) => setFormData({...formData, mother: e.target.value})}
+                    className="mt-1"
+                  />
                 </div>
 
                 {/* Vaccination Information Section */}
