@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { User, Edit, Trash2, Eye } from "lucide-react";
 
 export default function ApprovedResidentsTable({
@@ -15,7 +16,15 @@ export default function ApprovedResidentsTable({
   getVaccineStatusBadge,
   formatDate,
   onViewDetails = () => {},
+  // Selection props
+  selectedResidents = new Set(),
+  onToggleSelection = () => {},
+  onSelectAll = () => {},
+  showSelection = false,
 }) {
+  const allSelected = residents.length > 0 && residents.every(r => selectedResidents.has(r.id));
+  const someSelected = residents.some(r => selectedResidents.has(r.id)) && !allSelected;
+
   return (
     <Card>
       <CardHeader>
@@ -53,7 +62,16 @@ export default function ApprovedResidentsTable({
               </thead>
               <tbody>
                 {residents.map((resident) => (
-                  <tr key={resident.id} className="border-b hover:bg-gray-50">
+                  <tr key={resident.id} className={`border-b hover:bg-gray-50 ${selectedResidents.has(resident.id) ? 'bg-blue-50' : ''}`}>
+                    {showSelection && (
+                      <td className="py-2 px-2 text-center">
+                        <Checkbox
+                          checked={selectedResidents.has(resident.id)}
+                          onCheckedChange={() => onToggleSelection(resident.id)}
+                          aria-label={`Select ${resident.name}`}
+                        />
+                      </td>
+                    )}
                     <td className="py-2 px-2">
                       <div className="font-medium text-xs mb-1">{resident.name}</div>
                       <div className="flex flex-wrap gap-0.5">

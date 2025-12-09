@@ -141,7 +141,7 @@ export default function ForgotPasswordPage() {
                 className="w-full border rounded px-3 py-2 tracking-widest"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0,6))}
-                placeholder="123456"
+                placeholder="Enter code"
                 required
               />
             </div>

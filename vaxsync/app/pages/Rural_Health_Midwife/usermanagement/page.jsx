@@ -22,7 +22,7 @@ const FEATURE_CHECKLIST = [
   { key: "notifications", label: "Notifications" },
 ];
 
-const ROLE_OPTIONS = ["Health Worker", "Head Nurse"];
+const ROLE_OPTIONS = ["Public Health Nurse", "Rural Health Midwife (RHM)"];
 const BARANGAY_NAMES = [
   "BARANGAY II",
   "CALASGASAN",
@@ -35,14 +35,14 @@ const BARANGAY_NAMES = [
   "MANCRUZ",
 ];
 const normalizeRole = (role) => {
-  if (!role) return "Health Worker";
-  if (role === "RHM/HRH" || role === "Head Nurse") return "Head Nurse";
+  if (!role) return "Public Health Nurse";
+  if (role === "RHM/HRH" || role === "HRH/RHM" || role === "Rural Health Midwife (RHM)") return "Rural Health Midwife (RHM)";
   return role;
 };
 
 const toDatabaseRole = (role) => {
-  if (role === "Head Nurse" || role === "RHM/HRH") return "Head Nurse";
-  return "Health Worker";
+  if (role === "HRH/RHM" || role === "RHM/HRH" || role === "Rural Health Midwife (RHM)") return "Rural Health Midwife (RHM)";
+  return "Public Health Nurse";
 };
 
 const defaultPermissionsForRole = (role) => {
@@ -67,7 +67,7 @@ export default function HeadNurseUserManagement() {
     first_name: "",
     last_name: "",
     email: "",
-    user_role: "Health Worker",
+    user_role: "Public Health Nurse",
     address: "",
     assigned_barangay_id: "",
   });
@@ -239,10 +239,10 @@ export default function HeadNurseUserManagement() {
   const displayUsers = useMemo(() => {
     return users.map((user) => {
       const roleLabel = normalizeRole(user.user_role);
-      const isHeadNurse = roleLabel === "Head Nurse";
+      const isRuralHealthMidwife = roleLabel === "Rural Health Midwife (RHM)";
       
-      // For Head Nurse, always show "RHU"
-      if (isHeadNurse) {
+      // For Rural Health Midwife, always show "RHU"
+      if (isRuralHealthMidwife) {
         return {
           ...user,
           assigned_barangay_id: rhuBarangayId,
@@ -419,7 +419,7 @@ export default function HeadNurseUserManagement() {
     console.log('User assigned_barangay_id:', user.assigned_barangay_id);
     console.log('Available barangay options:', barangayOptions);
     
-    const isHeadNurse = normalizeRole(user.user_role) === "Head Nurse";
+    const isRuralHealthMidwife = normalizeRole(user.user_role) === "Rural Health Midwife (RHM)";
     
     setActiveUser(user);
     setFormState({
@@ -428,8 +428,8 @@ export default function HeadNurseUserManagement() {
       email: user.email || "",
       user_role: normalizeRole(user.user_role),
       address: user.address || "",
-      // For Head Nurse, always use RHU barangay ID; for others, use their assigned barangay
-      assigned_barangay_id: isHeadNurse ? (rhuBarangayId || "") : (user.assigned_barangay_id || ""),
+      // For Rural Health Midwife, always use RHU barangay ID; for others, use their assigned barangay
+      assigned_barangay_id: isRuralHealthMidwife ? (rhuBarangayId || "") : (user.assigned_barangay_id || ""),
     });
     setModalError("");
     setIsModalOpen(true);
@@ -460,16 +460,16 @@ export default function HeadNurseUserManagement() {
       : isOnline;
     
     try {
-      const isHeadNurse = normalizeRole(activeUser.user_role) === "Head Nurse";
-      // Preserve original role for Head Nurse users
-      const roleToSave = isHeadNurse 
+      const isRuralHealthMidwife = normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)";
+      // Preserve original role for Rural Health Midwife users
+      const roleToSave = isRuralHealthMidwife 
         ? toDatabaseRole(normalizeRole(activeUser.user_role))
         : toDatabaseRole(normalizeRole(formState.user_role));
       
-      // For Head Nurse, always assign to RHU barangay
+      // For Rural Health Midwife, always assign to RHU barangay
       // For other users, only set assigned_barangay_id if a valid selection was made
       let allowedBarangayId = null;
-      if (isHeadNurse) {
+      if (isRuralHealthMidwife) {
         // Ensure RHU barangay exists
         if (!rhuBarangayId) {
           // Try to get or create RHU barangay
@@ -498,7 +498,7 @@ export default function HeadNurseUserManagement() {
           allowedBarangayId = rhuBarangayId;
         }
       } else {
-        // For non-Head Nurse users, validate the selected barangay
+        // For non-Rural Health Midwife users, validate the selected barangay
         const selectedBarangayId = formState.assigned_barangay_id?.trim() || "";
         allowedBarangayId = 
           selectedBarangayId !== "" && 
@@ -681,24 +681,24 @@ export default function HeadNurseUserManagement() {
                   All Users
                 </button>
                 <button
-                  onClick={() => setRoleFilter("Head Nurse")}
+                  onClick={() => setRoleFilter("Rural Health Midwife (RHM)")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    roleFilter === "Head Nurse"
+                    roleFilter === "Rural Health Midwife (RHM)"
                       ? "bg-blue-600 text-white"
                       : "bg-blue-100 text-blue-700 hover:bg-blue-200"
                   }`}
                 >
-                  Head Nurse
+                  Rural Health Midwife (RHM)
                 </button>
                 <button
-                  onClick={() => setRoleFilter("Health Worker")}
+                  onClick={() => setRoleFilter("Public Health Nurse")}
                   className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-                    roleFilter === "Health Worker"
+                    roleFilter === "Public Health Nurse"
                       ? "bg-green-600 text-white"
                       : "bg-green-100 text-green-700 hover:bg-green-200"
                   }`}
                 >
-                  Health Worker
+                  Public Health Nurse
                 </button>
               </div>
             </div>
@@ -826,8 +826,8 @@ export default function HeadNurseUserManagement() {
                 Edit User
               </h2>
               <p className="text-sm text-gray-500">
-                {normalizeRole(activeUser.user_role) === "Head Nurse"
-                  ? "Update user details. Role and barangay assignment cannot be changed for Head Nurse accounts (defaults to RHU)."
+                {normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)"
+                  ? "Update user details. Role and barangay assignment cannot be changed for Rural Health Midwife accounts (defaults to RHU)."
                   : "Update user details and access permissions."}
               </p>
             </div>
@@ -888,7 +888,7 @@ export default function HeadNurseUserManagement() {
                   const newRole = e.target.value;
                   handleFormChange("user_role", newRole);
                 }}
-                disabled={normalizeRole(activeUser.user_role) === "Head Nurse"}
+                disabled={normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)"}
               >
                 {ROLE_OPTIONS.map((roleOption) => (
                   <option key={roleOption} value={roleOption}>
@@ -911,7 +911,7 @@ export default function HeadNurseUserManagement() {
               <label className="text-xs font-semibold uppercase text-gray-500">
                 Assigned Barangay
               </label>
-              {normalizeRole(activeUser.user_role) === "Head Nurse" ? (
+              {normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)" ? (
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
                   value="RHU"

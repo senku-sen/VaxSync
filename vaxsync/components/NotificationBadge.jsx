@@ -46,8 +46,8 @@ export default function NotificationBadge() {
         let totalUnread = 0;
         let hasUrgent = false;
 
-        if (userRole === 'Health Worker') {
-          // Health Worker: Resident Approvals + Vaccine Requests + Sessions
+        if (userRole === 'Public Health Nurse') {
+          // Public Health Nurse: Resident Approvals + Vaccine Requests + Sessions
           const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
             fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
             fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),

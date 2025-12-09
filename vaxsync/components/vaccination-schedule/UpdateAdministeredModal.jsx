@@ -107,7 +107,7 @@ export default function UpdateAdministeredModal({
   const canUploadPhotos =
     !isViewOnly &&
     userProfile &&
-    userProfile.user_role === "Health Worker" &&
+    userProfile.user_role === "Public Health Nurse" &&
     (session.status === "In progress" || session.status === "Completed");
 
   const handleChange = (e) => {
@@ -314,7 +314,7 @@ export default function UpdateAdministeredModal({
                       photos={photos}
                       isLoading={isLoadingPhotos}
                       canDelete={
-                        userProfile?.user_role === "Health Worker"
+                        userProfile?.user_role === "Public Health Nurse"
                       }
                       onPhotoDeleted={handlePhotoDeleted}
                       userRole={userProfile?.user_role}

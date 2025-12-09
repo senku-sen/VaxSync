@@ -162,7 +162,7 @@ export default function PhotoGallery({
                 </button>
 
                 {/* Delete button - only for uploader or head nurse */}
-                {(canDelete || userRole === "Head Nurse") && (
+                {(canDelete || userRole === "Rural Health Midwife (RHM)") && (
                   <button
                     type="button"
                     onClick={(e) => {

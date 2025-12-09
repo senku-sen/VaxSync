@@ -122,31 +122,35 @@ export default function InventoryHeader({ title, subtitle }) {
     try {
       await supabase.auth.signOut();
     } catch {}
-    try { localStorage.removeItem('vaxsync_user'); } catch {}
+    try { 
+      localStorage.removeItem('vaxsync_user'); 
+      // Clear the auth cookie
+      document.cookie = 'vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    } catch {}
     window.location.href = "/pages/signin";
   }
 
   const handleNotificationClick = () => {
-    // Determine the base path (Health_Worker or Head_Nurse)
-    const isHealthWorker = pathname.includes("Health_Worker");
-    const isHeadNurse = pathname.includes("Head_Nurse");
+    // Determine the base path (Public_Health_Nurse or Rural_Health_Midwife)
+    const isPublicHealthNurse = pathname.includes("Public_Health_Nurse");
+    const isRuralHealthMidwife = pathname.includes("Rural_Health_Midwife");
     
-    if (isHealthWorker) {
-      router.push("/pages/Health_Worker/notifications");
-    } else if (isHeadNurse) {
-      router.push("/pages/Head_Nurse/notifications");
+    if (isPublicHealthNurse) {
+      router.push("/pages/Public_Health_Nurse/notifications");
+    } else if (isRuralHealthMidwife) {
+      router.push("/pages/Rural_Health_Midwife/notifications");
     } else {
       // Fallback: check localStorage for user role if pathname doesn't indicate role
       try {
         const cachedUser = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
-        if (cachedUser?.user_role === "Health Worker") {
-          router.push("/pages/Health_Worker/notifications");
+        if (cachedUser?.user_role === "Public Health Nurse") {
+          router.push("/pages/Public_Health_Nurse/notifications");
         } else {
-          router.push("/pages/Head_Nurse/notifications");
+          router.push("/pages/Rural_Health_Midwife/notifications");
         }
       } catch (err) {
-        // Default to Head Nurse if error
-        router.push("/pages/Head_Nurse/notifications");
+        // Default to Rural Health Midwife if error
+        router.push("/pages/Rural_Health_Midwife/notifications");
       }
     }
   };
@@ -175,7 +179,7 @@ export default function InventoryHeader({ title, subtitle }) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 border border-[#3E5F44] rounded-md shadow-sm">
             <DropdownMenuItem asChild className="flex items-center cursor-pointer">
-              <a href={pathname.includes("Health_Worker") ? "/pages/Health_Worker/settings-privacy" : "/pages/Head_Nurse/settings-privacy"} className="flex items-center">
+              <a href={pathname.includes("Public_Health_Nurse") ? "/pages/Public_Health_Nurse/settings-privacy" : "/pages/Rural_Health_Midwife/settings-privacy"} className="flex items-center">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings & Privacy
               </a>

@@ -5,6 +5,11 @@ import { toast } from "sonner";
 import Step1BasicInfo from "./Step1BasicInfo";
 import Step2VaccineStatus from "./Step2VaccineStatus";
 import Step3ReviewSummary from "./Step3ReviewSummary";
+import { useOffline } from "@/components/OfflineProvider";
+import { cacheData, getCachedData } from "@/lib/offlineStorage";
+import { queueOperation } from "@/lib/syncManager";
+
+const BARANGAY_CACHE_KEY = 'barangays_list';
 
 export default function AddResidentWizard({
   isOpen,
@@ -14,6 +19,7 @@ export default function AddResidentWizard({
   userId,
   onSuccess,
 }) {
+  const { isOnline, showNotification } = useOffline();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,21 +58,60 @@ export default function AddResidentWizard({
       // If barangayId is passed directly, use it
       if (selectedBarangayId) {
         setBarangayId(selectedBarangayId);
-      } else {
-        // Otherwise, fetch barangay ID from barangay name
-        const barangayResponse = await fetch(
-          `/api/barangays?name=${encodeURIComponent(selectedBarangay)}`
-        );
-        if (barangayResponse.ok) {
-          const barangayData = await barangayResponse.json();
-          const bId = barangayData.data?.[0]?.id;
-          if (bId) {
-            setBarangayId(bId);
+        return;
+      }
+
+      // Check actual online status
+      const actuallyOnline = typeof navigator !== 'undefined' 
+        ? (navigator.onLine && isOnline) 
+        : isOnline;
+
+      if (actuallyOnline) {
+        // Online: fetch barangay ID from barangay name
+        try {
+          const barangayResponse = await fetch(
+            `/api/barangays?name=${encodeURIComponent(selectedBarangay)}`
+          );
+          if (barangayResponse.ok) {
+            const barangayData = await barangayResponse.json();
+            const bId = barangayData.data?.[0]?.id;
+            if (bId) {
+              setBarangayId(bId);
+              // Cache barangay data for offline use
+              const allBarangays = barangayData.data || [];
+              if (allBarangays.length > 0) {
+                await cacheData(BARANGAY_CACHE_KEY, allBarangays, 'barangays');
+              }
+            }
           }
+        } catch (fetchErr) {
+          console.log("Failed to fetch barangay, trying cache:", fetchErr.message);
+          await loadBarangayFromCache();
+        }
+      } else {
+        // Offline: try to load from cache
+        await loadBarangayFromCache();
+      }
+    } catch (err) {
+      console.log("Error initializing wizard data:", err.message);
+    }
+  };
+
+  const loadBarangayFromCache = async () => {
+    try {
+      const cached = await getCachedData(BARANGAY_CACHE_KEY);
+      if (cached && cached.length > 0) {
+        // Find barangay by name (case-insensitive)
+        const found = cached.find(
+          b => b.name?.toLowerCase() === selectedBarangay?.toLowerCase()
+        );
+        if (found?.id) {
+          setBarangayId(found.id);
+          console.log("Loaded barangay ID from cache:", found.id);
         }
       }
     } catch (err) {
-      console.error("Error initializing wizard data:", err);
+      console.log("Failed to load barangay from cache:", err.message);
     }
   };
 
@@ -79,6 +124,11 @@ export default function AddResidentWizard({
 
   const handleNext = () => {
     setError(null);
+
+    // Check actual online status for validation
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine && isOnline) 
+      : isOnline;
 
     // Validate current step before proceeding
     if (currentStep === 1) {
@@ -107,20 +157,24 @@ export default function AddResidentWizard({
           setError("Please select if resident is first timer or missed sessions");
           return;
         }
-        if (formData.missedSessions === false && !formData.selectedSession) {
-          setError("Please select an upcoming session");
-          return;
-        }
-        if (formData.missedSessions === true && formData.selectedVaccines.length === 0 && !formData.selectedSession) {
-          setError("Please add vaccines or select sessions");
-          return;
+        // Session selection only required when online
+        if (actuallyOnline) {
+          if (formData.missedSessions === false && !formData.selectedSession) {
+            setError("Please select an upcoming session");
+            return;
+          }
+          if (formData.missedSessions === true && formData.selectedVaccines.length === 0 && !formData.selectedSession) {
+            setError("Please add vaccines or select sessions");
+            return;
+          }
         }
       } else if (formData.vaccineStatus === "partially_vaccinated") {
         if (formData.selectedVaccines.length === 0) {
           setError("Please add at least one vaccine");
           return;
         }
-        if (!formData.selectedUpcomingSession || (Array.isArray(formData.selectedUpcomingSession) && formData.selectedUpcomingSession.length === 0)) {
+        // Session selection only required when online
+        if (actuallyOnline && (!formData.selectedUpcomingSession || (Array.isArray(formData.selectedUpcomingSession) && formData.selectedUpcomingSession.length === 0))) {
           setError("Please select an upcoming session to register the resident");
           return;
         }
@@ -129,7 +183,8 @@ export default function AddResidentWizard({
           setError("Please add at least one vaccine");
           return;
         }
-        if (!formData.selectedFullyVaccinatedSessions || (Array.isArray(formData.selectedFullyVaccinatedSessions) && formData.selectedFullyVaccinatedSessions.length === 0)) {
+        // Session selection only required when online
+        if (actuallyOnline && (!formData.selectedFullyVaccinatedSessions || (Array.isArray(formData.selectedFullyVaccinatedSessions) && formData.selectedFullyVaccinatedSessions.length === 0))) {
           setError("Please select an upcoming session to register the resident");
           return;
         }
@@ -182,32 +237,62 @@ export default function AddResidentWizard({
     setIsLoading(true);
     setError(null);
 
+    // Check actual online status
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine && isOnline) 
+      : isOnline;
+
     try {
       // Resolve barangay ID (prefer passed-in / initialized value)
       let effectiveBarangayId = barangayId || selectedBarangayId || null;
 
-      // If still missing, try to look it up by barangay name from the form
+      // If still missing, try to look it up
       if (!effectiveBarangayId && formData.barangay) {
-        try {
-          const resp = await fetch(
-            `/api/barangays?name=${encodeURIComponent(formData.barangay)}`
-          );
+        if (actuallyOnline) {
+          // Try API lookup
+          try {
+            const resp = await fetch(
+              `/api/barangays?name=${encodeURIComponent(formData.barangay)}`
+            );
 
-          if (resp.ok) {
-            const json = await resp.json();
-            const lookedUpId = json.data?.[0]?.id;
-            if (lookedUpId) {
-              effectiveBarangayId = lookedUpId;
-              setBarangayId(lookedUpId);
+            if (resp.ok) {
+              const json = await resp.json();
+              const lookedUpId = json.data?.[0]?.id;
+              if (lookedUpId) {
+                effectiveBarangayId = lookedUpId;
+                setBarangayId(lookedUpId);
+              }
             }
+          } catch (lookupErr) {
+            console.log("Error looking up barangay by name:", lookupErr.message);
           }
-        } catch (lookupErr) {
-          console.error("Error looking up barangay by name:", lookupErr);
+        }
+        
+        // If still missing, try cache
+        if (!effectiveBarangayId) {
+          try {
+            const cached = await getCachedData(BARANGAY_CACHE_KEY);
+            if (cached && cached.length > 0) {
+              const found = cached.find(
+                b => b.name?.toLowerCase() === formData.barangay?.toLowerCase()
+              );
+              if (found?.id) {
+                effectiveBarangayId = found.id;
+                setBarangayId(found.id);
+              }
+            }
+          } catch (cacheErr) {
+            console.log("Cache lookup failed:", cacheErr.message);
+          }
         }
       }
 
-      if (!effectiveBarangayId) {
-        throw new Error("Barangay ID not found");
+      // If still no barangay ID and we're offline, allow submission with barangay name only
+      // The sync manager will resolve it later when online
+      if (!effectiveBarangayId && !actuallyOnline) {
+        console.log("Offline mode: proceeding without barangay ID, will resolve on sync");
+      } else if (!effectiveBarangayId && actuallyOnline) {
+        throw new Error("Barangay ID not found. Please check your barangay selection.");
       }
 
       if (!userId) {
@@ -249,22 +334,49 @@ export default function AddResidentWizard({
         submitted_by: userId,
       };
 
-      const residentResponse = await fetch("/api/residents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(residentData),
-      });
+      let residentId = null;
 
-      if (!residentResponse.ok) {
-        const errorData = await residentResponse.json();
-        throw new Error(errorData.error || "Failed to create resident");
+      if (actuallyOnline) {
+        // Online: submit directly
+        const residentResponse = await fetch("/api/residents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(residentData),
+        });
+
+        if (!residentResponse.ok) {
+          const errorData = await residentResponse.json();
+          throw new Error(errorData.error || "Failed to create resident");
+        }
+
+        const residentResult = await residentResponse.json();
+        residentId = residentResult.data?.id;
+      } else {
+        // Offline: queue for later sync
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        await queueOperation({
+          endpoint: '/api/residents',
+          method: 'POST',
+          body: residentData,
+          type: 'create',
+          description: `Create resident: ${residentData.name}`,
+          cacheKey: 'residents_pending',
+          tempId
+        });
+
+        residentId = tempId;
+        showNotification?.('Resident saved locally. Will sync when online.', 'info');
       }
 
-      const residentResult = await residentResponse.json();
-      const residentId = residentResult.data?.id;
-
       // Step 2: Create session beneficiary records (if applicable)
-      // Similar to vaccination session participant addition process
+      // Skip if offline - beneficiaries will be created when resident syncs
+      if (!actuallyOnline) {
+        console.log("Offline mode: skipping beneficiary creation, will be done on sync");
+      }
+      
+      // Only create beneficiaries when online (need real resident ID)
+      if (actuallyOnline && residentId && !residentId.startsWith('temp_')) {
       try {
         const sessionsToAdd = [];
         const customVaccinesToAdd = [];
@@ -420,8 +532,15 @@ export default function AddResidentWizard({
         console.warn("⚠️ Error creating session beneficiaries:", err);
         // Don't fail resident creation if beneficiary creation fails
       }
+      } // End of online-only beneficiary creation block
 
-      toast.success("Resident added successfully!");
+      // Show appropriate success message
+      if (actuallyOnline) {
+        toast.success("Resident added successfully!");
+      } else {
+        toast.success("Resident saved offline. Will sync when online.");
+      }
+      
       handleCancel();
       if (onSuccess) {
         onSuccess();

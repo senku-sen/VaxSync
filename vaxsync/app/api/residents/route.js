@@ -3,11 +3,21 @@ import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for backend operations (bypasses RLS)
 // Fallback to anon key if service role key is not available
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  supabaseKey
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Prefer service role key (bypasses RLS), fallback to anon key
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+
+if (!supabaseUrl) {
+  console.error('NEXT_PUBLIC_SUPABASE_URL is not configured');
+}
+if (!supabaseKey) {
+  console.error('No Supabase key available (SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY)');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Parse CSV line (handles quoted fields)
 function parseCSVLine(line) {
@@ -212,6 +222,36 @@ export async function POST(request) {
       const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
          submitted_by, vaccines_given, missed_schedule_of_vaccine, mother } = body;
 
+      // If barangay_id is missing but barangay name is provided, try to resolve it
+      if (!barangay_id && barangay) {
+        try {
+          const { data: foundBarangay, error: findError } = await supabase
+            .from('barangays')
+            .select('id')
+            .ilike('name', barangay)
+            .maybeSingle();
+          
+          if (!findError && foundBarangay?.id) {
+            barangay_id = foundBarangay.id;
+            console.log(`Resolved barangay_id from name "${barangay}":`, barangay_id);
+          } else {
+            // Try to create the barangay if it doesn't exist
+            const { data: newBarangay, error: createError } = await supabase
+              .from('barangays')
+              .insert([{ name: barangay, municipality: 'Unknown' }])
+              .select('id')
+              .single();
+            
+            if (!createError && newBarangay?.id) {
+              barangay_id = newBarangay.id;
+              console.log(`Created new barangay "${barangay}" with id:`, barangay_id);
+            }
+          }
+        } catch (resolveErr) {
+          console.log('Error resolving barangay_id:', resolveErr.message);
+        }
+      }
+
       // Validate required fields
       const missingFields = [];
       if (!name) missingFields.push('name');
@@ -233,7 +273,7 @@ export async function POST(request) {
         );
       }
 
-      // Create resident object
+      // Create resident object (only include fields that exist in the database)
       const resident = {
         name: name.trim().toUpperCase(),
         birthday,
@@ -284,6 +324,7 @@ export async function POST(request) {
       const formData = await request.formData();
       const file = formData.get('file');
       const submittedBy = formData.get('submitted_by');
+      const barangayFromForm = formData.get('barangay') || '';
 
       if (!file) {
         return NextResponse.json(
@@ -316,6 +357,20 @@ export async function POST(request) {
         const nonEmpty = values.filter(v => v && v.trim() && v.trim() !== '-');
         return nonEmpty.length === 0;
       };
+      
+      // Known barangays for detection from CSV content
+      const knownBarangaysLower = [
+        'mancruz', 'alawihao', 'bibirao', 'calasgasan', 'camambugan',
+        'dogongan', 'magang', 'pamorangan', 'barangay ii', 'bunawan',
+        'consuelo', 'imelda', 'la paz', 'libuan', 'loreto', 'mahayag',
+        'new visayas', 'poblacion', 'san andres', 'san marcos', 'tagbay'
+      ];
+      const knownBarangaysUpper = [
+        'MANCRUZ', 'ALAWIHAO', 'BIBIRAO', 'CALASGASAN', 'CAMAMBUGAN',
+        'DOGONGAN', 'MAGANG', 'PAMORANGAN', 'BARANGAY II', 'BUNAWAN',
+        'CONSUELO', 'IMELDA', 'LA PAZ', 'LIBUAN', 'LORETO', 'MAHAYAG',
+        'NEW VISAYAS', 'POBLACION', 'SAN ANDRES', 'SAN MARCOS', 'TAGBAY'
+      ];
 
       // Find header row
       let headerRowIndex = -1;
@@ -354,6 +409,63 @@ export async function POST(request) {
           { success: false, error: 'Could not find header row with required columns (name, sex, birthday)' },
           { status: 400 }
         );
+      }
+
+      // Detect barangay from CSV content (check rows before header)
+      let detectedBarangay = null;
+      for (let i = 0; i < headerRowIndex && i < 10; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const values = parseCSVLine(line);
+        if (isEmptyRow(values)) continue;
+        
+        for (const cell of values) {
+          const cleaned = cell.trim().toLowerCase();
+          if (!cleaned || cleaned.length < 3) continue;
+          
+          const matchIndex = knownBarangaysLower.findIndex(b => cleaned.includes(b) || b.includes(cleaned));
+          if (matchIndex !== -1) {
+            detectedBarangay = knownBarangaysUpper[matchIndex];
+            break;
+          }
+        }
+        if (detectedBarangay) break;
+      }
+      
+      // Use barangay from form, or detected from CSV, uppercase it
+      const effectiveBarangay = (barangayFromForm || detectedBarangay || '').toUpperCase();
+      console.log('CSV Upload - Effective barangay:', effectiveBarangay, '(from form:', barangayFromForm, ', detected:', detectedBarangay, ')');
+      
+      // Resolve barangay_id from barangay name
+      let resolvedBarangayId = null;
+      if (effectiveBarangay) {
+        try {
+          const { data: foundBarangay, error: findError } = await supabase
+            .from('barangays')
+            .select('id')
+            .ilike('name', effectiveBarangay)
+            .maybeSingle();
+          
+          if (!findError && foundBarangay?.id) {
+            resolvedBarangayId = foundBarangay.id;
+            console.log('Resolved barangay_id:', resolvedBarangayId);
+          } else {
+            // Try to create the barangay if it doesn't exist
+            const { data: newBarangay, error: createError } = await supabase
+              .from('barangays')
+              .insert([{ name: effectiveBarangay, municipality: 'Unknown' }])
+              .select('id')
+              .single();
+            
+            if (!createError && newBarangay?.id) {
+              resolvedBarangayId = newBarangay.id;
+              console.log('Created new barangay with id:', resolvedBarangayId);
+            }
+          }
+        } catch (resolveErr) {
+          console.log('Error resolving barangay_id:', resolveErr.message);
+        }
       }
 
       // Parse data rows
@@ -401,7 +513,8 @@ export async function POST(request) {
           administered_date: dateOfVaccine || new Date().toISOString().split('T')[0],
           vaccine_status: vaccineStatus,
           status: 'pending',
-          barangay_id: null,
+          barangay: effectiveBarangay || null,
+          barangay_id: resolvedBarangayId,
           submitted_by: submittedBy,
           vaccines_given: vaccines,
           missed_schedule_of_vaccine: [],
@@ -409,6 +522,11 @@ export async function POST(request) {
         };
         
         residents.push(resident);
+      }
+
+      // Log barangay resolution status
+      if (!resolvedBarangayId && effectiveBarangay) {
+        console.warn('CSV Upload: Could not resolve barangay_id for barangay:', effectiveBarangay);
       }
 
       if (residents.length === 0) {
@@ -474,10 +592,15 @@ export async function POST(request) {
 // GET - Fetch residents with filters
 export async function GET(request) {
   try {
+    console.log('GET /api/residents - Supabase URL configured:', !!supabaseUrl);
+    console.log('GET /api/residents - Supabase key type:', supabaseServiceKey ? 'service_role' : 'anon');
+    
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search') || '';
     const barangay = searchParams.get('barangay') || '';
+
+    console.log('GET /api/residents - Fetching with params:', { status, search, barangay });
 
     let query = supabase
       .from('residents')
@@ -504,16 +627,17 @@ export async function GET(request) {
     if (error) {
       console.error('Error fetching residents:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch residents' },
+        { error: 'Failed to fetch residents', details: error.message },
         { status: 500 }
       );
     }
 
+    console.log('GET /api/residents - Found', data?.length || 0, 'residents');
     return NextResponse.json({ residents: data || [] });
   } catch (error) {
     console.error('Error in GET /api/residents:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }

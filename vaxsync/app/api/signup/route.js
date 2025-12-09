@@ -14,53 +14,24 @@ export async function GET(request) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Check in user_profiles table
+    // Only check user_profiles table - simpler and faster
     const { data: existingProfile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('id, email')
+      .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
 
     if (profileError) {
-      console.error('Error checking email in profiles:', profileError);
+      console.log('Error checking email in profiles:', profileError.message);
     }
 
     if (existingProfile && existingProfile.id) {
       return NextResponse.json({ exists: true });
     }
 
-    // Also check auth users (even if unverified) using service role
-    try {
-      const supabaseService = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
-
-      const { data: authUsers, error: listError } = await supabaseService.auth.admin.listUsers();
-      if (!listError && authUsers?.users) {
-        const existingAuthUser = authUsers.users.find(u => 
-          u.email?.toLowerCase().trim() === normalizedEmail
-        );
-        
-        if (existingAuthUser) {
-          return NextResponse.json({ exists: true });
-        }
-      }
-    } catch (authCheckError) {
-      console.error('Error checking auth users:', authCheckError);
-      // Don't fail if auth check fails, just log it
-    }
-
     return NextResponse.json({ exists: false });
   } catch (error) {
-    console.error('Error checking email:', error);
-    // On error, return exists: false to allow user to proceed (server will catch it during signup)
+    console.log('Error checking email:', error.message);
     return NextResponse.json({ exists: false });
   }
 }
@@ -76,9 +47,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
 
-    // Pre-check: if profile exists OR auth user exists, consider it already registered
+    // Pre-check: if profile exists, consider it already registered
     try {
-      // Check for existing profile
       const { data: existingProfile } = await supabase
         .from('user_profiles')
         .select('id')
@@ -88,35 +58,12 @@ export async function POST(request) {
       if (existingProfile && existingProfile.id) {
         return NextResponse.json({ error: 'An account with this email already exists. Please use a different email or try logging in.' }, { status: 400 });
       }
-
-      // Also check for existing auth user (even if unverified) using service role
-      const supabaseService = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
-
-      const { data: authUsers, error: listError } = await supabaseService.auth.admin.listUsers();
-      if (!listError && authUsers?.users) {
-        const existingAuthUser = authUsers.users.find(u => 
-          u.email?.toLowerCase().trim() === email.toLowerCase().trim()
-        );
-        
-        if (existingAuthUser) {
-          return NextResponse.json({ error: 'An account with this email already exists. Please use a different email or try logging in.' }, { status: 400 });
-        }
-      }
     } catch (error) {
-      console.error('Error checking existing user:', error);
-      // Don't fail signup if check fails, but log it
+      console.log('Error checking existing user:', error.message);
+      // Don't fail signup if check fails
     }
 
-    const validAuthCodes = { 'Health Worker': 'HW-6A9F', 'RHM/HRH': 'HN-4Z7Q' };
+    const validAuthCodes = { 'Public Health Nurse': 'PHN-6A9F', 'Rural Health Midwife (RHM)': 'RHM-4Z7Q' };
     if (validAuthCodes[userRole] !== authCode) {
       return NextResponse.json({ error: `Invalid authentication code for ${userRole}. Please contact your administrator.` }, { status: 400 });
     }
@@ -180,46 +127,31 @@ export async function POST(request) {
       return NextResponse.json({ error: 'An account with this email already exists or is pending confirmation. Please check your email or try logging in.' }, { status: 400 });
     }
 
-    // IMPORTANT: Delete any profile that might have been auto-created by a database trigger
-    // This ensures profiles are only created after email verification
-    try {
-      const supabaseService = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-        {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        }
-      );
+    // Clean up any auto-created profile (only if service role key is available)
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (serviceRoleKey && serviceRoleKey.length > 20 && authData.user?.id) {
+      try {
+        const supabaseService = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+          serviceRoleKey,
+          { auth: { autoRefreshToken: false, persistSession: false } }
+        );
 
-      // Check if a profile was auto-created (by trigger) and delete it
-      const { data: autoCreatedProfile } = await supabaseService
-        .from('user_profiles')
-        .select('id')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-
-      if (autoCreatedProfile) {
-        console.log('⚠️ Auto-created profile detected for unverified user, deleting it...');
+        // Delete any auto-created profile (from trigger)
         await supabaseService
           .from('user_profiles')
           .delete()
           .eq('id', authData.user.id);
-        console.log('✅ Deleted auto-created profile. Profile will be created after email verification.');
+        console.log('Cleaned up any auto-created profile for:', authData.user.id);
+      } catch (cleanupError) {
+        console.log('Profile cleanup skipped:', cleanupError.message);
       }
-    } catch (cleanupError) {
-      console.error('Error cleaning up auto-created profile:', cleanupError);
-      // Don't fail signup if cleanup fails, but log it
     }
 
-    // DO NOT create profile here - wait for email verification
     // Profile will be created in the auth callback after email verification
-
     return NextResponse.json({ 
       message: 'Account created successfully. Please check your email to verify your account before logging in.', 
-      user: authData.user,
+      user: { id: authData.user.id, email: authData.user.email },
       emailSent: true
     }, { status: 201 });
 

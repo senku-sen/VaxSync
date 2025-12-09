@@ -1,14 +1,69 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export function middleware(request) {
+// Routes that require authentication
+const protectedRoutes = [
+  '/pages/Rural_Health_Midwife',
+  '/pages/Public_Health_Nurse',
+];
+
+// Routes that are always public (no auth needed)
+const publicRoutes = [
+  '/pages/signin',
+  '/pages/signup',
+  '/pages/forgot-password',
+  '/pages/registration-success',
+  '/api/auth',
+  '/api/signup',
+];
+
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-  // Redirect root - will be handled by page.js based on role
-  if (pathname === '/') {
+  // Skip middleware for public routes
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  if (isPublicRoute) {
     return NextResponse.next();
   }
 
-  // Allow access to all routes
+  // Check if this is a protected route
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+  
+  if (isProtectedRoute) {
+    // Check for any Supabase auth cookies
+    const allCookies = request.cookies.getAll();
+    
+    // Supabase cookie names vary by project - look for common patterns
+    const hasSupabaseAuth = allCookies.some(cookie => {
+      const name = cookie.name.toLowerCase();
+      return (
+        name.includes('sb-') ||
+        name.includes('supabase') ||
+        name.includes('auth-token') ||
+        name.includes('access-token') ||
+        name.includes('refresh-token')
+      );
+    });
+
+    // Also check localStorage indicator via a custom cookie we'll set
+    const hasLocalAuth = request.cookies.get('vaxsync_authenticated')?.value === 'true';
+
+    // If no auth found, redirect to signin
+    if (!hasSupabaseAuth && !hasLocalAuth) {
+      console.log('No auth cookie found, redirecting to signin from:', pathname);
+      console.log('Available cookies:', allCookies.map(c => c.name));
+      const signinUrl = new URL('/pages/signin', siteUrl);
+      signinUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(signinUrl);
+    }
+  }
+
+  // Redirect root to signin
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL('/pages/signin', siteUrl));
+  }
+
   return NextResponse.next();
 }
 
@@ -16,11 +71,12 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * - api (API routes) - except we handle /api/auth separately
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - public files
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.svg$).*)',
   ],
 };

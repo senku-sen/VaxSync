@@ -40,21 +40,21 @@ export default function Sidebar() {
     }
   }, []);
 
-  const isHealthWorker = pathname.includes("Health_Worker");
-  const isHeadNurse = pathname.includes("Head_Nurse");
+  const isPublicHealthNurse = pathname.includes("Public_Health_Nurse");
+  const isRuralHealthMidwife = pathname.includes("Rural_Health_Midwife");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
-  if (!isHealthWorker && !isHeadNurse && !isSettingsStandalone) return null;
+  if (!isPublicHealthNurse && !isRuralHealthMidwife && !isSettingsStandalone) return null;
 
   // Determine base path: use pathname if available, otherwise use cached user role
-  let basePath = "/pages/Head_Nurse"; // default
-  if (isHealthWorker) {
-    basePath = "/pages/Health_Worker";
-  } else if (isHeadNurse) {
-    basePath = "/pages/Head_Nurse";
+  let basePath = "/pages/Rural_Health_Midwife"; // default
+  if (isPublicHealthNurse) {
+    basePath = "/pages/Public_Health_Nurse";
+  } else if (isRuralHealthMidwife) {
+    basePath = "/pages/Rural_Health_Midwife";
   } else if (isSettingsStandalone && userRole) {
     // Use cached user role for settings page
-    basePath = userRole === "Health Worker" ? "/pages/Health_Worker" : "/pages/Head_Nurse";
+    basePath = userRole === "Public Health Nurse" ? "/pages/Public_Health_Nurse" : "/pages/Rural_Health_Midwife";
   }
 
   // Full list of items
@@ -73,8 +73,8 @@ export default function Sidebar() {
   
   ];
 
-  // Filter: Health Worker = no admin items | Head Nurse = all
-  const menuItems = allMenuItems.filter(item => !item.adminOnly || isHeadNurse);
+  // Filter: Public Health Nurse = no admin items | Rural Health Midwife = all
+  const menuItems = allMenuItems.filter(item => !item.adminOnly || isRuralHealthMidwife);
 
 
   return (

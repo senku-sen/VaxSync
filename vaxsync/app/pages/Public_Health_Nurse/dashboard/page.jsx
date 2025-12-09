@@ -3,9 +3,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
+import { useAuth, AuthLoading } from '@/hooks/useAuth';
 
 export default function Page() {
-
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [weeklyData, setWeeklyData] = useState([]);
   const [barangayData, setBarangayData] = useState([]);
   const [sessionStats, setSessionStats] = useState({});
@@ -18,18 +19,12 @@ export default function Page() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!isAuthenticated || authLoading || !user) return;
+    
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
-
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          setError('User not authenticated');
-          setLoading(false);
-          return;
-        }
 
         // Get user profile to find assigned barangay
         const { data: userProfile } = await supabase
@@ -169,7 +164,7 @@ export default function Page() {
     };
 
     loadData();
-  }, []);
+  }, [isAuthenticated, authLoading, user]);
 
   const getPieSlice = (percentage, startAngle) => {
     const radius = 60;
@@ -207,6 +202,11 @@ export default function Page() {
   };
 
   const linePoints = getLineChartPoints();
+
+  // Show loading while checking auth
+  if (authLoading || !isAuthenticated) {
+    return <AuthLoading />;
+  }
 
   if (error) {
     return (

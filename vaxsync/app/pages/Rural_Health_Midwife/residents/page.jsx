@@ -19,7 +19,8 @@ import {
   CheckCircle, 
   Clock,
   Check,
-  X
+  X,
+  Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
@@ -77,6 +78,8 @@ export default function ResidentsPage() {
   
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
+  // Batch selection state for approved residents
+  const [selectedApprovedResidents, setSelectedApprovedResidents] = useState(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   // Details modal state
@@ -490,6 +493,79 @@ export default function ResidentsPage() {
     setSelectedResidents(new Set());
   };
 
+  // Toggle approved resident selection
+  const toggleApprovedResidentSelection = (residentId) => {
+    const newSelected = new Set(selectedApprovedResidents);
+    if (newSelected.has(residentId)) {
+      newSelected.delete(residentId);
+    } else {
+      newSelected.add(residentId);
+    }
+    setSelectedApprovedResidents(newSelected);
+  };
+
+  // Select all approved residents
+  const selectAllApprovedResidents = () => {
+    if (residents.length === 0) return;
+    const allIds = new Set(residents.map(r => r.id));
+    setSelectedApprovedResidents(allIds);
+  };
+
+  // Deselect all approved residents
+  const deselectAllApprovedResidents = () => {
+    setSelectedApprovedResidents(new Set());
+  };
+
+  // Handle select all toggle for approved residents
+  const handleApprovedSelectAll = () => {
+    if (selectedApprovedResidents.size === residents.length) {
+      deselectAllApprovedResidents();
+    } else {
+      selectAllApprovedResidents();
+    }
+  };
+
+  // Batch delete approved residents
+  const handleBatchDeleteApproved = async () => {
+    if (selectedApprovedResidents.size === 0) {
+      toast.error("Please select residents to delete");
+      return;
+    }
+
+    if (!confirm(`Delete ${selectedApprovedResidents.size} resident(s)? This action cannot be undone.`)) return;
+
+    setIsBatchProcessing(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const residentId of selectedApprovedResidents) {
+        try {
+          const result = await deleteResident(residentId);
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Deleted ${successCount} resident(s)`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} resident(s)`);
+      }
+
+      setSelectedApprovedResidents(new Set());
+      fetchCounts();
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
   // Batch approve residents
   const handleBatchApprove = async () => {
     if (selectedResidents.size === 0) {
@@ -567,6 +643,47 @@ export default function ResidentsPage() {
 
       setSelectedResidents(new Set());
       refreshResidents();
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  // Batch delete pending residents
+  const handleBatchDeletePending = async () => {
+    if (selectedResidents.size === 0) {
+      toast.error("Please select residents to delete");
+      return;
+    }
+
+    if (!confirm(`Delete ${selectedResidents.size} pending resident(s)? This action cannot be undone.`)) return;
+
+    setIsBatchProcessing(true);
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const residentId of selectedResidents) {
+        try {
+          const result = await deleteResident(residentId);
+          if (result.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Deleted ${successCount} resident(s)`);
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to delete ${failCount} resident(s)`);
+      }
+
+      setSelectedResidents(new Set());
+      fetchCounts();
     } finally {
       setIsBatchProcessing(false);
     }
