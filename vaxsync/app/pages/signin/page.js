@@ -298,7 +298,7 @@ export default function SignIn() {
           {/* Sign Up Link */}
           <div className="text-center">
             <p className="text-sm text-gray-700">
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
               <Link href="/pages/signup" className="font-semibold transition-colors" style={{ color: '#3E5F44' }}>
                 Sign up
               </Link>

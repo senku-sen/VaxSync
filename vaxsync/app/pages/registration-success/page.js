@@ -85,7 +85,7 @@ export default function RegistrationSuccess() {
                   Please click the verification link in the email to activate your account. Your account will only be created after email verification.
                 </p>
                 <p className="text-gray-700 text-sm">
-                  Didn't receive the email? You can resend it below.
+                  Didn&apos;t receive the email? You can resend it below.
                 </p>
               </>
             )}
