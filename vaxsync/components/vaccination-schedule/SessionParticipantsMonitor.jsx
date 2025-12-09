@@ -494,9 +494,6 @@ export default function SessionParticipantsMonitor({
                   Birthday
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
-                  Approval Status
-                </th>
-                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
                   Vaccination Status
                 </th>
                 <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900">
@@ -524,23 +521,6 @@ export default function SessionParticipantsMonitor({
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {beneficiary.residents?.birthday || "N/A"}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center">
-                      {isUnapproved ? (
-                        <span className="text-xs font-semibold text-yellow-700 bg-yellow-100 px-2 py-1 rounded">Pending</span>
-                      ) : (
-                        <>
-                          {getOverallStatus(beneficiary) === "approved" ? (
-                            <Check size={28} className="text-green-600" />
-                          ) : getOverallStatus(beneficiary) === "rejected" ? (
-                            <X size={28} className="text-red-600" />
-                          ) : (
-                            <span className="text-3xl text-gray-400">?</span>
-                          )}
-                        </>
-                      )}
-                    </div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center">
