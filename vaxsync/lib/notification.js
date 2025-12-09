@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { getMaxAllocation, calculateStockPercentage } from "./vaccineMonthlyReport";
 
 /**
  * Fetch vaccine request notifications for health worker
@@ -217,26 +218,30 @@ export function formatNotificationTimestamp(timestamp) {
 
 /**
  * Subscribe to real-time vaccine request updates
- * @param {string} userId - The user ID
+ * @param {string} userId - The user ID (null for admins to see all)
  * @param {Function} callback - Callback function when updates occur
  * @returns {Function} - Unsubscribe function
  */
 export function subscribeToVaccineRequestUpdates(userId, callback) {
+  const channelName = userId ? `vaccine_requests_${userId}` : `vaccine_requests_all_${Date.now()}`;
+  
+  const subscriptionConfig = {
+    event: "*",
+    schema: "public",
+    table: "vaccine_requests",
+  };
+  
+  // Only add filter if userId is provided
+  if (userId) {
+    subscriptionConfig.filter = `requested_by=eq.${userId}`;
+  }
+  
   const subscription = supabase
-    .channel(`vaccine_requests_${userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "vaccine_requests",
-        filter: `requested_by=eq.${userId}`,
-      },
-      (payload) => {
-        console.log("Vaccine request update received:", payload);
-        callback(payload);
-      }
-    )
+    .channel(channelName)
+    .on("postgres_changes", subscriptionConfig, (payload) => {
+      console.log("🔔 Vaccine request update received:", payload);
+      callback(payload);
+    })
     .subscribe();
 
   // Return unsubscribe function
@@ -487,23 +492,54 @@ export function subscribeToResidentUpdates(userId, callback) {
 
 /**
  * Subscribe to real-time vaccination session updates
- * @param {string} barangayId - The barangay ID
+ * @param {string} barangayId - The barangay ID (null for admins to see all)
  * @param {Function} callback - Callback function when updates occur
  * @returns {Function} - Unsubscribe function
  */
 export function subscribeToVaccinationSessionUpdates(barangayId, callback) {
+  const channelName = barangayId ? `sessions_${barangayId}` : `sessions_all_${Date.now()}`;
+  
+  const subscriptionConfig = {
+    event: "*",
+    schema: "public",
+    table: "vaccination_sessions",
+  };
+  
+  // Only add filter if barangayId is provided
+  if (barangayId) {
+    subscriptionConfig.filter = `barangay_id=eq.${barangayId}`;
+  }
+  
   const subscription = supabase
-    .channel(`sessions_${barangayId}`)
+    .channel(channelName)
+    .on("postgres_changes", subscriptionConfig, (payload) => {
+      console.log("🔔 Vaccination session update received:", payload);
+      callback(payload);
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+}
+
+/**
+ * Subscribe to real-time inventory updates (for low stock alerts)
+ * @param {Function} callback - Callback function when updates occur
+ * @returns {Function} - Unsubscribe function
+ */
+export function subscribeToInventoryUpdates(callback) {
+  const subscription = supabase
+    .channel(`inventory_updates_${Date.now()}`)
     .on(
       "postgres_changes",
       {
         event: "*",
         schema: "public",
-        table: "vaccination_sessions",
-        filter: `barangay_id=eq.${barangayId}`,
+        table: "barangay_vaccine_inventory",
       },
       (payload) => {
-        console.log("Vaccination session update received:", payload);
+        console.log("🔔 Inventory update received:", payload);
         callback(payload);
       }
     )
@@ -512,4 +548,274 @@ export function subscribeToVaccinationSessionUpdates(barangayId, callback) {
   return () => {
     supabase.removeChannel(subscription);
   };
+}
+
+/**
+ * Fetch low stock notifications based on %STOCK LEVEL
+ * Based on NIP evaluation: UNDERSTOCK (< 100%) and STOCKOUT (0%)
+ * @param {number} stockPercentageThreshold - Alert when stock % is below this (default 100%)
+ * @returns {Promise<{data: Array, error: string|null}>}
+ */
+export async function fetchLowStockNotifications(stockPercentageThreshold = 100) {
+  try {
+    // Fetch ALL inventory (not just low quantity) to calculate stock percentage
+    const { data: inventory, error: inventoryError } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select(`
+        id,
+        vaccine_id,
+        barangay_id,
+        quantity_vial,
+        quantity_dose,
+        updated_at
+      `)
+      .gt("quantity_vial", 0) // Only check items with stock (0 will be handled separately)
+      .order("quantity_vial", { ascending: true });
+
+    // Also fetch out of stock items (quantity_vial = 0)
+    const { data: outOfStock, error: outOfStockError } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select(`
+        id,
+        vaccine_id,
+        barangay_id,
+        quantity_vial,
+        quantity_dose,
+        updated_at
+      `)
+      .eq("quantity_vial", 0);
+
+    if (inventoryError && outOfStockError) {
+      console.log("Low stock query issue (table may not exist):", inventoryError.message);
+      return { data: [], error: null };
+    }
+
+    // Combine all inventory items
+    const allInventory = [
+      ...(inventory || []),
+      ...(outOfStock || [])
+    ];
+
+    if (allInventory.length === 0) {
+      return { data: [], error: null };
+    }
+
+    // Get unique vaccine IDs and barangay IDs
+    const vaccineIds = [...new Set(allInventory.map(i => i.vaccine_id))];
+    const barangayIds = [...new Set(allInventory.map(i => i.barangay_id))];
+
+    // Fetch vaccine names separately - try vaccine_doses first, then vaccines
+    let vaccineMap = {};
+    const { data: vaccineDoses } = await supabase
+      .from("vaccine_doses")
+      .select("id, name, vaccine(name)")
+      .in("id", vaccineIds);
+    
+    if (vaccineDoses && vaccineDoses.length > 0) {
+      vaccineMap = Object.fromEntries(
+        vaccineDoses.map(v => {
+          const vaccineName = v.vaccine?.name || v.name || "Unknown Vaccine";
+          return [v.id, vaccineName];
+        })
+      );
+    } else {
+      // Fallback to vaccines table
+      const { data: vaccines } = await supabase
+        .from("vaccines")
+        .select("id, name")
+        .in("id", vaccineIds);
+      if (vaccines) {
+        vaccineMap = Object.fromEntries(vaccines.map(v => [v.id, v.name]));
+      }
+    }
+
+    // Fetch barangay names separately
+    let barangayMap = {};
+    const { data: barangays } = await supabase
+      .from("barangays")
+      .select("id, name")
+      .in("id", barangayIds);
+    if (barangays) {
+      barangayMap = Object.fromEntries(barangays.map(b => [b.id, b.name]));
+    }
+
+    // Calculate stock percentage and filter low stock items
+    const lowStockItems = allInventory.filter((item) => {
+      const vaccineName = vaccineMap[item.vaccine_id] || "Unknown Vaccine";
+      const currentQuantity = item.quantity_vial || item.quantity || 0;
+      
+      // STOCKOUT: Always notify when quantity is 0
+      if (currentQuantity === 0) {
+        return true;
+      }
+
+      // Calculate %STOCK LEVEL = (Current Quantity / Max Allocation) × 100
+      const maxAllocation = getMaxAllocation(vaccineName);
+      if (maxAllocation === 0) {
+        // If no max allocation defined, use simple threshold (5 vials)
+        return currentQuantity <= 5;
+      }
+
+      const stockPercentage = calculateStockPercentage(currentQuantity, maxAllocation);
+      
+      // UNDERSTOCK: Notify when stock % is below threshold (default 100%)
+      return stockPercentage < stockPercentageThreshold;
+    });
+
+    // Transform into notifications
+    const notifications = lowStockItems.map((item) => {
+      const vaccineName = vaccineMap[item.vaccine_id] || "Unknown Vaccine";
+      const barangayName = barangayMap[item.barangay_id] || "Unknown Barangay";
+      const currentQuantity = item.quantity_vial || item.quantity || 0;
+      const isOutOfStock = currentQuantity === 0;
+      
+      // Calculate stock percentage for display
+      const maxAllocation = getMaxAllocation(vaccineName);
+      const stockPercentage = maxAllocation > 0 
+        ? calculateStockPercentage(currentQuantity, maxAllocation)
+        : 0;
+
+      let title, description, status, color;
+      
+      if (isOutOfStock) {
+        title = "🔴 STOCKOUT";
+        description = `${vaccineName} is out of stock (0 vials) in ${barangayName}`;
+        status = "critical";
+        color = "red";
+      } else {
+        title = "🟠 UNDERSTOCK";
+        description = `${vaccineName} is understocked (${currentQuantity} vials, ${stockPercentage.toFixed(1)}% of max allocation) in ${barangayName}`;
+        status = "warning";
+        color = "orange";
+      }
+
+      return {
+        id: `low-stock-${item.id}`,
+        type: "low-stock",
+        title,
+        description,
+        vaccineName,
+        barangayName,
+        quantity: currentQuantity,
+        stockPercentage: stockPercentage.toFixed(2),
+        maxAllocation,
+        status,
+        timestamp: item.updated_at,
+        date: new Date(item.updated_at),
+        read: false,
+        archived: false,
+        icon: isOutOfStock ? "critical" : "warning",
+        color,
+      };
+    });
+
+    return { data: notifications, error: null };
+  } catch (err) {
+    console.error("Error in fetchLowStockNotifications:", err);
+    return { data: [], error: err.message };
+  }
+}
+
+/**
+ * Check if a specific vaccine is low in stock based on %STOCK LEVEL
+ * @param {string} vaccineId - The vaccine ID
+ * @param {string} barangayId - The barangay ID
+ * @param {string} vaccineName - The vaccine name (for max allocation lookup)
+ * @param {number} stockPercentageThreshold - Alert when stock % is below this (default 100%)
+ * @returns {Promise<{isLow: boolean, quantity: number, stockPercentage: number, error: string|null}>}
+ */
+export async function checkVaccineLowStock(vaccineId, barangayId, vaccineName = null, stockPercentageThreshold = 100) {
+  try {
+    const { data, error } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select("quantity, quantity_vial")
+      .eq("vaccine_id", vaccineId)
+      .eq("barangay_id", barangayId)
+      .single();
+
+    if (error) {
+      return { isLow: false, quantity: 0, stockPercentage: 0, error: error.message };
+    }
+
+    const currentQuantity = data.quantity_vial || data.quantity || 0;
+    
+    // STOCKOUT: Always low if quantity is 0
+    if (currentQuantity === 0) {
+      return {
+        isLow: true,
+        quantity: 0,
+        stockPercentage: 0,
+        error: null
+      };
+    }
+
+    // If vaccine name provided, calculate stock percentage
+    if (vaccineName) {
+      const maxAllocation = getMaxAllocation(vaccineName);
+      if (maxAllocation > 0) {
+        const stockPercentage = calculateStockPercentage(currentQuantity, maxAllocation);
+        return {
+          isLow: stockPercentage < stockPercentageThreshold,
+          quantity: currentQuantity,
+          stockPercentage,
+          error: null
+        };
+      }
+    }
+
+    // Fallback: use simple threshold (5 vials) if no max allocation available
+    return {
+      isLow: currentQuantity <= 5,
+      quantity: currentQuantity,
+      stockPercentage: 0,
+      error: null
+    };
+  } catch (err) {
+    return { isLow: false, quantity: 0, stockPercentage: 0, error: err.message };
+  }
+}
+
+/**
+ * Create a notification for inventory changes (deduction/add-back)
+ * @param {string} vaccineName - The vaccine name
+ * @param {string} barangayName - The barangay name
+ * @param {number} vialsChanged - Number of vials deducted/added
+ * @param {number} dosesChanged - Number of doses deducted/added
+ * @param {string} type - 'deducted' or 'added'
+ * @returns {Promise<{success: boolean, error: string|null}>}
+ */
+export async function createInventoryChangeNotification(vaccineName, barangayName, vialsChanged, dosesChanged, type = 'deducted') {
+  try {
+    const notification = {
+      id: `inventory_${Date.now()}_${Math.random()}`,
+      type: 'inventory_change',
+      title: `Inventory ${type === 'deducted' ? 'Deducted' : 'Added'}`,
+      message: `${vialsChanged} vials (${dosesChanged} doses) of ${vaccineName} ${type === 'deducted' ? 'deducted from' : 'added to'} ${barangayName}`,
+      vaccineName,
+      barangayName,
+      vialsChanged,
+      dosesChanged,
+      changeType: type,
+      timestamp: new Date().toISOString(),
+      date: new Date(),
+      read: false,
+      archived: false,
+      icon: type === 'deducted' ? 'info' : 'success',
+      color: type === 'deducted' ? 'blue' : 'green'
+    };
+
+    // Dispatch event to update notifications in real-time
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('notificationUpdate', {
+          detail: { notification }
+        }));
+      }, 0);
+    }
+
+    return { success: true, error: null };
+  } catch (err) {
+    console.error('Error creating inventory change notification:', err);
+    return { success: false, error: err.message };
+  }
 }

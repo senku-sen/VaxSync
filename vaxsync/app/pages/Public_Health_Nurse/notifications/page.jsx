@@ -7,13 +7,15 @@ import {
   fetchVaccineRequestNotifications, 
   fetchResidentApprovalNotifications,
   fetchVaccinationSessionNotifications,
+  fetchLowStockNotifications,
   formatNotificationTimestamp, 
   getStatusBadgeColor, 
   getStatusIconBgColor, 
   getStatusIconColor, 
   subscribeToVaccineRequestUpdates,
   subscribeToResidentUpdates,
-  subscribeToVaccinationSessionUpdates
+  subscribeToVaccinationSessionUpdates,
+  subscribeToInventoryUpdates
 } from '@/lib/notification';
 import { loadUserProfile } from '@/lib/vaccineRequest';
 
@@ -55,18 +57,21 @@ export default function NotificationsPage() {
         setUserId(profile.id);
         setBarangayId(profile.assigned_barangay_id);
         
-        // FEATURE 1 & 3: Fetch all three notification types for Health Worker
+        // FEATURE 1 & 3: Fetch all notification types for Health Worker (including low stock)
         const [
           { data: vaccineNotifications, error: vaccineError },
           { data: residentNotifications, error: residentError },
-          { data: sessionNotifications, error: sessionError }
+          { data: sessionNotifications, error: sessionError },
+          { data: lowStockNotifications, error: lowStockError }
         ] = await Promise.all([
           fetchVaccineRequestNotifications(profile.id),
           fetchResidentApprovalNotifications(profile.id),
-          fetchVaccinationSessionNotifications(profile.id, profile.assigned_barangay_id, false)
+          fetchVaccinationSessionNotifications(profile.id, profile.assigned_barangay_id, false),
+          fetchLowStockNotifications(100) // Alert when stock % < 100% (UNDERSTOCK) or 0% (STOCKOUT)
         ]);
         
-        if (vaccineError || residentError || sessionError) {
+        // Only show error if main notifications fail (low stock is optional)
+        if (vaccineError && residentError && sessionError) {
           console.error('Error fetching notifications:', { vaccineError, residentError, sessionError });
           setError(vaccineError?.message || residentError?.message || sessionError?.message);
         } else {
@@ -74,7 +79,8 @@ export default function NotificationsPage() {
           const allNotifications = [
             ...(vaccineNotifications || []),
             ...(residentNotifications || []),
-            ...(sessionNotifications || [])
+            ...(sessionNotifications || []),
+            ...(lowStockNotifications || [])
           ];
           
           // Sort by date descending
@@ -126,22 +132,25 @@ export default function NotificationsPage() {
           notifications.map(n => [n.id, { read: n.read, archived: n.archived }])
         );
 
-        // Fetch fresh data from database
+        // Fetch fresh data from database including low stock
         const [
           { data: vaccineNotifications },
           { data: residentNotifications },
-          { data: sessionNotifications }
+          { data: sessionNotifications },
+          { data: lowStockNotifications }
         ] = await Promise.all([
           fetchVaccineRequestNotifications(userId),
           fetchResidentApprovalNotifications(userId),
-          fetchVaccinationSessionNotifications(userId, barangayId, false)
+          fetchVaccinationSessionNotifications(userId, barangayId, false),
+          fetchLowStockNotifications(5)
         ]);
 
         // Combine all notifications
         const allNotifications = [
           ...(vaccineNotifications || []),
           ...(residentNotifications || []),
-          ...(sessionNotifications || [])
+          ...(sessionNotifications || []),
+          ...(lowStockNotifications || [])
         ];
 
         // Sort by date descending
@@ -156,12 +165,17 @@ export default function NotificationsPage() {
 
         setNotifications(notificationsWithReadStatus);
         localStorage.setItem('healthWorkerNotifications', JSON.stringify(notificationsWithReadStatus));
+        
+        // Dispatch event to update Header notification count (defer to avoid setState during render)
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('notificationUpdate'));
+        }, 0);
       } catch (err) {
         console.error('Error refreshing notifications:', err);
       }
     };
 
-    // Subscribe to all three notification types
+    // Subscribe to all notification types including inventory for low stock alerts
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(userId, (payload) => {
       console.log('🔔 Real-time vaccine request update:', payload);
       refreshNotificationsPreservingStatus();
@@ -177,10 +191,16 @@ export default function NotificationsPage() {
       refreshNotificationsPreservingStatus();
     });
 
+    const unsubscribeInventory = subscribeToInventoryUpdates((payload) => {
+      console.log('🔔 Real-time inventory update:', payload);
+      refreshNotificationsPreservingStatus();
+    });
+
     return () => {
       if (unsubscribeVaccine) unsubscribeVaccine();
       if (unsubscribeResident) unsubscribeResident();
       if (unsubscribeSessions) unsubscribeSessions();
+      if (unsubscribeInventory) unsubscribeInventory();
     };
   }, [userId, barangayId, notifications]);
 
@@ -192,6 +212,10 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      // Dispatch custom event to update Header notification count (defer to avoid setState during render)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      }, 0);
       return updated;
     });
   };
@@ -204,6 +228,10 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      // Dispatch custom event to update Header notification count (defer to avoid setState during render)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      }, 0);
       return updated;
     });
   };
@@ -245,24 +273,27 @@ export default function NotificationsPage() {
   const getFilteredNotifications = () => {
     let filtered = notifications;
     
-    switch (activeTab) {
-      case 'unread':
-        filtered = notifications.filter(n => !n.read);
-        break;
-      case 'archived':
-        filtered = notifications.filter(n => n.archived);
-        break;
-      case 'all':
-      default:
-        filtered = notifications;
-        break;
-    }
+      switch (activeTab) {
+        case 'unread':
+          // Unread notifications that are NOT archived
+          filtered = notifications.filter(n => !n.read && !n.archived);
+          break;
+        case 'archived':
+          // Only archived notifications
+          filtered = notifications.filter(n => n.archived);
+          break;
+        case 'all':
+        default:
+          // All notifications EXCEPT archived ones
+          filtered = notifications.filter(n => !n.archived);
+          break;
+      }
     
     return sortNotifications(filtered);
   };
 
   const filteredNotifications = getFilteredNotifications();
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read && !n.archived).length;
   const archivedCount = notifications.filter(n => n.archived).length;
 
   // Get status icon based on vaccine request status
@@ -321,7 +352,7 @@ export default function NotificationsPage() {
                     : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                All ({notifications.length})
+                All ({notifications.filter(n => !n.archived).length})
               </button>
               <button
                 onClick={() => setActiveTab('unread')}
@@ -418,13 +449,19 @@ export default function NotificationsPage() {
               filteredNotifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`bg-white rounded-lg border p-4 transition-all ${
-                    notification.read ? 'border-gray-200' : 'border-[#3E5F44] bg-green-50'
-                  } hover:shadow-sm`}
+                  className={`bg-white rounded-xl border-2 p-5 transition-all shadow-sm ${
+                    notification.read 
+                      ? 'border-gray-200 hover:border-gray-300 hover:shadow-md' 
+                      : 'border-[#4A7C59] bg-gradient-to-r from-green-50 to-white shadow-md hover:shadow-lg'
+                  }`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Icon */}
-                    <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getStatusIconBgColor(notification.status)}`}>
+                    <div className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${
+                      notification.read 
+                        ? getStatusIconBgColor(notification.status)
+                        : 'bg-[#4A7C59]'
+                    }`}>
                       {getStatusIcon(notification.status)}
                     </div>
 
@@ -432,15 +469,17 @@ export default function NotificationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`text-sm font-semibold ${notification.read ? 'text-gray-900' : 'text-[#3E5F44]'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className={`text-base font-bold ${
+                              notification.read ? 'text-gray-900' : 'text-[#4A7C59]'
+                            }`}>
                               {notification.title}
                             </h3>
                             {!notification.read && (
-                              <span className="w-2 h-2 bg-[#3E5F44] rounded-full"></span>
+                              <span className="w-2.5 h-2.5 bg-[#4A7C59] rounded-full animate-pulse"></span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-700 mb-1">
+                          <p className="text-sm text-gray-700 mb-2 leading-relaxed">
                             {notification.description}
                           </p>
                           <p className="text-xs text-gray-500 mb-2">
@@ -470,12 +509,12 @@ export default function NotificationsPage() {
                           </p>
                           
                           {/* Status Badge */}
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(notification.status)}`}>
-                              {notification.status.charAt(0).toUpperCase() + notification.status.slice(1)}
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full border-2 ${getStatusBadgeColor(notification.status)}`}>
+                              {notification.status.charAt(0).toUpperCase() + notification.status.slice(1).replace('-', ' ')}
                             </span>
                             {notification.archived && (
-                              <span className="inline-block px-2 py-1 text-xs font-medium rounded-full border bg-gray-100 text-gray-600 border-gray-200">
+                              <span className="inline-block px-3 py-1 text-xs font-semibold rounded-full border-2 bg-gray-100 text-gray-600 border-gray-300">
                                 ARCHIVED
                               </span>
                             )}
@@ -483,33 +522,39 @@ export default function NotificationsPage() {
                           
                           {/* Notes if available */}
                           {notification.notes && (
-                            <p className="text-xs text-gray-600 mt-2 italic">
-                              Note: {notification.notes}
-                            </p>
+                            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                              <p className="text-xs text-amber-800 font-medium">
+                                📝 Note: {notification.notes}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-400">
+                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 font-medium">
                           {formatNotificationTimestamp(notification.timestamp)}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           {/* Mark as Read/Unread */}
                           <button
                             onClick={() => handleToggleRead(notification.id)}
-                            className="text-xs text-[#3E5F44] hover:text-[#2d4532] font-medium"
+                            className="text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                              notification.read
+                                ? 'text-[#4A7C59] hover:bg-green-50'
+                                : 'text-gray-600 hover:bg-gray-100'
+                            }"
                           >
-                            Mark as {notification.read ? 'unread' : 'read'}
+                            {notification.read ? '✓ Mark unread' : '✓ Mark read'}
                           </button>
                           
                           {/* Archive button (only for non-archived) */}
                           {!notification.archived && (
                             <button
                               onClick={() => handleArchive(notification.id)}
-                              className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                              className="text-xs px-3 py-1.5 rounded-md font-medium text-gray-600 hover:bg-gray-100 transition-colors"
                             >
-                              Archive
+                              📦 Archive
                             </button>
                           )}
                         </div>

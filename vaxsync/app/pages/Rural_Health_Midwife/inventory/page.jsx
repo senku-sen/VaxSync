@@ -80,6 +80,49 @@ export default function Inventory() {
     initializeData();
   }, []);
 
+  // Real-time inventory updates
+  useEffect(() => {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+
+    // Subscribe to barangay_vaccine_inventory changes
+    const channel = supabase
+      .channel('inventory_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'barangay_vaccine_inventory'
+        },
+        (payload) => {
+          console.log('🔔 Inventory updated:', payload);
+          // Refresh vaccines list when inventory changes
+          fetchVaccines();
+          // Show notification
+          if (payload.eventType === 'UPDATE') {
+            toast.success('Inventory updated');
+          }
+        }
+      )
+      .subscribe();
+
+    // Listen for custom inventory update events
+    const handleInventoryUpdate = (event) => {
+      console.log('📦 Custom inventory update event:', event.detail);
+      const { vialsDeducted, dosesDeducted, vaccineId } = event.detail;
+      toast.success(`Inventory updated: ${vialsDeducted} vials (${dosesDeducted} doses) deducted`);
+      // Refresh vaccines list
+      fetchVaccines();
+    };
+
+    window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+    };
+  }, []);
+
   const initializeData = async () => {
     try {
       // Load user profile first

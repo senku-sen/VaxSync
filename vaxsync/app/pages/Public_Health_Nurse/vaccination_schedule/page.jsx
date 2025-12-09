@@ -267,37 +267,9 @@ export default function VaccinationSchedule() {
             });
 
             if (administeredDifference > 0) {
-              // INCREASE: Deduct from inventory
-              console.log('🔴 DEDUCTING inventory for administered increase:', {
-                barangayId: updatedSession.barangay_id,
-                vaccineId: updatedSession.vaccine_id,
-                quantityToDeduct: administeredDifference
-              });
-
-              // 1. Deduct from barangay inventory
-              const deductResult = await deductBarangayVaccineInventory(
-                updatedSession.barangay_id,
-                updatedSession.vaccine_id,
-                administeredDifference
-              );
-
-              if (deductResult.success) {
-                console.log('✅ Barangay vaccine inventory deducted successfully');
-              } else {
-                console.warn('❌ Warning: Failed to deduct from barangay inventory:', deductResult.error);
-              }
-
-              // 2. Deduct from main vaccine tables (vaccines and vaccine_doses)
-              const mainDeductResult = await deductMainVaccineInventory(
-                updatedSession.vaccine_id,
-                administeredDifference
-              );
-
-              if (mainDeductResult.success) {
-                console.log('✅ Main vaccine inventory deducted successfully');
-              } else {
-                console.warn('❌ Warning: Failed to deduct from main vaccine inventory:', mainDeductResult.error);
-              }
+              // Note: Inventory is already deducted when session is scheduled (based on target)
+              // No need to deduct again when updating administered count
+              console.log('📊 Administered count updated. Inventory was already deducted on schedule.');
             } else {
               // DECREASE: Add back to inventory
               const quantityToAddBack = Math.abs(administeredDifference);
@@ -498,10 +470,8 @@ export default function VaccinationSchedule() {
             }
           }
 
-          // NOTE: Vaccine reservation is disabled
-          // The target does NOT deduct from inventory
-          // Inventory is only deducted when doses are actually administered
-          console.log(`Session created for vaccine. Inventory will be deducted only when doses are administered.`);
+          // Inventory is deducted when session is scheduled (based on target × doses_per_person)
+          console.log(`Session created for vaccine. Inventory deducted on schedule.`);
         } else {
           throw new Error(`Failed to create session for ${getVaccineName(vaccine.vaccine_id, vaccines)}: ${result.error}`);
         }

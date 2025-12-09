@@ -170,9 +170,42 @@ export default function HeadNurseVaccinationSchedule() {
         };
       }
 
+      // Deduplicate barangays - keep UPPERCASE versions with valid municipality
+      const barangayMap = new Map();
+      (data || []).forEach(barangay => {
+        const normalizedName = barangay.name.toUpperCase();
+        const existing = barangayMap.get(normalizedName);
+        
+        // Prefer barangays that:
+        // 1. Are already uppercase
+        // 2. Have a valid municipality (not "Unknown")
+        const isUppercase = barangay.name === barangay.name.toUpperCase();
+        const hasValidMunicipality = barangay.municipality && barangay.municipality.toLowerCase() !== 'unknown';
+        
+        if (!existing) {
+          barangayMap.set(normalizedName, barangay);
+        } else {
+          const existingIsUppercase = existing.name === existing.name.toUpperCase();
+          const existingHasValidMunicipality = existing.municipality && existing.municipality.toLowerCase() !== 'unknown';
+          
+          // Replace if current is better (uppercase + valid municipality)
+          if ((isUppercase && !existingIsUppercase) || 
+              (hasValidMunicipality && !existingHasValidMunicipality) ||
+              (isUppercase && hasValidMunicipality && (!existingIsUppercase || !existingHasValidMunicipality))) {
+            barangayMap.set(normalizedName, barangay);
+          }
+        }
+      });
+
+      // Convert back to array and sort
+      const deduplicatedBarangays = Array.from(barangayMap.values())
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      console.log('Deduplicated barangays:', deduplicatedBarangays.length, 'from', data?.length || 0);
+
       return {
         success: true,
-        data: data || [],
+        data: deduplicatedBarangays,
         error: null
       };
     } catch (err) {
@@ -228,28 +261,9 @@ export default function HeadNurseVaccinationSchedule() {
 
         if (result.success) {
           console.log('Session progress updated successfully');
-
-          // Deduct from barangay vaccine inventory if administered count increased
-          if (administeredDifference > 0) {
-            console.log('Deducting vaccine from inventory:', {
-              barangayId: updatedSession.barangay_id,
-              vaccineId: updatedSession.vaccine_id,
-              quantityToDeduct: administeredDifference
-            });
-
-            const deductResult = await deductBarangayVaccineInventory(
-              updatedSession.barangay_id,
-              updatedSession.vaccine_id,
-              administeredDifference
-            );
-
-            if (deductResult.success) {
-              console.log('Vaccine inventory deducted successfully');
-            } else {
-              console.warn('Warning: Failed to deduct from inventory:', deductResult.error);
-              // Don't fail the update if inventory deduction fails - just warn
-            }
-          }
+          
+          // Note: Inventory is already deducted when session is scheduled (based on target)
+          // No need to deduct again when updating administered count
 
           setIsUpdateProgressOpen(false);
           setUpdatingSession(null);
@@ -336,12 +350,16 @@ export default function HeadNurseVaccinationSchedule() {
 
     setIsSubmitting(true);
     try {
+      // Get doses_per_person from event (passed by modal) or formData or default to 1
+      const dosesPerPerson = e.doses_per_person || formData.doses_per_person || 1;
+      
       const result = await createVaccinationSession({
         barangay_id: formData.barangay_id,
         vaccine_id: formData.vaccine_id,
         session_date: formData.date,
         session_time: formData.time,
         target: parseInt(formData.target),
+        doses_per_person: dosesPerPerson,
         created_by: userProfile.id
       });
 

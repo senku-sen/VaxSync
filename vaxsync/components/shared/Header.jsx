@@ -17,9 +17,11 @@ import {
   fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,
   fetchVaccinationSessionNotifications,
+  fetchLowStockNotifications,
   subscribeToVaccineRequestUpdates,
   subscribeToResidentUpdates,
   subscribeToVaccinationSessionUpdates,
+  subscribeToInventoryUpdates,
 } from "@/lib/notification";
 
 export default function InventoryHeader({ title, subtitle }) {
@@ -55,7 +57,6 @@ export default function InventoryHeader({ title, subtitle }) {
     fetchNotificationCount();
 
     // Listen for localStorage changes from notification pages
-    // This is the primary way the Header gets updated
     const handleStorageChange = (e) => {
       if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
         console.log("🔔 localStorage change detected, updating notification count");
@@ -63,10 +64,57 @@ export default function InventoryHeader({ title, subtitle }) {
       }
     };
 
+    // Also listen for custom event when notifications are updated within the same tab
+    const handleNotificationUpdate = () => {
+      console.log("🔔 Custom notification update event received - forcing fresh count");
+      // Defer to avoid setState during render
+      setTimeout(() => {
+        fetchNotificationCount();
+      }, 0);
+    };
+
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('notificationUpdate', handleNotificationUpdate);
+
+    // Subscribe to real-time Supabase updates for instant notifications
+    const rawRole = userRole || "";
+    const normalizedRole = rawRole.replace(/\s+/g, "_");
+    const isSupervisor =
+      normalizedRole === "Head_Nurse" ||
+      normalizedRole === "Rural_Health_Midwife" ||
+      normalizedRole === "Rural_Health_Midwife_(RHM)" ||
+      rawRole === "Rural Health Midwife (RHM)";
+
+    // Subscribe to vaccine requests (null for admins to see all, userId for users)
+    const unsubscribeVaccine = subscribeToVaccineRequestUpdates(
+      isSupervisor ? null : userId, 
+      (payload) => {
+        console.log("🔔 Real-time vaccine request:", payload);
+        fetchNotificationCount();
+      }
+    );
+
+    // Subscribe to vaccination sessions
+    const unsubscribeSessions = subscribeToVaccinationSessionUpdates(
+      isSupervisor ? null : barangayId,
+      (payload) => {
+        console.log("🔔 Real-time session update:", payload);
+        fetchNotificationCount();
+      }
+    );
+
+    // Subscribe to inventory updates for low stock alerts
+    const unsubscribeInventory = subscribeToInventoryUpdates((payload) => {
+      console.log("🔔 Real-time inventory update:", payload);
+      fetchNotificationCount();
+    });
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('notificationUpdate', handleNotificationUpdate);
+      if (unsubscribeVaccine) unsubscribeVaccine();
+      if (unsubscribeSessions) unsubscribeSessions();
+      if (unsubscribeInventory) unsubscribeInventory();
     };
   }, [userId, userRole, barangayId]);
 
@@ -80,7 +128,9 @@ export default function InventoryHeader({ title, subtitle }) {
 
       const isSupervisor =
         normalizedRole === "Head_Nurse" ||
-        normalizedRole === "Rural_Health_Midwife";
+        normalizedRole === "Rural_Health_Midwife" ||
+        normalizedRole === "Rural_Health_Midwife_(RHM)" ||
+        rawRole === "Rural Health Midwife (RHM)";
 
       // Determine cache key based on role
       // Support both spaced and underscored role names
@@ -106,10 +156,13 @@ export default function InventoryHeader({ title, subtitle }) {
         (n) => !n.read && !n.archived
       ).length;
 
-      // If we have cached data, use it immediately
+      // Use cached count immediately for instant UI update (defer to avoid setState during render)
       if (cachedNotifications.length > 0) {
-        setNotificationCount(cachedUnreadCount);
-        return; // Don't fetch from database if we have fresh cache
+        setTimeout(() => {
+          setNotificationCount(cachedUnreadCount);
+          console.log('🔔 Using cached notification count:', cachedUnreadCount);
+        }, 0);
+        // Continue to fetch fresh data in background to ensure accuracy
       }
 
       // Only fetch from database if cache is empty
@@ -131,10 +184,14 @@ export default function InventoryHeader({ title, subtitle }) {
             () => ({ data: [] })
           );
 
-      const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
+      // Also fetch low stock notifications (UNDERSTOCK < 100% or STOCKOUT = 0%)
+      const lowStockPromise = fetchLowStockNotifications(100).catch(() => ({ data: [] }));
+
+      const [residentNotifs, vaccineNotifs, sessionNotifs, lowStockNotifs] = await Promise.all([
         residentPromise,
         vaccinePromise,
         sessionPromise,
+        lowStockPromise,
       ]);
 
       // Count unread notifications: those NOT marked as read AND NOT archived
@@ -150,7 +207,20 @@ export default function InventoryHeader({ title, subtitle }) {
         (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
       ).length;
 
-      unreadCount = residentUnread + vaccineUnread + sessionUnread;
+      const lowStockUnread = (lowStockNotifs.data || []).filter(
+        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
+      ).length;
+
+      unreadCount = residentUnread + vaccineUnread + sessionUnread + lowStockUnread;
+
+      console.log('🔔 Notification count calculated:', {
+        residentUnread,
+        vaccineUnread,
+        sessionUnread,
+        lowStockUnread,
+        total: unreadCount,
+        cachedCount: cachedUnreadCount
+      });
 
       setNotificationCount(unreadCount);
     } catch (err) {
@@ -214,15 +284,18 @@ export default function InventoryHeader({ title, subtitle }) {
           onClick={handleNotificationClick}
           title={`Unread notifications: ${notificationCount}`}
         >
-          <Bell
-            className={`h-5 w-5 transition-colors ${
-              notificationCount > 0
-                ? "text-red-500 hover:text-red-600"
-                : "text-gray-700 hover:text-gray-900"
-            }`}
-          />
+          <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
           {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-pulse border border-white"></span>
+            <span 
+              className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-white shadow-lg z-10 flex items-center justify-center"
+              aria-label={`${notificationCount} unread notifications`}
+            >
+              {notificationCount > 9 ? (
+                <span className="text-[9px] font-bold text-white leading-none">9+</span>
+              ) : notificationCount > 1 ? (
+                <span className="text-[9px] font-bold text-white leading-none">{notificationCount}</span>
+              ) : null}
+            </span>
           )}
         </div>
       </div>
