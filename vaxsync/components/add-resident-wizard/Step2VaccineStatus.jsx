@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Step2NotVaccinatedPopup from "./Step2NotVaccinatedPopup";
 import Step2SessionSelector from "./Step2SessionSelector";
 import Step2VaccineSelector from "./Step2VaccineSelector";
+import { useOffline } from "@/components/OfflineProvider";
 
 export default function Step2VaccineStatus({
   formData,
@@ -13,6 +14,7 @@ export default function Step2VaccineStatus({
   selectedBarangay,
   isLoading,
 }) {
+  const { isOnline } = useOffline();
   const [errors, setErrors] = useState({});
 
   const handleVaccineStatusChange = (value) => {
@@ -28,6 +30,11 @@ export default function Step2VaccineStatus({
   const validateStep = () => {
     const newErrors = {};
 
+    // Check actual online status
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine && isOnline) 
+      : isOnline;
+
     if (!formData.vaccineStatus) {
       newErrors.vaccineStatus = "Vaccine status is required";
     }
@@ -36,18 +43,26 @@ export default function Step2VaccineStatus({
       if (formData.missedSessions === null) {
         newErrors.missedSessions = "Please select if resident is first timer or missed sessions";
       } else if (formData.missedSessions === false && !formData.selectedSession) {
-        newErrors.selectedSession = "Please select an upcoming session";
+        // Only require session selection if online
+        if (actuallyOnline) {
+          newErrors.selectedSession = "Please select an upcoming session";
+        }
       } else if (formData.missedSessions === true && !formData.selectedSession) {
-        newErrors.selectedSession = "Please select past sessions missed";
+        // Only require session selection if online
+        if (actuallyOnline) {
+          newErrors.selectedSession = "Please select past sessions missed";
+        }
       }
     } else if (formData.vaccineStatus === "partially_vaccinated") {
       if (formData.selectedVaccines.length === 0) {
         newErrors.selectedVaccines = "Please add at least one vaccine";
       }
+      // Session selection is optional when offline
     } else if (formData.vaccineStatus === "fully_vaccinated") {
       if (formData.selectedVaccines.length === 0) {
         newErrors.selectedVaccines = "Please add at least one vaccine";
       }
+      // Session selection is optional when offline
     }
 
     setErrors(newErrors);
@@ -170,6 +185,11 @@ export default function Step2VaccineStatus({
               <span className="font-semibold">Note:</span> Add vaccines the
               resident received in the past, then select an upcoming
               session to register them for.
+              {!isOnline && (
+                <span className="block mt-2 text-amber-700">
+                  📶 You're offline - session selection is optional. You can assign a session later when online.
+                </span>
+              )}
             </p>
           </div>
 
@@ -183,10 +203,12 @@ export default function Step2VaccineStatus({
 
           <div className="border-t pt-6">
             <h4 className="font-semibold text-gray-900 mb-4">
-              Upcoming Session *
+              Upcoming Session {isOnline ? '*' : '(Optional - offline)'}
             </h4>
             <p className="text-sm text-gray-600 mb-4">
-              Select an upcoming session to register this resident for
+              {isOnline 
+                ? "Select an upcoming session to register this resident for"
+                : "You can select a session later when you're back online"}
             </p>
             <Step2SessionSelector
               sessionType="upcoming"
@@ -208,6 +230,11 @@ export default function Step2VaccineStatus({
               <span className="font-semibold">Note:</span> Add all vaccines the
               resident received. The latest vaccine date will be used as the
               vaccination completion date.
+              {!isOnline && (
+                <span className="block mt-2 text-amber-700">
+                  📶 You're offline - session selection is optional. You can assign sessions later when online.
+                </span>
+              )}
             </p>
           </div>
 
@@ -221,10 +248,12 @@ export default function Step2VaccineStatus({
 
           <div className="border-t pt-6">
             <h4 className="font-semibold text-gray-900 mb-4">
-              Upcoming Sessions *
+              Upcoming Sessions {isOnline ? '*' : '(Optional - offline)'}
             </h4>
             <p className="text-sm text-gray-600 mb-4">
-              Select upcoming sessions to register this resident for (you can select multiple)
+              {isOnline 
+                ? "Select upcoming sessions to register this resident for (you can select multiple)"
+                : "You can select sessions later when you're back online"}
             </p>
             <Step2SessionSelector
               sessionType="upcoming"

@@ -209,8 +209,38 @@ export async function POST(request) {
     // Handle JSON request for adding a single resident
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
+      let { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
          submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
+
+      // If barangay_id is missing but barangay name is provided, try to resolve it
+      if (!barangay_id && barangay) {
+        try {
+          const { data: foundBarangay, error: findError } = await supabase
+            .from('barangays')
+            .select('id')
+            .ilike('name', barangay)
+            .maybeSingle();
+          
+          if (!findError && foundBarangay?.id) {
+            barangay_id = foundBarangay.id;
+            console.log(`Resolved barangay_id from name "${barangay}":`, barangay_id);
+          } else {
+            // Try to create the barangay if it doesn't exist
+            const { data: newBarangay, error: createError } = await supabase
+              .from('barangays')
+              .insert([{ name: barangay, municipality: 'Unknown' }])
+              .select('id')
+              .single();
+            
+            if (!createError && newBarangay?.id) {
+              barangay_id = newBarangay.id;
+              console.log(`Created new barangay "${barangay}" with id:`, barangay_id);
+            }
+          }
+        } catch (resolveErr) {
+          console.log('Error resolving barangay_id:', resolveErr.message);
+        }
+      }
 
       // Validate required fields
       const missingFields = [];
@@ -233,7 +263,7 @@ export async function POST(request) {
         );
       }
 
-      // Create resident object
+      // Create resident object (only include fields that exist in the database)
       const resident = {
         name: name.trim().toUpperCase(),
         birthday,

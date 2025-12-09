@@ -251,7 +251,8 @@ async function executeOperation(operation) {
         bodyPreview = '[No body]';
       }
       
-      console.error('Operation failed:', {
+      // Log as warning, not error - sync failures are expected and will be retried
+      console.log('Operation failed:', {
         endpoint,
         method,
         status: response.status,
@@ -275,7 +276,7 @@ async function executeOperation(operation) {
     return { success: true, data };
 
   } catch (error) {
-    console.error('Operation execution failed:', error);
+    console.log('Operation execution failed:', error.message);
     return { success: false, error: error.message };
   }
 }

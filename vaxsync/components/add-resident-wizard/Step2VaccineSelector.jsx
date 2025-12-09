@@ -5,7 +5,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2 } from "lucide-react";
+import { Trash2, WifiOff } from "lucide-react";
+import { useOffline } from "@/components/OfflineProvider";
+import { cacheData, getCachedData } from "@/lib/offlineStorage";
+
+// Fallback vaccines for offline mode when no cache is available
+const FALLBACK_VACCINES = [
+  { id: 'bcg', name: 'BCG', doses: 1 },
+  { id: 'hepb', name: 'Hepatitis B', doses: 3 },
+  { id: 'penta', name: 'Pentavalent', doses: 3 },
+  { id: 'opv', name: 'OPV', doses: 3 },
+  { id: 'ipv', name: 'IPV', doses: 2 },
+  { id: 'pcv', name: 'PCV', doses: 3 },
+  { id: 'mcv', name: 'MCV', doses: 2 },
+  { id: 'mmr', name: 'MMR', doses: 2 },
+  { id: 'rotavirus', name: 'Rotavirus', doses: 2 },
+  { id: 'flu', name: 'Influenza', doses: 1 },
+  { id: 'td', name: 'TD', doses: 2 },
+];
+
+const VACCINES_CACHE_KEY = 'vaccines_list';
 
 export default function Step2VaccineSelector({
   vaccineStatus,
@@ -14,8 +33,10 @@ export default function Step2VaccineSelector({
   isLoading,
   errors,
 }) {
+  const { isOnline } = useOffline();
   const [vaccines, setVaccines] = useState([]);
   const [loadingVaccines, setLoadingVaccines] = useState(false);
+  const [isFromCache, setIsFromCache] = useState(false);
   const [selectedVaccine, setSelectedVaccine] = useState("");
   const [vaccineDate, setVaccineDate] = useState("");
   const [customVaccine, setCustomVaccine] = useState("");
@@ -24,21 +45,61 @@ export default function Step2VaccineSelector({
 
   useEffect(() => {
     fetchVaccines();
-  }, []);
+  }, [isOnline]);
 
   const fetchVaccines = async () => {
     setLoadingVaccines(true);
+    
+    // Check actual online status
+    const actuallyOnline = typeof navigator !== 'undefined' 
+      ? (navigator.onLine && isOnline) 
+      : isOnline;
+
+    if (actuallyOnline) {
+      try {
+        const response = await fetch("/api/vaccines");
+        if (response.ok) {
+          const data = await response.json();
+          const vaccineList = data.data || [];
+          setVaccines(vaccineList);
+          setIsFromCache(false);
+          
+          // Cache for offline use
+          if (vaccineList.length > 0) {
+            await cacheData(VACCINES_CACHE_KEY, vaccineList, 'vaccines');
+          }
+        } else {
+          throw new Error('Failed to fetch');
+        }
+      } catch (err) {
+        console.log("Failed to fetch vaccines, trying cache:", err.message);
+        await loadFromCacheOrFallback();
+      }
+    } else {
+      // Offline - load from cache or use fallback
+      await loadFromCacheOrFallback();
+    }
+    
+    setLoadingVaccines(false);
+  };
+
+  const loadFromCacheOrFallback = async () => {
     try {
-      const response = await fetch("/api/vaccines");
-      if (response.ok) {
-        const data = await response.json();
-        setVaccines(data.data || []);
+      const cached = await getCachedData(VACCINES_CACHE_KEY);
+      if (cached && cached.length > 0) {
+        setVaccines(cached);
+        setIsFromCache(true);
+        console.log("Loaded vaccines from cache");
+        return;
       }
     } catch (err) {
-      console.error("Error fetching vaccines:", err);
-    } finally {
-      setLoadingVaccines(false);
+      console.log("Cache retrieval failed:", err.message);
     }
+    
+    // Use fallback vaccines
+    setVaccines(FALLBACK_VACCINES);
+    setIsFromCache(true);
+    console.log("Using fallback vaccines list");
   };
 
   const getVaccineDisplay = (vaccine) => {
@@ -127,6 +188,14 @@ export default function Step2VaccineSelector({
         )}
 
         <div className="space-y-3">
+          {/* Offline indicator */}
+          {!isOnline && isFromCache && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+              <WifiOff className="w-3 h-3" />
+              <span>Offline - using {vaccines === FALLBACK_VACCINES ? 'default' : 'cached'} vaccine list</span>
+            </div>
+          )}
+          
           {!useCustom ? (
             <div>
               <Label htmlFor="vaccine-select" className="text-sm font-medium">
@@ -139,25 +208,28 @@ export default function Step2VaccineSelector({
                   disabled={isLoading || loadingVaccines}
                 >
                   <SelectTrigger id="vaccine-select" className="flex-1">
-                    <SelectValue placeholder="Select vaccine" />
+                    <SelectValue placeholder={loadingVaccines ? "Loading..." : "Select vaccine"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {vaccines.map((vaccine) => (
-                      <SelectItem key={vaccine.id} value={vaccine.name}>
-                        {getVaccineDisplay(vaccine)}
-                      </SelectItem>
-                    ))}
+                    {vaccines.length > 0 ? (
+                      vaccines.map((vaccine) => (
+                        <SelectItem key={vaccine.id} value={vaccine.name}>
+                          {getVaccineDisplay(vaccine)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="__no_vaccines__" disabled>No vaccines available</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
-                {vaccines.length > 0 && (
-                  <Button
-                    onClick={() => setUseCustom(true)}
-                    variant="outline"
-                    disabled={isLoading}
-                  >
-                    Custom
-                  </Button>
-                )}
+                <Button
+                  onClick={() => setUseCustom(true)}
+                  variant="outline"
+                  disabled={isLoading}
+                  title="Enter a custom vaccine name"
+                >
+                  Custom
+                </Button>
               </div>
             </div>
           ) : (
