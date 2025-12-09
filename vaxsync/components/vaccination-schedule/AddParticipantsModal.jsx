@@ -210,19 +210,37 @@ export default function AddParticipantsModal({
               {filteredResidents.map(resident => (
                 <label
                   key={resident.id}
-                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedResidents.has(resident.id)}
-                    onChange={() => handleToggleResident(resident.id)}
-                    className="w-4 h-4 text-[#4A7C59] rounded focus:ring-2 focus:ring-[#4A7C59]"
-                  />
-                  <div className="ml-3 flex-1">
-                    <p className="font-medium text-gray-900">{resident.name}</p>
-                    <p className="text-sm text-gray-600">
-                      Birthday: {resident.birthday || "N/A"}
-                    </p>
+                  <div className="flex items-center flex-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedResidents.has(resident.id)}
+                      onChange={() => handleToggleResident(resident.id)}
+                      className="w-4 h-4 text-[#4A7C59] rounded focus:ring-2 focus:ring-[#4A7C59]"
+                    />
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">{resident.name}</p>
+                      <p className="text-sm text-gray-600">
+                        Birthday: {resident.birthday || "N/A"}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Vaccines on the right side */}
+                  <div className="ml-4 flex flex-wrap gap-1 justify-end max-w-xs">
+                    {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
+                      resident.vaccines_given.map((vaccine, index) => (
+                        <span
+                          key={index}
+                          className="inline-block px-2 py-1 text-xs font-semibold bg-green-100 text-green-800 rounded border border-green-300"
+                        >
+                          {vaccine.toUpperCase()}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">No vaccines</span>
+                    )}
                   </div>
                 </label>
               ))}

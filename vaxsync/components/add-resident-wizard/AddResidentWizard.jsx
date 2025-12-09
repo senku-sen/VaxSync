@@ -24,6 +24,7 @@ export default function AddResidentWizard({
     birthday: "",
     sex: "",
     barangay: selectedBarangay || "",
+    mother: "",
 
     // Step 2
     vaccineStatus: "",
@@ -151,6 +152,7 @@ export default function AddResidentWizard({
       birthday: "",
       sex: "",
       barangay: selectedBarangay || "",
+      mother: "",
       vaccineStatus: "",
       missedSessions: null,
       selectedSession: null,
@@ -242,6 +244,7 @@ export default function AddResidentWizard({
         administered_date: getAdministeredDate(),
         vaccines_given: vaccinesToAdd,
         missed_schedule_of_vaccine: missedDates,
+        mother: formData.mother || null,
         status: "pending",
         submitted_by: userId,
       };

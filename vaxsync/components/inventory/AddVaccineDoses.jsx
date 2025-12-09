@@ -28,6 +28,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
     name: "",
     quantity_available: "",
     expiry_date: "",
+    batch_number: "",
     notes: ""
   });
 
@@ -38,6 +39,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
         name: selectedVaccine.name || "",
         quantity_available: selectedVaccine.quantity_available || "",
         expiry_date: selectedVaccine.expiry_date || "",
+        batch_number: selectedVaccine.batch_number || "",
         notes: selectedVaccine.notes || ""
       });
     }
@@ -109,6 +111,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
                 name: formData.name,
                 quantity_available: parseInt(formData.quantity_available),
                 expiry_date: formData.expiry_date,
+                batch_number: formData.batch_number || "",
                 notes: formData.notes || "",
                 status: "Good"
               })
@@ -145,6 +148,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
               name: formData.name,
               quantity_available: parseInt(formData.quantity_available),
               expiry_date: formData.expiry_date,
+              batch_number: formData.batch_number || "",
               notes: formData.notes || "",
               status: "Good"
             },
@@ -174,6 +178,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
                 name: formData.name,
                 quantity_available: parseInt(formData.quantity_available),
                 expiry_date: formData.expiry_date,
+                batch_number: formData.batch_number || "",
                 notes: formData.notes || "",
                 status: "Good",
                 create_doses: true
@@ -248,6 +253,7 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
             name: "",
             quantity_available: "",
             expiry_date: "",
+            batch_number: "",
             notes: ""
           });
 
@@ -347,6 +353,24 @@ export default function AddVaccineDoses({ onSuccess, onClose, selectedVaccine })
           onChange={handleChange}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
         />
+      </div>
+
+      {/* Batch Number - MANUAL INPUT */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Batch Number <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          name="batch_number"
+          value={formData.batch_number || ""}
+          onChange={handleChange}
+          placeholder="e.g., BATCH-2025-001"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Enter the batch number manually from the vaccine package
+        </p>
       </div>
 
       {/* Notes */}

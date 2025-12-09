@@ -26,6 +26,7 @@ import { BARANGAYS } from "@/lib/utils";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
+import ResidentsCardView from "../../../../components/ResidentsCardView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
@@ -35,8 +36,8 @@ import { useOffline } from "@/components/OfflineProvider";
 
 export default function ResidentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("pending");
   const [selectedBarangay, setSelectedBarangay] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
   const [isAddWizardOpen, setIsAddWizardOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -51,6 +52,7 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     administered_date: "",
     barangay: "",
+    mother: "",
     vaccines_given: [],
     missed_schedule_of_vaccine: []
   });
@@ -68,14 +70,10 @@ export default function ResidentsPage() {
     changeResidentStatus,
     refresh: refreshResidents
   } = useOfflineResidents({
-    status: activeTab,
+    status: "",
     search: searchTerm,
     barangay: selectedBarangay === "all" ? "" : selectedBarangay
   });
-  
-  // Calculate counts from residents
-  const [pendingCount, setPendingCount] = useState(0);
-  const [approvedCount, setApprovedCount] = useState(0);
   
   // Batch selection state
   const [selectedResidents, setSelectedResidents] = useState(new Set());
@@ -403,7 +401,7 @@ export default function ResidentsPage() {
       if (result.success) {
         setIsEditDialogOpen(false);
         setSelectedResident(null);
-        fetchCounts();
+        refreshResidents();
       } else {
         toast.error(result.error || "Failed to update resident");
       }
@@ -421,29 +419,13 @@ export default function ResidentsPage() {
       const result = await deleteResident(id);
 
       if (result.success) {
-        fetchCounts();
+        refreshResidents();
       } else {
         toast.error(result.error || "Failed to delete resident");
       }
     } catch (error) {
       console.error("Error deleting resident:", error);
       toast.error("Error deleting resident");
-    }
-  };
-
-  // Approve/Reject resident
-  const handleStatusChange = async (id, action) => {
-    try {
-      const result = await changeResidentStatus(id, action);
-
-      if (result.success) {
-        fetchCounts();
-      } else {
-        toast.error(result.error || `Failed to ${action} resident`);
-      }
-    } catch (error) {
-      console.error(`Error ${action}ing resident:`, error);
-      toast.error(`Error ${action}ing resident`);
     }
   };
 
@@ -521,17 +503,12 @@ export default function ResidentsPage() {
     try {
       let successCount = 0;
       let failCount = 0;
-      let pendingCount = 0;
 
       for (const residentId of selectedResidents) {
         try {
           const result = await changeResidentStatus(residentId, "approve");
           if (result.success) {
-            if (result.pending) {
-              pendingCount++;
-            } else {
-              successCount++;
-            }
+            successCount++;
           } else {
             failCount++;
           }
@@ -543,15 +520,12 @@ export default function ResidentsPage() {
       if (successCount > 0) {
         toast.success(`Approved ${successCount} resident(s)`);
       }
-      if (pendingCount > 0) {
-        toast.info(`${pendingCount} approval(s) queued for sync`);
-      }
       if (failCount > 0) {
         toast.error(`Failed to approve ${failCount} resident(s)`);
       }
 
       setSelectedResidents(new Set());
-      fetchCounts();
+      refreshResidents();
     } finally {
       setIsBatchProcessing(false);
     }
@@ -570,17 +544,12 @@ export default function ResidentsPage() {
     try {
       let successCount = 0;
       let failCount = 0;
-      let pendingCount = 0;
 
       for (const residentId of selectedResidents) {
         try {
           const result = await changeResidentStatus(residentId, "reject");
           if (result.success) {
-            if (result.pending) {
-              pendingCount++;
-            } else {
-              successCount++;
-            }
+            successCount++;
           } else {
             failCount++;
           }
@@ -592,15 +561,12 @@ export default function ResidentsPage() {
       if (successCount > 0) {
         toast.success(`Rejected ${successCount} resident(s)`);
       }
-      if (pendingCount > 0) {
-        toast.info(`${pendingCount} rejection(s) queued for sync`);
-      }
       if (failCount > 0) {
         toast.error(`Failed to reject ${failCount} resident(s)`);
       }
 
       setSelectedResidents(new Set());
-      fetchCounts();
+      refreshResidents();
     } finally {
       setIsBatchProcessing(false);
     }
@@ -611,10 +577,11 @@ export default function ResidentsPage() {
   }, []);
 
   useEffect(() => {
+    // Refresh residents when filters change
     if (!isAuthLoading && userProfile) {
-      fetchCounts();
+      refreshResidents();
     }
-  }, [activeTab, searchTerm, selectedBarangay, isAuthLoading, userProfile, residents]);
+  }, [searchTerm, selectedBarangay, isAuthLoading, userProfile])
 
   return (
     <div className="flex h-screen flex-col lg:flex-row">
@@ -687,20 +654,6 @@ export default function ResidentsPage() {
             </div>
           )}
 
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Pending ({pendingCount})
-              </TabsTrigger>
-              <TabsTrigger value="approved" className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Approved ({approvedCount})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
           {/* Search and Filter */}
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <div className="relative flex-1">
@@ -725,55 +678,8 @@ export default function ResidentsPage() {
             </Select>
           </div>
 
-          {/* Batch Selection Controls */}
-          {activeTab === "pending" && residents.length > 0 && (
-            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {selectedResidents.size} of {residents.length} selected
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={selectAllResidents}
-                  className="text-xs"
-                >
-                  Select All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={deselectAllResidents}
-                  className="text-xs"
-                  disabled={selectedResidents.size === 0}
-                >
-                  Clear
-                </Button>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  onClick={handleBatchApprove}
-                  disabled={selectedResidents.size === 0 || isBatchProcessing}
-                  className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
-                  size="sm"
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  Approve ({selectedResidents.size})
-                </Button>
-                <Button
-                  onClick={handleBatchReject}
-                  disabled={selectedResidents.size === 0 || isBatchProcessing}
-                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
-                  size="sm"
-                >
-                  <X className="h-4 w-4 mr-1" />
-                  Reject ({selectedResidents.size})
-                </Button>
-              </div>
-            </div>
-          )}
 
-          {/* Residents Table with Pagination */}
+          {/* Residents Card View with Pagination */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
             {(() => {
               // Calculate pagination
@@ -785,40 +691,19 @@ export default function ResidentsPage() {
 
               return (
                 <>
-                  <div className="flex-1 overflow-x-auto">
-                    {activeTab === "pending" ? (
-                      <PendingResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleStatusChange={handleStatusChange}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        showApproveButton={true}
-                        selectedResidents={selectedResidents}
-                        onToggleSelection={toggleResidentSelection}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      />
-                    ) : (
-                      <ApprovedResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      />
-                    )}
+                  <div className="flex-1">
+                    <ResidentsCardView
+                      residents={paginatedResidents}
+                      loading={loading}
+                      selectedBarangay={selectedBarangay}
+                      openEditDialog={openEditDialog}
+                      handleDeleteResident={handleDeleteResident}
+                      formatDate={formatDate}
+                      onViewDetails={(resident) => {
+                        setDetailsResident(resident);
+                        setIsDetailsModalOpen(true);
+                      }}
+                    />
                   </div>
 
                   {/* Pagination Control */}

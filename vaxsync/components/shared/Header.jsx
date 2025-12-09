@@ -12,60 +12,108 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabase";
 import { OfflineIndicator } from "@/components/OfflineStatusBanner";
+import { loadUserProfile } from "@/lib/vaccineRequest";
+import { 
+  fetchVaccineRequestNotifications, 
+  fetchResidentApprovalNotifications,
+  fetchVaccinationSessionNotifications
+} from "@/lib/notification";
 
 export default function InventoryHeader({ title, subtitle }) {
   const router = useRouter();
   const pathname = usePathname();
   const [notificationCount, setNotificationCount] = useState(0);
+  const [userRole, setUserRole] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [barangayId, setBarangayId] = useState(null);
+
+  // Initialize user info
+  useEffect(() => {
+    const initializeUser = async () => {
+      try {
+        const profile = await loadUserProfile();
+        if (profile) {
+          setUserId(profile.id);
+          setUserRole(profile.user_role);
+          setBarangayId(profile.assigned_barangay_id);
+        }
+      } catch (err) {
+        console.error('Error initializing user:', err);
+      }
+    };
+
+    initializeUser();
+  }, []);
 
   useEffect(() => {
+    if (!userId || !userRole) return;
+
     fetchNotificationCount();
     
-    // Refresh notification count every 5 seconds
-    const interval = setInterval(fetchNotificationCount, 5000);
-
-    // Set up real-time subscription for notifications
-    const subscription = supabase
-      .channel('notifications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-        console.log('Notification change detected');
-        fetchNotificationCount();
-      })
-      .subscribe();
+    // Refresh notification count every 10 seconds
+    const interval = setInterval(fetchNotificationCount, 10000);
 
     return () => {
       clearInterval(interval);
-      subscription.unsubscribe();
     };
-  }, []);
+  }, [userId, userRole, barangayId]);
 
   const fetchNotificationCount = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('No user found');
-        return;
+      let totalUnread = 0;
+
+      if (userRole === 'Health Worker') {
+        // Health Worker: Resident Approvals + Vaccine Requests + Sessions
+        const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
+          fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
+          fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
+          fetchVaccinationSessionNotifications(userId, barangayId, false).catch(() => ({ data: [] })),
+        ]);
+
+        // Get cached read status from localStorage
+        let cachedNotifications = {};
+        try {
+          const cached = localStorage.getItem('healthWorkerNotifications');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            cachedNotifications = Object.fromEntries(parsed.map(n => [n.id, { read: n.read, archived: n.archived }]));
+          }
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+
+        const residentUnread = residentNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read)).length || 0;
+        const vaccineUnread = vaccineNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read)).length || 0;
+        const sessionUnread = sessionNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && n.isUpcoming).length || 0;
+
+        totalUnread = residentUnread + vaccineUnread + sessionUnread;
+      } else if (userRole === 'Head Nurse') {
+        // Head Nurse: Vaccine Requests + All Sessions
+        const vaccineNotifs = await fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] }));
+        const sessionNotifs = await fetchVaccinationSessionNotifications(userId, null, true).catch(() => ({ data: [] }));
+
+        // Get cached read status from localStorage
+        let cachedNotifications = {};
+        try {
+          const cached = localStorage.getItem('headNurseNotifications');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            cachedNotifications = Object.fromEntries(parsed.map(n => [n.id, { read: n.read, archived: n.archived }]));
+          }
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+
+        const vaccineUnread = vaccineNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && n.status === 'pending').length || 0;
+        // For Head Nurse, count all upcoming sessions (not just within 1 day)
+        const sessionUnread = sessionNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && (n.isUpcoming || (n.daysUntil > 0))).length || 0;
+
+        totalUnread = vaccineUnread + sessionUnread;
       }
 
-      console.log('Fetching notifications for user:', user.id);
-
-      const { data, count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false);
-
-      console.log('Notification query result:', { count, error, dataLength: data?.length });
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        // If table doesn't exist or permission denied, set count to 0
-        setNotificationCount(0);
-      } else if (count !== null) {
-        setNotificationCount(count);
-      }
+      setNotificationCount(totalUnread);
     } catch (err) {
-      console.error('Error in fetchNotificationCount:', err);
+      // Silently fail
       setNotificationCount(0);
     }
   };
@@ -113,10 +161,10 @@ export default function InventoryHeader({ title, subtitle }) {
         {/* Offline status indicator */}
         <OfflineIndicator />
         
-        <div className="relative cursor-pointer flex items-center gap-2" onClick={handleNotificationClick}>
-          <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
+        <div className="relative cursor-pointer" onClick={handleNotificationClick}>
+          <Bell className={`h-5 w-5 transition-colors ${notificationCount > 0 ? 'text-red-500 hover:text-red-600' : 'text-gray-700 hover:text-gray-900'}`} />
           {notificationCount > 0 && (
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-pulse border border-white"></span>
           )}
         </div>
         <DropdownMenu>

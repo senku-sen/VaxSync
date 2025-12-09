@@ -161,25 +161,58 @@ export default function ResidentDetailsModal({
             </div>
           </div>
 
-          {/* Vaccines Given */}
+          {/* Vaccines Given - Summary */}
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <CheckCircle size={20} className="text-green-600" />
-              Vaccines Given
+              All Vaccines Received
             </h3>
-            {vaccinesGiven.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {vaccinesGiven.map((vaccine, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800"
-                  >
-                    {vaccine.toUpperCase()}
-                  </span>
-                ))}
+            
+            {/* Get all vaccinated records from history */}
+            {vaccineHistory.filter(v => v.attended === true && v.vaccinated === true).length > 0 ? (
+              <div className="space-y-3">
+                {vaccineHistory
+                  .filter(v => v.attended === true && v.vaccinated === true)
+                  .map((record, index) => {
+                    const vaccineName = record.vaccination_sessions?.barangay_vaccine_inventory?.vaccine_doses?.vaccines?.name || record.vaccine_name || "Unknown Vaccine";
+                    const sessionDate = record.vaccination_sessions?.session_date || record.created_at;
+                    
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <p className="font-semibold text-green-900 capitalize">
+                            {vaccineName}
+                          </p>
+                          <p className="text-xs text-green-700 mt-1">
+                            Received: {sessionDate ? new Date(sessionDate).toLocaleDateString() : "N/A"}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-full">
+                          ✓ Vaccinated
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            ) : vaccinesGiven.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600 mb-3">Recorded vaccines:</p>
+                <div className="flex flex-wrap gap-2">
+                  {vaccinesGiven.map((vaccine, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800"
+                    >
+                      {vaccine.toUpperCase()}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No vaccines given yet</p>
+              <p className="text-gray-500 text-sm">No vaccines received yet</p>
             )}
           </div>
 

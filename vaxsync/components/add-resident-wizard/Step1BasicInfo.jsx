@@ -171,6 +171,24 @@ export default function Step1BasicInfo({
         )}
       </div>
 
+      <div>
+        <Label htmlFor="mother" className="text-sm font-medium">
+          Mother's Name (Optional)
+        </Label>
+        <Input
+          id="mother"
+          placeholder="Enter mother's name"
+          value={formData.mother || ""}
+          onChange={(e) => {
+            onFormDataChange("mother", e.target.value);
+          }}
+          disabled={isLoading}
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Enter the resident's mother's name if available
+        </p>
+      </div>
+
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-900">
           <span className="font-semibold">Note:</span> All resident names will

@@ -346,7 +346,7 @@ export const getAvailableResidentsForSession = async (sessionId, barangayName) =
     // Get all residents in the barangay
     let query = supabase
       .from('residents')
-      .select('id, name, birthday, sex, status')
+      .select('id, name, birthday, sex, status, vaccines_given')
       .eq('status', 'approved');
 
     if (barangayName) {

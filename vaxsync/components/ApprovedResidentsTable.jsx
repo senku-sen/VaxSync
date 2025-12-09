@@ -41,13 +41,12 @@ export default function ApprovedResidentsTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 px-2 font-medium text-xs">Name</th>
+                  <th className="text-left py-2 px-2 font-medium text-xs">Name & Vaccines</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Sex</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Birthday</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Barangay</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Defaulters</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Date of Vaccine</th>
-                  <th className="text-left py-2 px-2 font-medium text-xs">Vaccines Given</th>
                   <th className="text-left py-2 px-2 font-medium text-xs">Submitted</th>
                   <th className="text-center py-2 px-2 font-medium text-xs">Actions</th>
                 </tr>
@@ -56,7 +55,18 @@ export default function ApprovedResidentsTable({
                 {residents.map((resident) => (
                   <tr key={resident.id} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-2">
-                      <div className="font-medium text-xs">{resident.name}</div>
+                      <div className="font-medium text-xs mb-1">{resident.name}</div>
+                      <div className="flex flex-wrap gap-0.5">
+                        {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
+                          resident.vaccines_given.map((vaccine, index) => (
+                            <Badge key={index} variant="outline" className="text-xs py-0 px-1 bg-green-50 text-green-700 border-green-200">
+                              {vaccine.toUpperCase()}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-400">No vaccines</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2 px-2 text-xs">
                       {resident.sex || 'N/A'}
@@ -96,19 +106,6 @@ export default function ApprovedResidentsTable({
                           })
                         : 'N/A'
                       }
-                    </td>
-                    <td className="py-2 px-2">
-                      <div className="flex flex-wrap gap-0.5 max-w-xs">
-                        {resident.vaccines_given && Array.isArray(resident.vaccines_given) && resident.vaccines_given.length > 0 ? (
-                          resident.vaccines_given.map((vaccine, index) => (
-                            <Badge key={index} variant="outline" className="text-xs py-0 px-1">
-                              {vaccine.toUpperCase()}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-xs text-gray-400">None</span>
-                        )}
-                      </div>
                     </td>
                     <td className="py-2 px-2 text-xs">
                       {formatDate(resident.submitted_at)}

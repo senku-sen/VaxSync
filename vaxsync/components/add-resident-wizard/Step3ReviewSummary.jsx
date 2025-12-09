@@ -146,6 +146,12 @@ export default function Step3ReviewSummary({ formData, isLoading }) {
             <p className="font-medium text-gray-900">{formData.barangay}</p>
           </div>
           <div className="col-span-2">
+            <p className="text-sm text-gray-600">Mother's Name</p>
+            <p className="font-medium text-gray-900">
+              {formData.mother || "Not provided"}
+            </p>
+          </div>
+          <div className="col-span-2">
             <p className="text-sm text-gray-600">Vaccine Status</p>
             <p className="font-medium text-gray-900 capitalize">
               {formData.vaccineStatus.replace(/_/g, " ")}

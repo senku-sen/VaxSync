@@ -68,10 +68,10 @@ export default function NotificationsPage() {
           // Sort by date descending
           allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           
-          // Mark older notifications as read by default
-          const notificationsWithReadStatus = allNotifications.map((notif, index) => ({
+          // Keep all notifications as unread (don't automatically mark as read)
+          const notificationsWithReadStatus = allNotifications.map((notif) => ({
             ...notif,
-            read: index > 2, // First 3 notifications are unread
+            read: notif.read || false, // Respect the actual read status from the database
           }));
           setNotifications(notificationsWithReadStatus);
         }

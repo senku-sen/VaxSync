@@ -210,7 +210,7 @@ export async function POST(request) {
     if (contentType.includes('application/json')) {
       const body = await request.json();
       const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
-         submitted_by, vaccines_given, missed_schedule_of_vaccine } = body;
+         submitted_by, vaccines_given, missed_schedule_of_vaccine, mother } = body;
 
       // Validate required fields
       const missingFields = [];
@@ -245,7 +245,8 @@ export async function POST(request) {
         submitted_by,
         vaccines_given: Array.isArray(vaccines_given) ? vaccines_given : [],
         missed_schedule_of_vaccine: Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [],
-        status: 'pending',
+        mother: mother && mother.trim() ? mother.trim() : null,
+        status: 'approved',
         submitted_at: new Date().toISOString()
       };
 
@@ -474,14 +475,18 @@ export async function POST(request) {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'pending';
+    const status = searchParams.get('status');
     const search = searchParams.get('search') || '';
     const barangay = searchParams.get('barangay') || '';
 
     let query = supabase
       .from('residents')
-      .select('*')
-      .eq('status', status);
+      .select('*');
+
+    // Filter by status only if provided
+    if (status) {
+      query = query.eq('status', status);
+    }
 
     // Filter by barangay if provided (case-insensitive)
     if (barangay) {

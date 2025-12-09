@@ -181,12 +181,6 @@ export default function MonthlyReportTab() {
                   Administered
                 </th>
                 <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                  Completion %
-                </th>
-                <th className="px-6 py-3 text-center font-semibold text-gray-700">
-                  Attendance %
-                </th>
-                <th className="px-6 py-3 text-center font-semibold text-gray-700">
                   Vaccination %
                 </th>
               </tr>
@@ -207,32 +201,6 @@ export default function MonthlyReportTab() {
                       </td>
                       <td className="px-6 py-4 text-center text-gray-600">
                         {item.administered_doses}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            item.completion_rate >= 80
-                              ? "bg-green-100 text-green-800"
-                              : item.completion_rate >= 50
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {item.completion_rate}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            item.attendance_rate >= 80
-                              ? "bg-green-100 text-green-800"
-                              : item.attendance_rate >= 50
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {item.attendance_rate}%
-                        </span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span
@@ -264,12 +232,6 @@ export default function MonthlyReportTab() {
                         {totals.administered_doses}
                       </td>
                       <td className="px-6 py-4 text-center text-gray-900">
-                        {totals.completion_rate}%
-                      </td>
-                      <td className="px-6 py-4 text-center text-gray-900">
-                        {totals.attendance_rate}%
-                      </td>
-                      <td className="px-6 py-4 text-center text-gray-900">
                         {totals.vaccination_rate}%
                       </td>
                     </tr>
@@ -277,7 +239,7 @@ export default function MonthlyReportTab() {
                 </>
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No data available for this month
                   </td>
                 </tr>

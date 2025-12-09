@@ -29,6 +29,7 @@ import { loadUserProfile } from "@/lib/vaccineRequest";
 import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
+import ResidentsCardView from "../../../../components/ResidentsCardView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
@@ -41,15 +42,12 @@ export default function ResidentsPage() {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("pending");
   const [selectedBarangay, setSelectedBarangay] = useState("");
   const [selectedBarangayId, setSelectedBarangayId] = useState(null);
   const [isAddWizardOpen, setIsAddWizardOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedResident, setSelectedResident] = useState(null);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [approvedCount, setApprovedCount] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -80,6 +78,7 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     contact: "",
     barangay: "",
+    mother: "",
     vaccines_given: [],
     missed_schedule_of_vaccine: []
   });
@@ -266,14 +265,13 @@ export default function ResidentsPage() {
   };
 
   // Fetch residents from API with offline support
-  const fetchResidents = async (status = "pending") => {
-    const cacheKey = `hw_residents_${status}_${selectedBarangay || 'all'}`;
+  const fetchResidents = async () => {
+    const cacheKey = `hw_residents_all_${selectedBarangay || 'all'}`;
     
     try {
       setLoading(true);
       // Always filter by assigned barangay for health workers
       const params = new URLSearchParams({
-        status,
         search: searchTerm,
       });
 
@@ -321,41 +319,6 @@ export default function ResidentsPage() {
     }
   };
 
-  // Fetch counts for both pending and approved residents
-  const fetchCounts = async () => {
-    try {
-      // Fetch pending count - always filter by assigned barangay
-      const pendingParams = new URLSearchParams({
-        status: "pending",
-        search: searchTerm,
-      });
-      if (selectedBarangay) {
-        pendingParams.set("barangay", selectedBarangay);
-      }
-      const pendingResponse = await fetch(`/api/residents?${pendingParams}`);
-      const pendingData = await pendingResponse.json();
-      
-      // Fetch approved count - always filter by assigned barangay
-      const approvedParams = new URLSearchParams({
-        status: "approved",
-        search: searchTerm,
-      });
-      if (selectedBarangay) {
-        approvedParams.set("barangay", selectedBarangay);
-      }
-      const approvedResponse = await fetch(`/api/residents?${approvedParams}`);
-      const approvedData = await approvedResponse.json();
-      if (pendingResponse.ok) {
-        setPendingCount(pendingData.residents?.length || 0);
-      }
-      
-      if (approvedResponse.ok) {
-        setApprovedCount(approvedData.residents?.length || 0);
-      }
-    } catch (error) {
-      console.error("Error fetching counts:", error);
-    };
-  };
 
   // Create new resident
   const handleCreateResident = async (e) => {
@@ -412,13 +375,13 @@ export default function ResidentsPage() {
             vaccine_status: "not_vaccinated",
             administered_date: "",
             barangay: "",
+            mother: "",
             vaccines_given: [],
             missed_schedule_of_vaccine: [],
           });
           // Add delay to allow Supabase to sync before fetching
           setTimeout(() => {
-            fetchResidents(activeTab);
-            fetchCounts();
+            fetchResidents();
           }, 500);
         } else {
           console.error("API Error Status:", response.status);
@@ -433,7 +396,7 @@ export default function ResidentsPage() {
       // Offline - queue for later sync
       try {
         const tempId = generateTempId();
-        const cacheKey = `hw_residents_${activeTab}_${selectedBarangay || 'all'}`;
+        const cacheKey = `hw_residents_all_${selectedBarangay || 'all'}`;
 
         await queueOperation({
           endpoint: '/api/residents',
@@ -457,6 +420,7 @@ export default function ResidentsPage() {
           vaccine_status: "not_vaccinated",
           administered_date: "",
           barangay: "",
+          mother: "",
           vaccines_given: [],
           missed_schedule_of_vaccine: [],
         });
@@ -500,8 +464,7 @@ export default function ResidentsPage() {
           toast.success("Resident updated successfully");
           setIsEditDialogOpen(false);
           setSelectedResident(null);
-          fetchResidents(activeTab);
-          fetchCounts();
+          fetchResidents();
         } else {
           // Revert optimistic update
           setResidents(originalResidents);
@@ -551,7 +514,7 @@ export default function ResidentsPage() {
 
         if (response.ok) {
           toast.success("Resident deleted successfully");
-          fetchCounts();
+          fetchResidents();
         } else {
           // Revert optimistic update
           setResidents(originalResidents);
@@ -641,8 +604,7 @@ export default function ResidentsPage() {
       }
 
       setSelectedResidents(new Set());
-      fetchCounts();
-      fetchResidents(activeTab);
+      fetchResidents();
     } finally {
       setIsBatchProcessing(false);
     }
@@ -669,7 +631,7 @@ export default function ResidentsPage() {
 
         if (response.ok) {
           toast.success(`Resident ${action}d successfully`);
-          fetchCounts();
+          fetchResidents();
         } else {
           // Revert
           setResidents(originalResidents);
@@ -798,10 +760,9 @@ export default function ResidentsPage() {
 
   useEffect(() => {
     if (!isAuthLoading && userProfile && selectedBarangay) {
-      fetchResidents(activeTab);
-      fetchCounts();
+      fetchResidents();
     }
-  }, [activeTab, searchTerm, selectedBarangay, isAuthLoading, userProfile]);
+  }, [searchTerm, selectedBarangay, isAuthLoading, userProfile]);
 
   return (
     <div className="flex h-screen flex-col lg:flex-row">
@@ -874,19 +835,6 @@ export default function ResidentsPage() {
             </div>
           )}
 
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-3">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Pending ({pendingCount})
-              </TabsTrigger>
-              <TabsTrigger value="approved" className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                Approved ({approvedCount})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
 
           {/* Search */}
           <div className="flex flex-col sm:flex-row gap-2 mb-3">
@@ -910,45 +858,8 @@ export default function ResidentsPage() {
             )}
           </div>
 
-          {/* Batch Selection Controls */}
-          {activeTab === "pending" && residents.length > 0 && (
-            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">
-                  {selectedResidents.size} of {residents.length} selected
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={selectAllResidents}
-                  className="text-xs"
-                >
-                  Select All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={deselectAllResidents}
-                  className="text-xs"
-                  disabled={selectedResidents.size === 0}
-                >
-                  Clear
-                </Button>
-              </div>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  onClick={handleBatchDelete}
-                  disabled={selectedResidents.size === 0 || isBatchProcessing}
-                  className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
-                  size="sm"
-                >
-                  Delete ({selectedResidents.size})
-                </Button>
-              </div>
-            </div>
-          )}
 
-          {/* Residents Table with Pagination */}
+          {/* Residents Card View with Pagination */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
             {(() => {
               // Calculate pagination
@@ -960,40 +871,19 @@ export default function ResidentsPage() {
 
               return (
                 <>
-                  <div className="flex-1 overflow-x-auto">
-                    {activeTab === "pending" ? (
-                      <PendingResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleStatusChange={handleStatusChange}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        showApproveButton={false}
-                        selectedResidents={selectedResidents}
-                        onToggleSelection={toggleResidentSelection}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      />
-                    ) : (
-                      <ApprovedResidentsTable
-                        residents={paginatedResidents}
-                        loading={loading}
-                        selectedBarangay={selectedBarangay}
-                        openEditDialog={openEditDialog}
-                        handleDeleteResident={handleDeleteResident}
-                        getVaccineStatusBadge={getVaccineStatusBadge}
-                        formatDate={formatDate}
-                        onViewDetails={(resident) => {
-                          setDetailsResident(resident);
-                          setIsDetailsModalOpen(true);
-                        }}
-                      />
-                    )}
+                  <div className="flex-1">
+                    <ResidentsCardView
+                      residents={paginatedResidents}
+                      loading={loading}
+                      selectedBarangay={selectedBarangay}
+                      openEditDialog={openEditDialog}
+                      handleDeleteResident={handleDeleteResident}
+                      formatDate={formatDate}
+                      onViewDetails={(resident) => {
+                        setDetailsResident(resident);
+                        setIsDetailsModalOpen(true);
+                      }}
+                    />
                   </div>
 
                   {/* Pagination Control */}
@@ -1315,8 +1205,7 @@ export default function ResidentsPage() {
             isOpen={isUploadModalOpen}
             onClose={() => setIsUploadModalOpen(false)}
             onUploadSuccess={() => {
-              fetchResidents(activeTab);
-              fetchCounts();
+              fetchResidents();
             }}
             userProfile={userProfile}
             selectedBarangay={selectedBarangay || ""}
@@ -1340,8 +1229,7 @@ export default function ResidentsPage() {
             selectedBarangayId={selectedBarangayId}
             userId={userProfile?.id}
             onSuccess={() => {
-              fetchResidents(activeTab);
-              fetchCounts();
+              fetchResidents();
             }}
           />
           

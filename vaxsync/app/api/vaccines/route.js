@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, quantity_available, expiry_date, notes, status, create_doses = true } = body;
+    const { name, quantity_available, expiry_date, batch_number, notes, status, create_doses = true } = body;
 
     // Validate required fields
     if (!name || !quantity_available || !expiry_date) {
@@ -52,6 +52,7 @@ export async function POST(request) {
         name: name.trim(),
         quantity_available: parseInt(quantity_available),
         expiry_date,
+        batch_number: batch_number || '',
         notes: notes || '',
         status: status || 'Good'
       }])
@@ -109,7 +110,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, quantity_available, expiry_date, notes, status } = body;
+    const { id, name, quantity_available, expiry_date, batch_number, notes, status } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -122,6 +123,7 @@ export async function PUT(request) {
     if (name !== undefined) updateData.name = name.trim();
     if (quantity_available !== undefined) updateData.quantity_available = parseInt(quantity_available);
     if (expiry_date !== undefined) updateData.expiry_date = expiry_date;
+    if (batch_number !== undefined) updateData.batch_number = batch_number;
     if (notes !== undefined) updateData.notes = notes;
     if (status !== undefined) updateData.status = status;
 
