@@ -76,7 +76,7 @@ export default function RegistrationSuccess() {
               <>
                 <p className="text-gray-700">Thanks for signing up!</p>
                 <p className="text-gray-700">
-                  We've sent a verification email to{" "}
+                  We&apos;ve sent a verification email to{" "}
                   <span className="font-bold" style={{ color: '#3E5F44' }}>
                     {userEmail || "your email address"}
                   </span>
