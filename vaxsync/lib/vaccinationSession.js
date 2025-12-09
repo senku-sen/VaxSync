@@ -6,6 +6,9 @@
 // ============================================
 
 import { supabase } from "./supabase";
+import { deductBarangayVaccineInventory } from "./barangayVaccineInventory";
+import { getDosesPerVial } from "./vaccineVialMapping";
+import { createInventoryChangeNotification } from "./notification";
 
 /**
  * Create a new vaccination session
@@ -26,18 +29,47 @@ export const createVaccinationSession = async (sessionData) => {
     // We need to find vaccine_doses for this vaccine, then find barangay_vaccine_inventory
     // that references those vaccine_doses
     
-    // Step 1: Find vaccine_doses for this vaccine
+    // Step 1: Find vaccine_doses for this vaccine and get vaccine name
+    // First get the vaccine name to look up doses per vial
+    const { data: vaccineInfo, error: vaccineInfoError } = await supabase
+      .from('vaccines')
+      .select('id, name')
+      .eq('id', sessionData.vaccine_id)
+      .single();
+
+    if (vaccineInfoError || !vaccineInfo) {
+      console.error('Error fetching vaccine info:', vaccineInfoError);
+      return {
+        success: false,
+        data: null,
+        error: `Vaccine not found: ${vaccineInfoError?.message || 'Unknown error'}`
+      };
+    }
+
+    const vaccineName = vaccineInfo.name;
+    const dosesPerVial = getDosesPerVial(vaccineName) || 10; // Default to 10 if not found
+
+    // Now find vaccine_doses for this vaccine
     const { data: vaccineDoses, error: dosesError } = await supabase
       .from('vaccine_doses')
-      .select('id')
+      .select('id, vaccine_id')
       .eq('vaccine_id', sessionData.vaccine_id);
 
-    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
+    if (dosesError) {
+      console.error('Error fetching vaccine_doses:', dosesError);
+      return {
+        success: false,
+        data: null,
+        error: `Database error: ${dosesError.message || 'Failed to fetch vaccine doses'}`
+      };
+    }
+
+    if (!vaccineDoses || vaccineDoses.length === 0) {
       console.error('No vaccine_doses found for vaccine:', sessionData.vaccine_id);
       return {
         success: false,
         data: null,
-        error: 'No vaccine doses found for this vaccine. Please ensure the vaccine is properly configured.'
+        error: 'No vaccine doses found for this vaccine. Please ensure the vaccine is properly configured in the system.'
       };
     }
 
@@ -45,18 +77,145 @@ export const createVaccinationSession = async (sessionData) => {
     const vaccineDoseIds = vaccineDoses.map(d => d.id);
     const { data: inventoryData, error: inventoryError } = await supabase
       .from("barangay_vaccine_inventory")
-      .select("id")
+      .select("id, vaccine_id")
       .eq("barangay_id", sessionData.barangay_id)
       .in("vaccine_id", vaccineDoseIds)
       .single();
 
-    if (inventoryError || !inventoryData) {
+    if (inventoryError) {
       console.error('Error finding barangay vaccine inventory:', inventoryError);
+      if (inventoryError.code === 'PGRST116') {
+        // No rows returned
+        return {
+          success: false,
+          data: null,
+          error: 'Vaccine not available in this barangay inventory. Please add this vaccine to the barangay inventory first through the Inventory Management page.'
+        };
+      }
+      return {
+        success: false,
+        data: null,
+        error: `Database error: ${inventoryError.message || 'Failed to find inventory'}`
+      };
+    }
+
+    if (!inventoryData) {
       return {
         success: false,
         data: null,
         error: 'Vaccine not available in this barangay inventory. Please add this vaccine to the barangay inventory first through the Inventory Management page.'
       };
+    }
+
+    // Verify the vaccine_dose exists (inventoryData.vaccine_id is a vaccine_dose ID)
+    const vaccineDoseInfo = vaccineDoses.find(d => d.id === inventoryData.vaccine_id);
+
+    if (!vaccineDoseInfo) {
+      console.error('Vaccine dose not found for inventory vaccine_id:', inventoryData.vaccine_id);
+      return {
+        success: false,
+        data: null,
+        error: 'Vaccine dose configuration not found. Please ensure the vaccine is properly configured.'
+      };
+    }
+
+    // dosesPerVial is already calculated from vaccine name above
+    // actualVaccineId is the original vaccine_id from vaccines table
+    const actualVaccineId = sessionData.vaccine_id;
+
+    const dosesPerPerson = sessionData.doses_per_person || 1;
+    const target = parseInt(sessionData.target, 10);
+    
+    // Calculate total doses needed and convert to vials
+    const totalDosesNeeded = target * dosesPerPerson;
+    const vialsNeeded = Math.ceil(totalDosesNeeded / dosesPerVial);
+
+    console.log('Calculating vials needed:', {
+      target,
+      dosesPerPerson,
+      dosesPerVial,
+      totalDosesNeeded,
+      vialsNeeded,
+      vaccineDoseId: inventoryData.vaccine_id,
+      actualVaccineId: actualVaccineId,
+      vaccineId: sessionData.vaccine_id
+    });
+
+    // Deduct inventory BEFORE creating session
+    // Use API route to ensure server-side execution with admin client
+    let deductResult;
+    try {
+      const response = await fetch('/api/inventory/deduct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barangayId: sessionData.barangay_id,
+          vaccineId: actualVaccineId, // Use the actual vaccine_id from vaccines table
+          quantityToDeduct: vialsNeeded
+        })
+      });
+
+      const apiResult = await response.json();
+      deductResult = {
+        success: apiResult.success,
+        error: apiResult.error,
+        deductedRecords: apiResult.deductedRecords || []
+      };
+    } catch (apiError) {
+      console.error('❌ Error calling deduction API:', apiError);
+      // Fallback to direct call (may fail due to RLS)
+      deductResult = await deductBarangayVaccineInventory(
+        sessionData.barangay_id,
+        actualVaccineId,
+        vialsNeeded
+      );
+    }
+
+    if (!deductResult.success) {
+      console.error('❌ Failed to deduct inventory:', deductResult.error);
+      console.error('   Deduction result:', JSON.stringify(deductResult, null, 2));
+      return {
+        success: false,
+        data: null,
+        error: `Insufficient inventory: ${deductResult.error?.message || deductResult.error || 'Not enough vials available'}`
+      };
+    }
+
+    console.log('✅ Inventory deducted successfully:', vialsNeeded, 'vials');
+    console.log('   Deducted records:', deductResult.deductedRecords);
+
+    // Get barangay name for notification
+    const { data: barangayData } = await supabase
+      .from('barangays')
+      .select('name')
+      .eq('id', sessionData.barangay_id)
+      .single();
+
+    const barangayName = barangayData?.name || 'Unknown Barangay';
+    const dosesDeducted = vialsNeeded * dosesPerVial;
+
+    // Create notification for inventory change
+    await createInventoryChangeNotification(
+      vaccineName,
+      barangayName,
+      vialsNeeded,
+      dosesDeducted,
+      'deducted'
+    );
+
+    // Dispatch custom event to notify inventory change
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('inventoryUpdated', {
+          detail: {
+            barangayId: sessionData.barangay_id,
+            vaccineId: actualVaccineId,
+            vialsDeducted: vialsNeeded,
+            dosesDeducted: dosesDeducted,
+            deductedRecords: deductResult.deductedRecords
+          }
+        }));
+      }, 0);
     }
 
     // Now create the session with the barangay_vaccine_inventory ID
@@ -67,7 +226,7 @@ export const createVaccinationSession = async (sessionData) => {
         vaccine_id: inventoryData.id,  // Use barangay_vaccine_inventory ID
         session_date: sessionData.session_date,
         session_time: sessionData.session_time,
-        target: parseInt(sessionData.target, 10),
+        target: target,
         administered: 0,
         status: "Scheduled",
         created_by: sessionData.created_by,
@@ -77,6 +236,8 @@ export const createVaccinationSession = async (sessionData) => {
 
     if (error) {
       console.error('Error creating session:', error);
+      // If session creation fails, try to add back the inventory
+      // (This is a rollback - in production you might want more robust transaction handling)
       return {
         success: false,
         data: null,

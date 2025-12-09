@@ -66,8 +66,11 @@ export default function InventoryHeader({ title, subtitle }) {
 
     // Also listen for custom event when notifications are updated within the same tab
     const handleNotificationUpdate = () => {
-      console.log("🔔 Custom notification update event received");
-      fetchNotificationCount();
+      console.log("🔔 Custom notification update event received - forcing fresh count");
+      // Defer to avoid setState during render
+      setTimeout(() => {
+        fetchNotificationCount();
+      }, 0);
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -153,10 +156,13 @@ export default function InventoryHeader({ title, subtitle }) {
         (n) => !n.read && !n.archived
       ).length;
 
-      // If we have cached data, use it immediately
+      // Use cached count immediately for instant UI update (defer to avoid setState during render)
       if (cachedNotifications.length > 0) {
-        setNotificationCount(cachedUnreadCount);
-        return; // Don't fetch from database if we have fresh cache
+        setTimeout(() => {
+          setNotificationCount(cachedUnreadCount);
+          console.log('🔔 Using cached notification count:', cachedUnreadCount);
+        }, 0);
+        // Continue to fetch fresh data in background to ensure accuracy
       }
 
       // Only fetch from database if cache is empty
@@ -178,8 +184,8 @@ export default function InventoryHeader({ title, subtitle }) {
             () => ({ data: [] })
           );
 
-      // Also fetch low stock notifications
-      const lowStockPromise = fetchLowStockNotifications(10).catch(() => ({ data: [] }));
+      // Also fetch low stock notifications (UNDERSTOCK < 100% or STOCKOUT = 0%)
+      const lowStockPromise = fetchLowStockNotifications(100).catch(() => ({ data: [] }));
 
       const [residentNotifs, vaccineNotifs, sessionNotifs, lowStockNotifs] = await Promise.all([
         residentPromise,
@@ -206,6 +212,15 @@ export default function InventoryHeader({ title, subtitle }) {
       ).length;
 
       unreadCount = residentUnread + vaccineUnread + sessionUnread + lowStockUnread;
+
+      console.log('🔔 Notification count calculated:', {
+        residentUnread,
+        vaccineUnread,
+        sessionUnread,
+        lowStockUnread,
+        total: unreadCount,
+        cachedCount: cachedUnreadCount
+      });
 
       setNotificationCount(unreadCount);
     } catch (err) {
@@ -271,7 +286,16 @@ export default function InventoryHeader({ title, subtitle }) {
         >
           <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
           {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500"></span>
+            <span 
+              className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-white shadow-lg z-10 flex items-center justify-center"
+              aria-label={`${notificationCount} unread notifications`}
+            >
+              {notificationCount > 9 ? (
+                <span className="text-[9px] font-bold text-white leading-none">9+</span>
+              ) : notificationCount > 1 ? (
+                <span className="text-[9px] font-bold text-white leading-none">{notificationCount}</span>
+              ) : null}
+            </span>
           )}
         </div>
         <DropdownMenu>

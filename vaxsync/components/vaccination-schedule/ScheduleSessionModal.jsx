@@ -171,9 +171,9 @@ export default function ScheduleSessionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 shrink-0">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Schedule Vaccination Session</h2>
             <p className="text-sm text-gray-500 mt-1">
@@ -188,8 +188,8 @@ export default function ScheduleSessionModal({
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6">
+        {/* Modal Body - Scrollable */}
+        <div className="p-6 overflow-y-auto flex-1">
           {/* Validation Errors */}
           {Object.keys(errors).length > 0 && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
@@ -232,7 +232,15 @@ export default function ScheduleSessionModal({
             </div>
           )}
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            // Include dosesPerPerson in formData before submitting
+            const formDataWithDoses = { ...formData, doses_per_person: dosesPerPerson };
+            onFormChange(formDataWithDoses);
+            // Attach doses_per_person to event for immediate access
+            e.doses_per_person = dosesPerPerson;
+            onSubmit(e);
+          }} className="space-y-4">
             {/* Barangay */}
             <div>
               <label htmlFor="barangay_id" className="block text-sm font-medium text-gray-700 mb-2">

@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { supabaseAdmin } from "./supabaseAdmin";
 import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
 
 /**
@@ -190,7 +191,9 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     console.log('Vaccine dose IDs:', vaccineDoseIds);
 
     // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
-    const { data: inventory, error: fetchError } = await supabase
+    // Use admin client if available to bypass RLS
+    const fetchClient = supabaseAdmin || supabase;
+    const { data: inventory, error: fetchError } = await fetchClient
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
@@ -198,8 +201,14 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
       .order('id', { ascending: true });  // Secondary sort by ID for consistency
 
-    if (fetchError || !inventory || inventory.length === 0) {
-      console.error('Inventory not found:', fetchError);
+    if (fetchError) {
+      console.error('❌ Error fetching inventory:', fetchError);
+      console.error('   Error details:', JSON.stringify(fetchError, null, 2));
+      return { success: false, error: fetchError, deductedRecords: [] };
+    }
+
+    if (!inventory || inventory.length === 0) {
+      console.error('❌ No inventory records found for:', { barangayId, vaccineId, vaccineDoseIds });
       return { success: false, error: 'Inventory not found', deductedRecords: [] };
     }
 
@@ -255,24 +264,32 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
 
     // Apply all updates
     console.log(`📝 Applying ${updates.length} update(s) to database...`);
+    
+    // Use admin client if available to bypass RLS, otherwise use regular client
+    const client = supabaseAdmin || supabase;
+    console.log(`🔑 Using ${supabaseAdmin ? 'ADMIN' : 'REGULAR'} client for updates`);
+    
     for (const update of updates) {
       console.log(`  Updating record ${update.id}:`);
       console.log(`    quantity_vial = ${update.newQuantity}, quantity_dose = ${update.newDoseQuantity}`);
       
-      const { error: updateError } = await supabase
+      const { data: updatedData, error: updateError } = await client
         .from('barangay_vaccine_inventory')
         .update({
           quantity_vial: update.newQuantity,
           quantity_dose: update.newDoseQuantity,
           updated_at: new Date().toISOString()
         })
-        .eq('id', update.id);
+        .eq('id', update.id)
+        .select();
 
       if (updateError) {
         console.error(`❌ ERROR updating inventory record ${update.id}:`, updateError);
+        console.error(`   Error details:`, JSON.stringify(updateError, null, 2));
         return { success: false, error: updateError, deductedRecords: [] };
       } else {
         console.log(`  ✅ Record ${update.id} updated successfully`);
+        console.log(`   Updated data:`, updatedData);
       }
     }
 

@@ -65,12 +65,13 @@ export default function NotificationsPage() {
           fetchVaccineRequestNotifications(null), // null to see ALL requests as admin
           fetchResidentApprovalNotifications(profile.id),
           fetchVaccinationSessionNotifications(profile.id, null, true),
-          fetchLowStockNotifications(10) // Alert when stock <= 10 vials
+          fetchLowStockNotifications(100) // Alert when stock % < 100% (UNDERSTOCK) or 0% (STOCKOUT)
         ]);
         
-        if (vaccineError || residentError || sessionError || lowStockError) {
-          console.error('Error fetching notifications:', { vaccineError, residentError, sessionError, lowStockError });
-          setError(vaccineError?.message || residentError?.message || sessionError?.message || lowStockError?.message);
+        // Only show error if main notifications fail (low stock is optional)
+        if (vaccineError && residentError && sessionError) {
+          console.error('Error fetching notifications:', { vaccineError, residentError, sessionError });
+          setError(vaccineError?.message || residentError?.message || sessionError?.message);
         } else {
           // Combine all notifications
           const allNotifications = [
@@ -139,7 +140,7 @@ export default function NotificationsPage() {
           fetchVaccineRequestNotifications(null), // null to see ALL as admin
           fetchResidentApprovalNotifications(userId),
           fetchVaccinationSessionNotifications(userId, null, true),
-          fetchLowStockNotifications(10)
+          fetchLowStockNotifications(5)
         ]);
 
         // Combine all notifications
@@ -163,8 +164,10 @@ export default function NotificationsPage() {
         setNotifications(notificationsWithReadStatus);
         localStorage.setItem('headNurseNotifications', JSON.stringify(notificationsWithReadStatus));
         
-        // Dispatch event to update Header notification count
-        window.dispatchEvent(new CustomEvent('notificationUpdate'));
+        // Dispatch event to update Header notification count (defer to avoid setState during render)
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('notificationUpdate'));
+        }, 0);
       } catch (err) {
         console.error('Error refreshing notifications:', err);
       }
@@ -207,8 +210,10 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
-      // Dispatch custom event to update Header notification count
-      window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      // Dispatch custom event to update Header notification count (defer to avoid setState during render)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      }, 0);
       return updated;
     });
   };
@@ -221,8 +226,10 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
-      // Dispatch custom event to update Header notification count
-      window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      // Dispatch custom event to update Header notification count (defer to avoid setState during render)
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('notificationUpdate'));
+      }, 0);
       return updated;
     });
   };
@@ -441,13 +448,19 @@ export default function NotificationsPage() {
               filteredNotifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`bg-white rounded-lg border p-4 transition-all ${
-                    notification.read ? 'border-gray-200' : 'border-[#3E5F44] bg-green-50'
-                  } hover:shadow-sm`}
+                  className={`bg-white rounded-xl border-2 p-5 transition-all shadow-sm ${
+                    notification.read 
+                      ? 'border-gray-200 hover:border-gray-300 hover:shadow-md' 
+                      : 'border-[#4A7C59] bg-gradient-to-r from-green-50 to-white shadow-md hover:shadow-lg'
+                  }`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Icon */}
-                    <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${getStatusIconBgColor(notification.status)}`}>
+                    <div className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${
+                      notification.read 
+                        ? getStatusIconBgColor(notification.status)
+                        : 'bg-[#4A7C59]'
+                    }`}>
                       {getStatusIcon(notification.status)}
                     </div>
 
@@ -455,15 +468,17 @@ export default function NotificationsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className={`text-sm font-semibold ${notification.read ? 'text-gray-900' : 'text-[#3E5F44]'}`}>
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className={`text-base font-bold ${
+                              notification.read ? 'text-gray-900' : 'text-[#4A7C59]'
+                            }`}>
                               {notification.title}
                             </h3>
                             {!notification.read && (
-                              <span className="w-2 h-2 bg-[#3E5F44] rounded-full"></span>
+                              <span className="w-2.5 h-2.5 bg-[#4A7C59] rounded-full animate-pulse"></span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-700 mb-1">
+                          <p className="text-sm text-gray-700 mb-2 leading-relaxed">
                             {notification.description}
                           </p>
                           <p className="text-xs text-gray-500 mb-2">
@@ -493,12 +508,12 @@ export default function NotificationsPage() {
                           </p>
                           
                           {/* Status Badge */}
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full border ${getStatusBadgeColor(notification.status)}`}>
-                              {notification.status.charAt(0).toUpperCase() + notification.status.slice(1)}
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full border-2 ${getStatusBadgeColor(notification.status)}`}>
+                              {notification.status.charAt(0).toUpperCase() + notification.status.slice(1).replace('-', ' ')}
                             </span>
                             {notification.archived && (
-                              <span className="inline-block px-2 py-1 text-xs font-medium rounded-full border bg-gray-100 text-gray-600 border-gray-200">
+                              <span className="inline-block px-3 py-1 text-xs font-semibold rounded-full border-2 bg-gray-100 text-gray-600 border-gray-300">
                                 ARCHIVED
                               </span>
                             )}
@@ -506,33 +521,39 @@ export default function NotificationsPage() {
                           
                           {/* Notes if available */}
                           {notification.notes && (
-                            <p className="text-xs text-gray-600 mt-2 italic">
-                              Note: {notification.notes}
-                            </p>
+                            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+                              <p className="text-xs text-amber-800 font-medium">
+                                📝 Note: {notification.notes}
+                              </p>
+                            </div>
                           )}
                         </div>
                       </div>
                       
-                      <div className="flex items-center justify-between pt-3 border-t border-gray-200">
-                        <p className="text-xs text-gray-400">
+                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
+                        <p className="text-xs text-gray-500 font-medium">
                           {formatNotificationTimestamp(notification.timestamp)}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           {/* Mark as Read/Unread */}
                           <button
                             onClick={() => handleToggleRead(notification.id)}
-                            className="text-xs text-[#3E5F44] hover:text-[#2d4532] font-medium"
+                            className="text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                              notification.read
+                                ? 'text-[#4A7C59] hover:bg-green-50'
+                                : 'text-gray-600 hover:bg-gray-100'
+                            }"
                           >
-                            Mark as {notification.read ? 'unread' : 'read'}
+                            {notification.read ? '✓ Mark unread' : '✓ Mark read'}
                           </button>
                           
                           {/* Archive button (only for non-archived) */}
                           {!notification.archived && (
                             <button
                               onClick={() => handleArchive(notification.id)}
-                              className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                              className="text-xs px-3 py-1.5 rounded-md font-medium text-gray-600 hover:bg-gray-100 transition-colors"
                             >
-                              Archive
+                              📦 Archive
                             </button>
                           )}
                         </div>
@@ -542,7 +563,7 @@ export default function NotificationsPage() {
                     {/* Delete Button */}
                     <button
                       onClick={() => handleDelete(notification.id)}
-                      className="flex-shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      className="shrink-0 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

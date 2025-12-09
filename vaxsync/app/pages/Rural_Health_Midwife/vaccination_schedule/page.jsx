@@ -261,28 +261,9 @@ export default function HeadNurseVaccinationSchedule() {
 
         if (result.success) {
           console.log('Session progress updated successfully');
-
-          // Deduct from barangay vaccine inventory if administered count increased
-          if (administeredDifference > 0) {
-            console.log('Deducting vaccine from inventory:', {
-              barangayId: updatedSession.barangay_id,
-              vaccineId: updatedSession.vaccine_id,
-              quantityToDeduct: administeredDifference
-            });
-
-            const deductResult = await deductBarangayVaccineInventory(
-              updatedSession.barangay_id,
-              updatedSession.vaccine_id,
-              administeredDifference
-            );
-
-            if (deductResult.success) {
-              console.log('Vaccine inventory deducted successfully');
-            } else {
-              console.warn('Warning: Failed to deduct from inventory:', deductResult.error);
-              // Don't fail the update if inventory deduction fails - just warn
-            }
-          }
+          
+          // Note: Inventory is already deducted when session is scheduled (based on target)
+          // No need to deduct again when updating administered count
 
           setIsUpdateProgressOpen(false);
           setUpdatingSession(null);
@@ -369,12 +350,16 @@ export default function HeadNurseVaccinationSchedule() {
 
     setIsSubmitting(true);
     try {
+      // Get doses_per_person from event (passed by modal) or formData or default to 1
+      const dosesPerPerson = e.doses_per_person || formData.doses_per_person || 1;
+      
       const result = await createVaccinationSession({
         barangay_id: formData.barangay_id,
         vaccine_id: formData.vaccine_id,
         session_date: formData.date,
         session_time: formData.time,
         target: parseInt(formData.target),
+        doses_per_person: dosesPerPerson,
         created_by: userProfile.id
       });
 
