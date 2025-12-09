@@ -17,9 +17,11 @@ import {
   fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,
   fetchVaccinationSessionNotifications,
+  fetchLowStockNotifications,
   subscribeToVaccineRequestUpdates,
   subscribeToResidentUpdates,
   subscribeToVaccinationSessionUpdates,
+  subscribeToInventoryUpdates,
 } from "@/lib/notification";
 
 export default function InventoryHeader({ title, subtitle }) {
@@ -55,7 +57,6 @@ export default function InventoryHeader({ title, subtitle }) {
     fetchNotificationCount();
 
     // Listen for localStorage changes from notification pages
-    // This is the primary way the Header gets updated
     const handleStorageChange = (e) => {
       if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
         console.log("🔔 localStorage change detected, updating notification count");
@@ -63,10 +64,54 @@ export default function InventoryHeader({ title, subtitle }) {
       }
     };
 
+    // Also listen for custom event when notifications are updated within the same tab
+    const handleNotificationUpdate = () => {
+      console.log("🔔 Custom notification update event received");
+      fetchNotificationCount();
+    };
+
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('notificationUpdate', handleNotificationUpdate);
+
+    // Subscribe to real-time Supabase updates for instant notifications
+    const rawRole = userRole || "";
+    const normalizedRole = rawRole.replace(/\s+/g, "_");
+    const isSupervisor =
+      normalizedRole === "Head_Nurse" ||
+      normalizedRole === "Rural_Health_Midwife" ||
+      normalizedRole === "Rural_Health_Midwife_(RHM)" ||
+      rawRole === "Rural Health Midwife (RHM)";
+
+    // Subscribe to vaccine requests (null for admins to see all, userId for users)
+    const unsubscribeVaccine = subscribeToVaccineRequestUpdates(
+      isSupervisor ? null : userId, 
+      (payload) => {
+        console.log("🔔 Real-time vaccine request:", payload);
+        fetchNotificationCount();
+      }
+    );
+
+    // Subscribe to vaccination sessions
+    const unsubscribeSessions = subscribeToVaccinationSessionUpdates(
+      isSupervisor ? null : barangayId,
+      (payload) => {
+        console.log("🔔 Real-time session update:", payload);
+        fetchNotificationCount();
+      }
+    );
+
+    // Subscribe to inventory updates for low stock alerts
+    const unsubscribeInventory = subscribeToInventoryUpdates((payload) => {
+      console.log("🔔 Real-time inventory update:", payload);
+      fetchNotificationCount();
+    });
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('notificationUpdate', handleNotificationUpdate);
+      if (unsubscribeVaccine) unsubscribeVaccine();
+      if (unsubscribeSessions) unsubscribeSessions();
+      if (unsubscribeInventory) unsubscribeInventory();
     };
   }, [userId, userRole, barangayId]);
 
@@ -80,7 +125,9 @@ export default function InventoryHeader({ title, subtitle }) {
 
       const isSupervisor =
         normalizedRole === "Head_Nurse" ||
-        normalizedRole === "Rural_Health_Midwife";
+        normalizedRole === "Rural_Health_Midwife" ||
+        normalizedRole === "Rural_Health_Midwife_(RHM)" ||
+        rawRole === "Rural Health Midwife (RHM)";
 
       // Determine cache key based on role
       // Support both spaced and underscored role names
@@ -131,10 +178,14 @@ export default function InventoryHeader({ title, subtitle }) {
             () => ({ data: [] })
           );
 
-      const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
+      // Also fetch low stock notifications
+      const lowStockPromise = fetchLowStockNotifications(10).catch(() => ({ data: [] }));
+
+      const [residentNotifs, vaccineNotifs, sessionNotifs, lowStockNotifs] = await Promise.all([
         residentPromise,
         vaccinePromise,
         sessionPromise,
+        lowStockPromise,
       ]);
 
       // Count unread notifications: those NOT marked as read AND NOT archived
@@ -150,7 +201,11 @@ export default function InventoryHeader({ title, subtitle }) {
         (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
       ).length;
 
-      unreadCount = residentUnread + vaccineUnread + sessionUnread;
+      const lowStockUnread = (lowStockNotifs.data || []).filter(
+        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
+      ).length;
+
+      unreadCount = residentUnread + vaccineUnread + sessionUnread + lowStockUnread;
 
       setNotificationCount(unreadCount);
     } catch (err) {
@@ -214,15 +269,9 @@ export default function InventoryHeader({ title, subtitle }) {
           onClick={handleNotificationClick}
           title={`Unread notifications: ${notificationCount}`}
         >
-          <Bell
-            className={`h-5 w-5 transition-colors ${
-              notificationCount > 0
-                ? "text-red-500 hover:text-red-600"
-                : "text-gray-700 hover:text-gray-900"
-            }`}
-          />
+          <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
           {notificationCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-pulse border border-white"></span>
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500"></span>
           )}
         </div>
         <DropdownMenu>

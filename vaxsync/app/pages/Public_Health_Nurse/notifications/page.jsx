@@ -7,13 +7,15 @@ import {
   fetchVaccineRequestNotifications, 
   fetchResidentApprovalNotifications,
   fetchVaccinationSessionNotifications,
+  fetchLowStockNotifications,
   formatNotificationTimestamp, 
   getStatusBadgeColor, 
   getStatusIconBgColor, 
   getStatusIconColor, 
   subscribeToVaccineRequestUpdates,
   subscribeToResidentUpdates,
-  subscribeToVaccinationSessionUpdates
+  subscribeToVaccinationSessionUpdates,
+  subscribeToInventoryUpdates
 } from '@/lib/notification';
 import { loadUserProfile } from '@/lib/vaccineRequest';
 
@@ -55,26 +57,29 @@ export default function NotificationsPage() {
         setUserId(profile.id);
         setBarangayId(profile.assigned_barangay_id);
         
-        // FEATURE 1 & 3: Fetch all three notification types for Health Worker
+        // FEATURE 1 & 3: Fetch all notification types for Health Worker (including low stock)
         const [
           { data: vaccineNotifications, error: vaccineError },
           { data: residentNotifications, error: residentError },
-          { data: sessionNotifications, error: sessionError }
+          { data: sessionNotifications, error: sessionError },
+          { data: lowStockNotifications, error: lowStockError }
         ] = await Promise.all([
           fetchVaccineRequestNotifications(profile.id),
           fetchResidentApprovalNotifications(profile.id),
-          fetchVaccinationSessionNotifications(profile.id, profile.assigned_barangay_id, false)
+          fetchVaccinationSessionNotifications(profile.id, profile.assigned_barangay_id, false),
+          fetchLowStockNotifications(10) // Alert when stock <= 10 vials
         ]);
         
-        if (vaccineError || residentError || sessionError) {
-          console.error('Error fetching notifications:', { vaccineError, residentError, sessionError });
-          setError(vaccineError?.message || residentError?.message || sessionError?.message);
+        if (vaccineError || residentError || sessionError || lowStockError) {
+          console.error('Error fetching notifications:', { vaccineError, residentError, sessionError, lowStockError });
+          setError(vaccineError?.message || residentError?.message || sessionError?.message || lowStockError?.message);
         } else {
           // Combine all notifications
           const allNotifications = [
             ...(vaccineNotifications || []),
             ...(residentNotifications || []),
-            ...(sessionNotifications || [])
+            ...(sessionNotifications || []),
+            ...(lowStockNotifications || [])
           ];
           
           // Sort by date descending
@@ -126,22 +131,25 @@ export default function NotificationsPage() {
           notifications.map(n => [n.id, { read: n.read, archived: n.archived }])
         );
 
-        // Fetch fresh data from database
+        // Fetch fresh data from database including low stock
         const [
           { data: vaccineNotifications },
           { data: residentNotifications },
-          { data: sessionNotifications }
+          { data: sessionNotifications },
+          { data: lowStockNotifications }
         ] = await Promise.all([
           fetchVaccineRequestNotifications(userId),
           fetchResidentApprovalNotifications(userId),
-          fetchVaccinationSessionNotifications(userId, barangayId, false)
+          fetchVaccinationSessionNotifications(userId, barangayId, false),
+          fetchLowStockNotifications(10)
         ]);
 
         // Combine all notifications
         const allNotifications = [
           ...(vaccineNotifications || []),
           ...(residentNotifications || []),
-          ...(sessionNotifications || [])
+          ...(sessionNotifications || []),
+          ...(lowStockNotifications || [])
         ];
 
         // Sort by date descending
@@ -156,12 +164,15 @@ export default function NotificationsPage() {
 
         setNotifications(notificationsWithReadStatus);
         localStorage.setItem('healthWorkerNotifications', JSON.stringify(notificationsWithReadStatus));
+        
+        // Dispatch event to update Header notification count
+        window.dispatchEvent(new CustomEvent('notificationUpdate'));
       } catch (err) {
         console.error('Error refreshing notifications:', err);
       }
     };
 
-    // Subscribe to all three notification types
+    // Subscribe to all notification types including inventory for low stock alerts
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(userId, (payload) => {
       console.log('🔔 Real-time vaccine request update:', payload);
       refreshNotificationsPreservingStatus();
@@ -177,10 +188,16 @@ export default function NotificationsPage() {
       refreshNotificationsPreservingStatus();
     });
 
+    const unsubscribeInventory = subscribeToInventoryUpdates((payload) => {
+      console.log('🔔 Real-time inventory update:', payload);
+      refreshNotificationsPreservingStatus();
+    });
+
     return () => {
       if (unsubscribeVaccine) unsubscribeVaccine();
       if (unsubscribeResident) unsubscribeResident();
       if (unsubscribeSessions) unsubscribeSessions();
+      if (unsubscribeInventory) unsubscribeInventory();
     };
   }, [userId, barangayId, notifications]);
 
@@ -192,6 +209,8 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      // Dispatch custom event to update Header notification count
+      window.dispatchEvent(new CustomEvent('notificationUpdate'));
       return updated;
     });
   };
@@ -204,6 +223,8 @@ export default function NotificationsPage() {
       );
       // Save to localStorage
       localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      // Dispatch custom event to update Header notification count
+      window.dispatchEvent(new CustomEvent('notificationUpdate'));
       return updated;
     });
   };
@@ -245,24 +266,27 @@ export default function NotificationsPage() {
   const getFilteredNotifications = () => {
     let filtered = notifications;
     
-    switch (activeTab) {
-      case 'unread':
-        filtered = notifications.filter(n => !n.read);
-        break;
-      case 'archived':
-        filtered = notifications.filter(n => n.archived);
-        break;
-      case 'all':
-      default:
-        filtered = notifications;
-        break;
-    }
+      switch (activeTab) {
+        case 'unread':
+          // Unread notifications that are NOT archived
+          filtered = notifications.filter(n => !n.read && !n.archived);
+          break;
+        case 'archived':
+          // Only archived notifications
+          filtered = notifications.filter(n => n.archived);
+          break;
+        case 'all':
+        default:
+          // All notifications EXCEPT archived ones
+          filtered = notifications.filter(n => !n.archived);
+          break;
+      }
     
     return sortNotifications(filtered);
   };
 
   const filteredNotifications = getFilteredNotifications();
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read && !n.archived).length;
   const archivedCount = notifications.filter(n => n.archived).length;
 
   // Get status icon based on vaccine request status
@@ -321,7 +345,7 @@ export default function NotificationsPage() {
                     : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                All ({notifications.length})
+                All ({notifications.filter(n => !n.archived).length})
               </button>
               <button
                 onClick={() => setActiveTab('unread')}

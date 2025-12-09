@@ -83,46 +83,31 @@ export default function ScheduleSessionModalWithParticipants({
           return;
         }
 
-        // Extract vaccine IDs from vaccine_doses (since vaccine_id now references vaccine_doses.id)
-        const vaccineIdsWithInventory = inventory
+        // Create vaccine objects from inventory data with quantities
+        // The inventory structure is: item.vaccine_doses?.vaccine?.name for vaccine name
+        const vaccinesWithQty = inventory
           .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => item.vaccine_doses?.vaccine_id);  // Get the actual vaccine ID from vaccine_doses
-
-        console.log('Vaccine IDs with inventory:', vaccineIdsWithInventory);
-
-        const filteredVaccines = vaccines.filter(vaccine =>
-          vaccineIdsWithInventory.includes(vaccine.id)
-        );
-
-        console.log('Filtered vaccines from props:', filteredVaccines);
-
-        let vaccinesWithQty = [];
-
-        if (filteredVaccines.length > 0) {
-          // When we have vaccines from props, make sure each entry still exposes
-          // a consistent vaccine_id field (the vaccines table ID) so the
-          // select onChange handler can always use vaccine.vaccine_id.
-          vaccinesWithQty = filteredVaccines.map(vaccine => {
-            const inventoryItem = inventory.find(item => item.vaccine_doses?.vaccine_id === vaccine.id);
+          .map(item => {
+            // Get vaccine info from the nested structure
+            const vaccineDose = item.vaccine_doses;
+            const vaccine = vaccineDose?.vaccine;
+            const vaccineId = vaccine?.id || vaccineDose?.vaccine_id || item.vaccine_id;
+            const vaccineName = vaccine?.name || 'Unknown Vaccine';
+            const doseCode = vaccineDose?.dose_code || '';
+            
             return {
-              ...vaccine,
-              vaccine_id: vaccine.id,
-              availableQuantity: inventoryItem?.quantity_vial || 0
+              id: item.id,  // Use inventory ID as unique key
+              vaccine_id: vaccineId,  // Actual vaccine ID
+              inventory_id: item.id,  // Store the inventory record ID
+              name: doseCode ? `${vaccineName} (${doseCode})` : vaccineName,
+              vaccineName: vaccineName,
+              doseCode: doseCode,
+              batch_number: item.batch_number,
+              expiry_date: item.expiry_date,
+              availableQuantity: item.quantity_vial || 0,
+              availableDoses: item.quantity_dose || 0
             };
           });
-        } else {
-          console.log('Using inventory items directly as no matching vaccines in props');
-          vaccinesWithQty = inventory
-            .filter(item => (item.quantity_vial || 0) > 0)
-            .map(item => ({
-              id: item.id,  // Use barangay_vaccine_inventory.id as the unique key
-              vaccine_id: item.vaccine_doses?.vaccine_id,  // Store actual vaccine ID separately
-              name: item.vaccine_doses?.vaccine?.name || 'Unknown Vaccine',
-              batch_number: item.vaccine_doses?.vaccine?.batch_number,
-              expiry_date: item.vaccine_doses?.vaccine?.expiry_date,
-              availableQuantity: item.quantity_vial || 0
-            }));
-        }
 
         console.log('Final vaccines with quantity:', vaccinesWithQty);
         setVaccinesWithInventory(vaccinesWithQty);
@@ -504,7 +489,7 @@ export default function ScheduleSessionModalWithParticipants({
                           </option>
                           {vaccinesWithInventory.map((vaccine) => (
                             <option key={vaccine.id} value={vaccine.vaccine_id || vaccine.id}>
-                              {vaccine.name}
+                              {vaccine.name} - {vaccine.availableQuantity} vials ({vaccine.availableDoses} doses)
                             </option>
                           ))}
                         </select>

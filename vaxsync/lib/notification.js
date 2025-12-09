@@ -217,26 +217,30 @@ export function formatNotificationTimestamp(timestamp) {
 
 /**
  * Subscribe to real-time vaccine request updates
- * @param {string} userId - The user ID
+ * @param {string} userId - The user ID (null for admins to see all)
  * @param {Function} callback - Callback function when updates occur
  * @returns {Function} - Unsubscribe function
  */
 export function subscribeToVaccineRequestUpdates(userId, callback) {
+  const channelName = userId ? `vaccine_requests_${userId}` : `vaccine_requests_all_${Date.now()}`;
+  
+  const subscriptionConfig = {
+    event: "*",
+    schema: "public",
+    table: "vaccine_requests",
+  };
+  
+  // Only add filter if userId is provided
+  if (userId) {
+    subscriptionConfig.filter = `requested_by=eq.${userId}`;
+  }
+  
   const subscription = supabase
-    .channel(`vaccine_requests_${userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "vaccine_requests",
-        filter: `requested_by=eq.${userId}`,
-      },
-      (payload) => {
-        console.log("Vaccine request update received:", payload);
-        callback(payload);
-      }
-    )
+    .channel(channelName)
+    .on("postgres_changes", subscriptionConfig, (payload) => {
+      console.log("🔔 Vaccine request update received:", payload);
+      callback(payload);
+    })
     .subscribe();
 
   // Return unsubscribe function
@@ -487,23 +491,54 @@ export function subscribeToResidentUpdates(userId, callback) {
 
 /**
  * Subscribe to real-time vaccination session updates
- * @param {string} barangayId - The barangay ID
+ * @param {string} barangayId - The barangay ID (null for admins to see all)
  * @param {Function} callback - Callback function when updates occur
  * @returns {Function} - Unsubscribe function
  */
 export function subscribeToVaccinationSessionUpdates(barangayId, callback) {
+  const channelName = barangayId ? `sessions_${barangayId}` : `sessions_all_${Date.now()}`;
+  
+  const subscriptionConfig = {
+    event: "*",
+    schema: "public",
+    table: "vaccination_sessions",
+  };
+  
+  // Only add filter if barangayId is provided
+  if (barangayId) {
+    subscriptionConfig.filter = `barangay_id=eq.${barangayId}`;
+  }
+  
   const subscription = supabase
-    .channel(`sessions_${barangayId}`)
+    .channel(channelName)
+    .on("postgres_changes", subscriptionConfig, (payload) => {
+      console.log("🔔 Vaccination session update received:", payload);
+      callback(payload);
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+}
+
+/**
+ * Subscribe to real-time inventory updates (for low stock alerts)
+ * @param {Function} callback - Callback function when updates occur
+ * @returns {Function} - Unsubscribe function
+ */
+export function subscribeToInventoryUpdates(callback) {
+  const subscription = supabase
+    .channel(`inventory_updates_${Date.now()}`)
     .on(
       "postgres_changes",
       {
         event: "*",
         schema: "public",
-        table: "vaccination_sessions",
-        filter: `barangay_id=eq.${barangayId}`,
+        table: "barangay_vaccine_inventory",
       },
       (payload) => {
-        console.log("Vaccination session update received:", payload);
+        console.log("🔔 Inventory update received:", payload);
         callback(payload);
       }
     )
@@ -512,4 +547,115 @@ export function subscribeToVaccinationSessionUpdates(barangayId, callback) {
   return () => {
     supabase.removeChannel(subscription);
   };
+}
+
+/**
+ * Fetch low stock notifications
+ * @param {number} threshold - The threshold for low stock (default 10 vials)
+ * @returns {Promise<{data: Array, error: string|null}>}
+ */
+export async function fetchLowStockNotifications(threshold = 10) {
+  try {
+    // Fetch inventory with low stock
+    const { data: inventory, error: inventoryError } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select(`
+        id,
+        vaccine_id,
+        barangay_id,
+        quantity,
+        updated_at,
+        vaccine_doses(name, doses_per_vial),
+        barangays(name)
+      `)
+      .lte("quantity", threshold)
+      .gt("quantity", 0)
+      .order("quantity", { ascending: true });
+
+    if (inventoryError) {
+      console.error("Error fetching low stock:", inventoryError);
+      return { data: [], error: inventoryError.message };
+    }
+
+    // Also fetch out of stock items
+    const { data: outOfStock, error: outOfStockError } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select(`
+        id,
+        vaccine_id,
+        barangay_id,
+        quantity,
+        updated_at,
+        vaccine_doses(name, doses_per_vial),
+        barangays(name)
+      `)
+      .eq("quantity", 0);
+
+    if (outOfStockError) {
+      console.error("Error fetching out of stock:", outOfStockError);
+    }
+
+    // Combine and transform into notifications
+    const allItems = [...(inventory || []), ...(outOfStock || [])];
+    
+    const notifications = allItems.map((item) => {
+      const isOutOfStock = item.quantity === 0;
+      const vaccineName = item.vaccine_doses?.name || "Unknown Vaccine";
+      const barangayName = item.barangays?.name || "Unknown Barangay";
+
+      return {
+        id: `low-stock-${item.id}`,
+        type: "low-stock",
+        title: isOutOfStock ? "⚠️ Out of Stock" : "⚠️ Low Stock Alert",
+        description: isOutOfStock 
+          ? `${vaccineName} is out of stock in ${barangayName}`
+          : `${vaccineName} is running low (${item.quantity} vials left) in ${barangayName}`,
+        vaccineName,
+        barangayName,
+        quantity: item.quantity,
+        status: isOutOfStock ? "critical" : "warning",
+        timestamp: item.updated_at,
+        date: new Date(item.updated_at),
+        read: false,
+        archived: false,
+        icon: isOutOfStock ? "critical" : "warning",
+        color: isOutOfStock ? "red" : "orange",
+      };
+    });
+
+    return { data: notifications, error: null };
+  } catch (err) {
+    console.error("Error in fetchLowStockNotifications:", err);
+    return { data: [], error: err.message };
+  }
+}
+
+/**
+ * Check if a specific vaccine is low in stock
+ * @param {string} vaccineId - The vaccine ID
+ * @param {string} barangayId - The barangay ID
+ * @param {number} threshold - The threshold for low stock
+ * @returns {Promise<{isLow: boolean, quantity: number, error: string|null}>}
+ */
+export async function checkVaccineLowStock(vaccineId, barangayId, threshold = 10) {
+  try {
+    const { data, error } = await supabase
+      .from("barangay_vaccine_inventory")
+      .select("quantity")
+      .eq("vaccine_id", vaccineId)
+      .eq("barangay_id", barangayId)
+      .single();
+
+    if (error) {
+      return { isLow: false, quantity: 0, error: error.message };
+    }
+
+    return {
+      isLow: data.quantity <= threshold,
+      quantity: data.quantity,
+      error: null
+    };
+  } catch (err) {
+    return { isLow: false, quantity: 0, error: err.message };
+  }
 }

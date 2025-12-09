@@ -79,46 +79,36 @@ export default function ScheduleSessionModal({
           return;
         }
 
-        // Get vaccine IDs that have inventory (filter out zero quantity)
-        const vaccineIdsWithInventory = inventory
+        console.log('Raw inventory data:', inventory);
+
+        // Create vaccine objects from inventory data with quantities
+        // The inventory structure is: item.vaccine_doses?.vaccine?.name for vaccine name
+        // and item.vaccine_id is the vaccine_dose ID (not vaccine ID)
+        const vaccinesWithQty = inventory
           .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => item.vaccine_id);
-
-        console.log('Vaccine IDs with inventory:', vaccineIdsWithInventory);
-
-        // Filter vaccines to only show those with inventory
-        const filteredVaccines = vaccines.filter(vaccine => {
-          const hasInventory = vaccineIdsWithInventory.includes(vaccine.id);
-          return hasInventory;
-        });
-
-        let vaccinesWithQty = [];
-
-        if (filteredVaccines.length > 0) {
-          // Use filtered vaccines from props
-          vaccinesWithQty = filteredVaccines.map(vaccine => {
-            const inventoryItem = inventory.find(item => item.vaccine_id === vaccine.id);
-            const quantity = inventoryItem?.quantity_vial || 0;
+          .map(item => {
+            // Get vaccine info from the nested structure
+            const vaccineDose = item.vaccine_doses;
+            const vaccine = vaccineDose?.vaccine;
+            const vaccineId = vaccine?.id || vaccineDose?.vaccine_id || item.vaccine_id;
+            const vaccineName = vaccine?.name || 'Unknown Vaccine';
+            const doseCode = vaccineDose?.dose_code || '';
+            
             return {
-              ...vaccine,
-              availableQuantity: quantity
+              id: vaccineId,  // Use the actual vaccine ID
+              vaccine_dose_id: item.vaccine_id,  // Store the vaccine_dose ID for inventory operations
+              inventory_id: item.id,  // Store the inventory record ID
+              name: doseCode ? `${vaccineName} (${doseCode})` : vaccineName,
+              vaccineName: vaccineName,
+              doseCode: doseCode,
+              batch_number: item.batch_number,
+              expiry_date: item.expiry_date,
+              availableQuantity: item.quantity_vial || 0,
+              availableDoses: item.quantity_dose || 0
             };
           });
-        } else {
-          // Fallback: Create vaccine objects from inventory data
-          console.log('No vaccines matched from props, using inventory data as fallback');
-          vaccinesWithQty = inventory
-            .filter(item => (item.quantity_vial || 0) > 0)
-            .map(item => ({
-              id: item.vaccine_id,
-              name: item.vaccine?.name || 'Unknown Vaccine',
-              batch_number: item.vaccine?.batch_number,
-              expiry_date: item.vaccine?.expiry_date,
-              availableQuantity: item.quantity_vial || 0
-            }));
-        }
 
-        console.log('Final vaccines with quantity:', vaccinesWithQty.length, 'vaccines');
+        console.log('Vaccines with quantity:', vaccinesWithQty);
         setVaccinesWithInventory(vaccinesWithQty);
       } catch (err) {
         console.error('Error loading vaccines with inventory:', err);
@@ -327,8 +317,8 @@ export default function ScheduleSessionModal({
                   {vaccinesWithInventory.length === 0 ? 'No vaccines in inventory' : 'Select vaccine'}
                 </option>
                 {vaccinesWithInventory.map((vaccine) => (
-                  <option key={vaccine.id} value={vaccine.id}>
-                    {vaccine.name}
+                  <option key={vaccine.inventory_id || vaccine.id} value={vaccine.id}>
+                    {vaccine.name} - {vaccine.availableQuantity} vials ({vaccine.availableDoses} doses)
                   </option>
                 ))}
               </select>
@@ -343,10 +333,10 @@ export default function ScheduleSessionModal({
                 type="number"
                 id="dosesPerPerson"
                 value={dosesPerPerson}
-                onChange={(e) => setDosesPerPerson(Math.max(1, parseFloat(e.target.value) || 1))}
+                onChange={(e) => setDosesPerPerson(Math.max(1, parseInt(e.target.value) || 1))}
                 placeholder="Enter doses per person"
-                min="0.5"
-                step="0.5"
+                min="1"
+                step="1"
                 disabled={!vaccineInventory.isValid}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent placeholder:text-gray-600 ${
                   !vaccineInventory.isValid ? 'bg-gray-50 text-gray-400 border-gray-300' : 'border-gray-300'
@@ -372,15 +362,15 @@ export default function ScheduleSessionModal({
                 onChange={handleChange}
                 placeholder={vaccineInventory.isValid ? `Max: ${maxPossibleTarget} people` : 'Select vaccine first'}
                 min="1"
-                max={maxPossibleTarget || undefined}
                 disabled={!vaccineInventory.isValid}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent placeholder:text-gray-600 ${
                   errors.target ? 'border-red-500' : 'border-gray-300'
-                } ${!vaccineInventory.isValid ? 'bg-gray-50 text-gray-400' : ''}`}
+                } ${!vaccineInventory.isValid ? 'bg-gray-50 text-gray-400' : ''} ${formData.target > maxPossibleTarget ? 'border-orange-500' : ''}`}
               />
               {vaccineInventory.isValid && formData.target && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Doses needed: {formData.target} people × {dosesPerPerson} dose(s) = <span className="font-semibold text-gray-700">{Math.round(formData.target * dosesPerPerson * 10) / 10} vials</span>
+                <p className={`text-xs mt-1 ${formData.target > maxPossibleTarget ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
+                  Doses needed: {formData.target} people × {dosesPerPerson} dose(s) = <span className="font-semibold">{Math.round(formData.target * dosesPerPerson * 10) / 10} vials</span>
+                  {formData.target > maxPossibleTarget && <span className="ml-2">(exceeds available inventory)</span>}
                 </p>
               )}
             </div>

@@ -55,38 +55,34 @@ export default function ScheduleSessionModal({
           return;
         }
 
-        // Get vaccine IDs that have inventory (filter out zero quantity)
-        const vaccineIdsWithInventory = inventory
+        console.log('Raw inventory for multiple modal:', inventory);
+
+        // Create vaccine objects from inventory data with quantities
+        const vaccinesWithQty = inventory
           .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => item.vaccine_id);
-
-        // Filter vaccines to only show those with inventory
-        const filteredVaccines = vaccines.filter(vaccine =>
-          vaccineIdsWithInventory.includes(vaccine.id)
-        );
-
-        let vaccinesWithQty = [];
-
-        if (filteredVaccines.length > 0) {
-          vaccinesWithQty = filteredVaccines.map(vaccine => {
-            const inventoryItem = inventory.find(item => item.vaccine_id === vaccine.id);
+          .map(item => {
+            // Get vaccine info from the nested structure
+            const vaccineDose = item.vaccine_doses;
+            const vaccine = vaccineDose?.vaccine;
+            const vaccineId = vaccine?.id || vaccineDose?.vaccine_id || item.vaccine_id;
+            const vaccineName = vaccine?.name || 'Unknown Vaccine';
+            const doseCode = vaccineDose?.dose_code || '';
+            
             return {
-              ...vaccine,
-              availableQuantity: inventoryItem?.quantity_vial || 0
+              id: item.id,  // Use inventory ID as unique key
+              vaccine_id: vaccineId,  // Actual vaccine ID
+              inventory_id: item.id,
+              name: doseCode ? `${vaccineName} (${doseCode})` : vaccineName,
+              vaccineName: vaccineName,
+              doseCode: doseCode,
+              batch_number: item.batch_number,
+              expiry_date: item.expiry_date,
+              availableQuantity: item.quantity_vial || 0,
+              availableDoses: item.quantity_dose || 0
             };
           });
-        } else {
-          vaccinesWithQty = inventory
-            .filter(item => (item.quantity_vial || 0) > 0)
-            .map(item => ({
-              id: item.vaccine_id,
-              name: item.vaccine?.name || 'Unknown Vaccine',
-              batch_number: item.vaccine?.batch_number,
-              expiry_date: item.vaccine?.expiry_date,
-              availableQuantity: item.quantity_vial || 0
-            }));
-        }
 
+        console.log('Vaccines with quantity for multiple modal:', vaccinesWithQty);
         setVaccinesWithInventory(vaccinesWithQty);
       } catch (err) {
         console.error('Error loading vaccines with inventory:', err);
@@ -325,8 +321,8 @@ export default function ScheduleSessionModal({
                           {vaccinesWithInventory.length === 0 ? 'No vaccines in inventory' : 'Select vaccine'}
                         </option>
                         {vaccinesWithInventory.map((vaccine) => (
-                          <option key={vaccine.id} value={vaccine.id}>
-                            {vaccine.name}
+                          <option key={vaccine.id} value={vaccine.vaccine_id || vaccine.id}>
+                            {vaccine.name} - {vaccine.availableQuantity} vials ({vaccine.availableDoses} doses)
                           </option>
                         ))}
                       </select>

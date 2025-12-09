@@ -170,9 +170,42 @@ export default function HeadNurseVaccinationSchedule() {
         };
       }
 
+      // Deduplicate barangays - keep UPPERCASE versions with valid municipality
+      const barangayMap = new Map();
+      (data || []).forEach(barangay => {
+        const normalizedName = barangay.name.toUpperCase();
+        const existing = barangayMap.get(normalizedName);
+        
+        // Prefer barangays that:
+        // 1. Are already uppercase
+        // 2. Have a valid municipality (not "Unknown")
+        const isUppercase = barangay.name === barangay.name.toUpperCase();
+        const hasValidMunicipality = barangay.municipality && barangay.municipality.toLowerCase() !== 'unknown';
+        
+        if (!existing) {
+          barangayMap.set(normalizedName, barangay);
+        } else {
+          const existingIsUppercase = existing.name === existing.name.toUpperCase();
+          const existingHasValidMunicipality = existing.municipality && existing.municipality.toLowerCase() !== 'unknown';
+          
+          // Replace if current is better (uppercase + valid municipality)
+          if ((isUppercase && !existingIsUppercase) || 
+              (hasValidMunicipality && !existingHasValidMunicipality) ||
+              (isUppercase && hasValidMunicipality && (!existingIsUppercase || !existingHasValidMunicipality))) {
+            barangayMap.set(normalizedName, barangay);
+          }
+        }
+      });
+
+      // Convert back to array and sort
+      const deduplicatedBarangays = Array.from(barangayMap.values())
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      console.log('Deduplicated barangays:', deduplicatedBarangays.length, 'from', data?.length || 0);
+
       return {
         success: true,
-        data: data || [],
+        data: deduplicatedBarangays,
         error: null
       };
     } catch (err) {
