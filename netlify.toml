@@ -4,5 +4,13 @@
   publish = ".next"
   NODE_VERSION = "18.17.0"
 
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+  from = "/"
+  to = "/pages/signin"
+  status = 200
+
 [functions]
   directory = "netlify/functions"
