@@ -174,13 +174,13 @@ export default function InventoryHeader({ title, subtitle }) {
 
   const handleNotificationClick = () => {
     // Determine the base path (Public_Health_Nurse or Rural_Health_Midwife)
-    const isPublicHealthNurse = pathname.includes("Public_Health_Nurse");
-    const isRuralHealthMidwife = pathname.includes("Rural_Health_Midwife");
+    const isPublicHealthNurse = pathname.includes("Rural_Health_Midwife");
+    const isRuralHealthMidwife = pathname.includes("Public_Health_Nurse");
 
     if (isPublicHealthNurse) {
-      router.push("/pages/Public_Health_Nurse/notifications");
-    } else if (isRuralHealthMidwife) {
       router.push("/pages/Rural_Health_Midwife/notifications");
+    } else if (isRuralHealthMidwife) {
+      router.push("/pages/Public_Health_Nurse/notifications");
     } else {
       // Fallback: check localStorage for user role if pathname doesn't indicate role
       try {
@@ -188,13 +188,13 @@ export default function InventoryHeader({ title, subtitle }) {
           localStorage.getItem("vaxsync_user") || "null"
         );
         if (cachedUser?.user_role === "Public Health Nurse") {
-          router.push("/pages/Public_Health_Nurse/notifications");
-        } else {
           router.push("/pages/Rural_Health_Midwife/notifications");
+        } else {
+          router.push("/pages/Public_Health_Nurse/notifications");
         }
       } catch (err) {
-        // Default to Rural Health Midwife if error
-        router.push("/pages/Rural_Health_Midwife/notifications");
+        // Default to Public Health Nurse if error
+        router.push("/pages/Public_Health_Nurse/notifications");
       }
     }
   };
@@ -225,25 +225,6 @@ export default function InventoryHeader({ title, subtitle }) {
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-pulse border border-white"></span>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="p-0 h-6 w-6">
-              <User className="h-5 w-5 text-gray-700" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 border border-[#3E5F44] rounded-md shadow-sm">
-            <DropdownMenuItem asChild className="flex items-center cursor-pointer">
-              <a href={pathname.includes("Public_Health_Nurse") ? "/pages/Public_Health_Nurse/settings-privacy" : "/pages/Rural_Health_Midwife/settings-privacy"} className="flex items-center">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings & Privacy
-              </a>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center cursor-pointer" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </div>
   );

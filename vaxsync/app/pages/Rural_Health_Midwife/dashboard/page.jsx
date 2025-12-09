@@ -23,9 +23,14 @@ export default function Page() {
       try {
         setLoading(true);
         setError(null);
+
+        // Get ALL vaccination sessions (Health Worker sees all barangays)
         const { data: sessions } = await supabase.from('vaccination_sessions').select('*');
+
         const { data: barangays } = await supabase.from('barangays').select('*');
         const { data: vaccineList } = await supabase.from('vaccines').select('id, name');
+
+        // Get ALL residents (Health Worker sees all)
         const { data: residents } = await supabase.from('residents').select('*');
 
         // Calculate weekly data (last 7 days)
@@ -40,30 +45,30 @@ export default function Page() {
         }
         setWeeklyData(weekData);
 
-        // Calculate barangay distribution
-        if (barangays && barangays.length > 0) {
-          const colors = ['#3E5F44', '#5E936C', '#93DA97', '#C8E6C9'];
-          let totalSessions = 0;
-
-          // Count total sessions
-          for (const barangay of barangays) {
-            const count = sessions?.filter(s => s.barangay_id === barangay.id).length || 0;
-            totalSessions += count;
+        // Fetch vaccine distribution from backend API (all barangays)
+        try {
+          const distributionRes = await fetch(`/api/dashboard?role=health_worker`);
+          if (distributionRes.ok) {
+            const distributionData = await distributionRes.json();
+            if (distributionData.success && distributionData.data.distribution.length > 0) {
+              setBarangayData(distributionData.data.distribution);
+            } else {
+              setBarangayData([{
+                name: 'No Data',
+                percentage: 100,
+                color: '#3E5F44',
+                doses: 0
+              }]);
+            }
           }
-
-          // Calculate percentages
-          const distributions = [];
-          for (let i = 0; i < barangays.length; i++) {
-            const barangay = barangays[i];
-            const count = sessions?.filter(s => s.barangay_id === barangay.id).length || 0;
-            const percentage = totalSessions > 0 ? Math.round((count / totalSessions) * 100) : 0;
-            distributions.push({
-              name: barangay.name,
-              percentage,
-              color: colors[i % colors.length]
-            });
-          }
-          setBarangayData(distributions);
+        } catch (error) {
+          console.error('Error fetching vaccine distribution:', error);
+          setBarangayData([{
+            name: 'No Data',
+            percentage: 100,
+            color: '#3E5F44',
+            doses: 0
+          }]);
         }
 
         // Calculate session statistics
@@ -72,6 +77,16 @@ export default function Page() {
         const completed = sessions?.filter(s => s.status === 'Completed').length || 0;
         const totalSessions = scheduled + inProgress + completed;
         const completionRate = totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0;
+
+        console.log('📊 Health Worker Dashboard Data Loaded:', {
+          sessions: sessions?.length,
+          residents: residents?.length,
+          scheduled,
+          inProgress,
+          completed,
+          totalResidents: residents?.length,
+          vaccineTypes: vaccineList?.length
+        });
 
         setSessionStats({
           scheduled,
@@ -104,7 +119,7 @@ export default function Page() {
     };
 
     loadData();
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, isAuthenticated]);
 
   const getPieSlice = (percentage, startAngle) => {
     const radius = 60;
@@ -228,64 +243,6 @@ export default function Page() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-1">Weekly Usage Trend</h2>
-            <p className="text-sm text-gray-600 mb-6">Vaccine doses used per day</p>
-            <svg width="100%" height="250" viewBox="0 0 480 200">
-              {[0, 45, 90, 135, 180].map((y, i) => (
-                <line key={`grid-${i}`} x1="40" y1={y} x2="460" y2={y} stroke="#e5e7eb" strokeWidth="1" />
-              ))}
-              {[180, 135, 90, 45, 0].map((y, i) => (
-                <text key={`label-${i}`} x="20" y={y + 5} fontSize="12" fill="#9ca3af" textAnchor="end">{i * 45}</text>
-              ))}
-              {linePoints.length > 0 && (
-                <polyline points={linePoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#3E5F44" strokeWidth="2" />
-              )}
-              {linePoints.map((p, i) => (
-                <circle key={`point-${i}`} cx={Math.round(p.x)} cy={Math.round(p.y)} r="4" fill="#3E5F44" />
-              ))}
-              {linePoints.map((p, i) => (
-                <text key={`day-${i}`} x={Math.round(p.x)} y="195" fontSize="12" fill="#9ca3af" textAnchor="middle">{p.day}</text>
-              ))}
-            </svg>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Distribution by Barangay</h2>
-            <p className="text-sm text-gray-600 mb-8">Vaccine allocation percentage</p>
-            <div className="flex flex-col items-center justify-center">
-              <svg width="280" height="280" viewBox="0 0 200 200" className="mb-8">
-                {(() => {
-                  let currentAngle = -90;
-                  return barangayData.map((data, index) => {
-                    const slice = getPieSlice(data.percentage, currentAngle);
-                    const result = (
-                      <g key={index}>
-                        <path d={slice.path} fill={data.color} stroke="white" strokeWidth="2" />
-                        {data.percentage > 5 && (
-                          <text x={slice.labelX} y={slice.labelY} fontSize="12" fill="white" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
-                            {data.percentage}%
-                          </text>
-                        )}
-                      </g>
-                    );
-                    currentAngle += (data.percentage / 100) * 360;
-                    return result;
-                  });
-                })()}
-              </svg>
-            </div>
-            <div className="flex flex-wrap gap-4 justify-center">
-              {barangayData.map((data, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.color }}></div>
-                  <span className="text-sm text-gray-700">{data.name}: {data.percentage}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
       </div>
     </div>

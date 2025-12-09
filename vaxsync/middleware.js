@@ -3,8 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Routes that require authentication
 const protectedRoutes = [
-  '/pages/Rural_Health_Midwife',
   '/pages/Public_Health_Nurse',
+  '/pages/Rural_Health_Midwife',
 ];
 
 // Routes that are always public (no auth needed)

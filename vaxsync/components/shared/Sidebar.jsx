@@ -40,21 +40,21 @@ export default function Sidebar() {
     }
   }, []);
 
-  const isPublicHealthNurse = pathname.includes("Public_Health_Nurse");
-  const isRuralHealthMidwife = pathname.includes("Rural_Health_Midwife");
+  const isPublicHealthNurse = pathname.includes("Rural_Health_Midwife");
+  const isRuralHealthMidwife = pathname.includes("Public_Health_Nurse");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
   if (!isPublicHealthNurse && !isRuralHealthMidwife && !isSettingsStandalone) return null;
 
   // Determine base path: use pathname if available, otherwise use cached user role
-  let basePath = "/pages/Rural_Health_Midwife"; // default
+  let basePath = "/pages/Public_Health_Nurse"; // default
   if (isPublicHealthNurse) {
-    basePath = "/pages/Public_Health_Nurse";
-  } else if (isRuralHealthMidwife) {
     basePath = "/pages/Rural_Health_Midwife";
+  } else if (isRuralHealthMidwife) {
+    basePath = "/pages/Public_Health_Nurse";
   } else if (isSettingsStandalone && userRole) {
     // Use cached user role for settings page
-    basePath = userRole === "Public Health Nurse" ? "/pages/Public_Health_Nurse" : "/pages/Rural_Health_Midwife";
+    basePath = userRole === "Public Health Nurse" ? "/pages/Rural_Health_Midwife" : "/pages/Public_Health_Nurse";
   }
 
   // Full list of items
@@ -95,13 +95,13 @@ export default function Sidebar() {
           lg:translate-x-0`}
       >
         {/* Header */}
-        <div className="flex items-center justify-center h-20 px-4 border-b border-gray-300 overflow-hidden relative">
+        <div className="flex items-center justify-between h-20 px-4 border-b border-gray-300">
           <div className="flex items-center h-full">
             <img src="/VSyncLogo.png" alt="VaxSync" className="h-24 w-auto" />
           </div>
           <Button
             variant="ghost"
-            className="lg:hidden text-gray-700 p-1 absolute right-4"
+            className="lg:hidden text-gray-700 p-1"
             onClick={() => setIsOpen(false)}
           >
             <X className="h-5 w-5" />

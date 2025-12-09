@@ -27,37 +27,24 @@ export default function Page() {
         setError(null);
 
         // Get user profile to find assigned barangay
+        const { data: { user: authUser } } = await supabase.auth.getUser();
         const { data: userProfile } = await supabase
           .from('user_profiles')
           .select('assigned_barangay_id')
-          .eq('id', user.id)
+          .eq('id', authUser.id)
           .single();
 
         const barangayId = userProfile?.assigned_barangay_id;
-        
-        if (!barangayId) {
-          setError('No barangay assigned to this user');
-          setLoading(false);
-          return;
-        }
 
-        // Filter data by user's barangay
-        const { data: sessions, error: sessionsError } = await supabase
-          .from('vaccination_sessions')
-          .select('*')
-          .eq('barangay_id', barangayId);
+        // Get sessions for this barangay only (Head Nurse sees only their assigned barangay)
+        let sessionsQuery = supabase.from('vaccination_sessions').select('*');
+        if (barangayId) {
+          sessionsQuery = sessionsQuery.eq('barangay_id', barangayId);
+        }
+        const { data: sessions, error: sessionsError } = await sessionsQuery;
         
         if (sessionsError) {
           console.error('Sessions error:', sessionsError);
-        }
-
-        const { data: barangayList, error: barangayError } = await supabase
-          .from('barangays')
-          .select('*')
-          .eq('id', barangayId);
-        
-        if (barangayError) {
-          console.error('Barangay error:', barangayError);
         }
 
         const { data: vaccineList, error: vaccineError } = await supabase
@@ -67,41 +54,58 @@ export default function Page() {
         if (vaccineError) {
           console.error('Vaccine error:', vaccineError);
         }
-        
-        // Get barangay name first
-        const barangayName = barangayList?.[0]?.name;
 
-        // Get residents filtered by user's barangay (using barangay name)
-        const { data: residents, error: residentsError } = await supabase
-          .from('residents')
-          .select('*')
-          .eq('barangay', barangayName);
+        // Get residents for this barangay only
+        let residentsQuery = supabase.from('residents').select('*');
+        if (barangayId) {
+          // Get barangay name first
+          const { data: barangayData } = await supabase
+            .from('barangays')
+            .select('name')
+            .eq('id', barangayId)
+            .single();
+          
+          if (barangayData?.name) {
+            residentsQuery = residentsQuery.eq('barangay', barangayData.name);
+          }
+        }
+        const { data: residents, error: residentsError } = await residentsQuery;
         
         if (residentsError) {
           console.error('Residents error:', residentsError);
         }
 
-        // Get upcoming vaccination sessions (next 7 days)
+        // Get upcoming vaccination sessions (next 7 days) - for this barangay only
         const today = new Date().toISOString().split('T')[0];
         const nextWeek = new Date();
         nextWeek.setDate(nextWeek.getDate() + 7);
         const nextWeekStr = nextWeek.toISOString().split('T')[0];
         
-        const { data: upcoming } = await supabase
+        let upcomingQuery = supabase
           .from('vaccination_sessions')
           .select('*, vaccines(name)')
-          .eq('barangay_id', barangayId)
           .gte('session_date', today)
-          .lte('session_date', nextWeekStr)
+          .lte('session_date', nextWeekStr);
+        
+        if (barangayId) {
+          upcomingQuery = upcomingQuery.eq('barangay_id', barangayId);
+        }
+        
+        const { data: upcoming } = await upcomingQuery
           .order('session_date', { ascending: true })
           .order('session_time', { ascending: true });
         setUpcomingSessions(upcoming || []);
         
-        // Get vaccine requests for this barangay
-        const { data: requests } = await supabase
+        // Get vaccine requests for this barangay only
+        let requestsQuery = supabase
           .from('vaccine_requests')
-          .select('*, vaccines(name)')
-          .eq('barangay_id', barangayId)
+          .select('*, vaccines(name)');
+        
+        if (barangayId) {
+          requestsQuery = requestsQuery.eq('barangay_id', barangayId);
+        }
+        
+        const { data: requests } = await requestsQuery
           .order('created_at', { ascending: false });
         setVaccineRequests(requests || []);
 
@@ -116,15 +120,33 @@ export default function Page() {
         }
         setWeeklyData(weekData);
 
-        // For Health Worker, show only their assigned barangay
-        if (barangayList && barangayList.length > 0) {
-          const colors = ['#3E5F44', '#5E936C', '#93DA97', '#C8E6C9'];
-          const barangay = barangayList[0];
+        // Fetch vaccine distribution from backend API (specific barangay)
+        try {
+          const apiUrl = barangayId 
+            ? `/api/dashboard?barangay_id=${barangayId}&role=head_nurse`
+            : `/api/dashboard?role=head_nurse`;
           
+          const distributionRes = await fetch(apiUrl);
+          if (distributionRes.ok) {
+            const distributionData = await distributionRes.json();
+            if (distributionData.success && distributionData.data.distribution.length > 0) {
+              setBarangayData(distributionData.data.distribution);
+            } else {
+              setBarangayData([{
+                name: 'No Data',
+                percentage: 100,
+                color: '#3E5F44',
+                doses: 0
+              }]);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching vaccine distribution:', error);
           setBarangayData([{
-            name: barangay.name,
+            name: 'No Data',
             percentage: 100,
-            color: colors[0]
+            color: '#3E5F44',
+            doses: 0
           }]);
         }
 
@@ -134,6 +156,17 @@ export default function Page() {
         const completed = sessions?.filter(s => s.status === 'Completed').length || 0;
         const totalSessions = scheduled + inProgress + completed;
         const completionRate = totalSessions > 0 ? Math.round((completed / totalSessions) * 100) : 0;
+
+        console.log('📊 Dashboard Data Loaded:', {
+          barangayId,
+          sessions: sessions?.length,
+          residents: residents?.length,
+          scheduled,
+          inProgress,
+          completed,
+          totalResidents: residents?.length,
+          vaccineTypes: vaccineList?.length
+        });
 
         setSessionStats({
           scheduled,
@@ -164,7 +197,7 @@ export default function Page() {
     };
 
     loadData();
-  }, [isAuthenticated, authLoading, user]);
+  }, [isAuthenticated, authLoading, user, user?.id]);
 
   const getPieSlice = (percentage, startAngle) => {
     const radius = 60;
@@ -345,64 +378,6 @@ export default function Page() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-1">Weekly Usage Trend</h2>
-              <p className="text-sm text-gray-600 mb-6">Vaccine doses used per day</p>
-              <svg width="100%" height="250" viewBox="0 0 480 200">
-                {[0, 45, 90, 135, 180].map((y, i) => (
-                  <line key={`grid-${i}`} x1="40" y1={y} x2="460" y2={y} stroke="#e5e7eb" strokeWidth="1" />
-                ))}
-                {[180, 135, 90, 45, 0].map((y, i) => (
-                  <text key={`label-${i}`} x="20" y={y + 5} fontSize="12" fill="#9ca3af" textAnchor="end">{i * 45}</text>
-                ))}
-                {linePoints.length > 0 && (
-                  <polyline points={linePoints.map(p => `${p.x},${p.y}`).join(' ')} fill="none" stroke="#3E5F44" strokeWidth="2" />
-                )}
-                {linePoints.map((p, i) => (
-                  <circle key={`point-${i}`} cx={Math.round(p.x)} cy={Math.round(p.y)} r="4" fill="#3E5F44" />
-                ))}
-                {linePoints.map((p, i) => (
-                  <text key={`day-${i}`} x={Math.round(p.x)} y="195" fontSize="12" fill="#9ca3af" textAnchor="middle">{p.day}</text>
-                ))}
-              </svg>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">Distribution by Barangay</h2>
-              <p className="text-sm text-gray-600 mb-8">Vaccine allocation percentage</p>
-              <div className="flex flex-col items-center justify-center">
-                <svg width="280" height="280" viewBox="0 0 200 200" className="mb-8">
-                  {(() => {
-                    let currentAngle = -90;
-                    return barangayData.map((data, index) => {
-                      const slice = getPieSlice(data.percentage, currentAngle);
-                      const result = (
-                        <g key={index}>
-                          <path d={slice.path} fill={data.color} stroke="white" strokeWidth="2" />
-                          {data.percentage > 5 && (
-                            <text x={slice.labelX} y={slice.labelY} fontSize="12" fill="white" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
-                              {data.percentage}%
-                            </text>
-                          )}
-                        </g>
-                      );
-                      currentAngle += (data.percentage / 100) * 360;
-                      return result;
-                    });
-                  })()}
-                </svg>
-              </div>
-              <div className="flex flex-wrap gap-4 justify-center">
-                {barangayData.map((data, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: data.color }}></div>
-                    <span className="text-sm text-gray-700">{data.name}: {data.percentage}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
