@@ -67,6 +67,9 @@ export default function ResidentsPage() {
   // Batch selection state for approved residents
   const [selectedApprovedResidents, setSelectedApprovedResidents] = useState(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  
+  // Active tab state
+  const [activeTab, setActiveTab] = useState("pending");
 
   // Add vaccine state
   const [newVaccine, setNewVaccine] = useState("");

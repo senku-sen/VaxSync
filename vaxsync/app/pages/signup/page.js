@@ -226,20 +226,6 @@ export default function SignUp() {
 
     if (!validateStep3()) {
       console.log('Step 3 validation failed');
-      setIsSubmitting(false);
-      return;
-    }
-    console.log('Step 3 validation passed');
-
-    // Validate authentication code
-    const validAuthCodes = {
-      'Public Health Nurse': 'PHN-6A9F',
-      'Rural Health Midwife (RHM)': 'RHM-4Z7Q'
-    };
-
-    if (formData.authCode && validAuthCodes[formData.userRole] !== formData.authCode) {
-      setFieldErrors(prev => ({ ...prev, authCode: `Invalid authentication code for ${formData.userRole}` }));
-      setIsSubmitting(false);
       return;
     }
 

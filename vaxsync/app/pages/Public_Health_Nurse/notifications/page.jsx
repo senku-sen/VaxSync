@@ -30,6 +30,18 @@ export default function NotificationsPage() {
 
   // NOTIF-03: Initialize notifications on mount
   useEffect(() => {
+    // Load cached notifications from localStorage first
+    const cachedNotifications = localStorage.getItem('healthWorkerNotifications');
+    if (cachedNotifications) {
+      try {
+        const parsed = JSON.parse(cachedNotifications);
+        setNotifications(parsed);
+      } catch (e) {
+        console.error('Error parsing cached notifications:', e);
+      }
+    }
+    
+    // Then fetch fresh data from database
     initializeNotifications();
   }, []);
 
@@ -68,12 +80,30 @@ export default function NotificationsPage() {
           // Sort by date descending
           allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           
-          // Keep all notifications as unread (don't automatically mark as read)
+          // Merge with cached read/archived status
+          const cachedNotifications = localStorage.getItem('healthWorkerNotifications');
+          let cachedMap = {};
+          if (cachedNotifications) {
+            try {
+              const cached = JSON.parse(cachedNotifications);
+              cachedMap = Object.fromEntries(cached.map(n => [n.id, { read: n.read, archived: n.archived }]));
+            } catch (e) {
+              console.error('Error parsing cached notifications:', e);
+            }
+          }
+          
+          // Apply cached read/archived status to new notifications
+          // IMPORTANT: Use the cached status if it exists, otherwise default to false (unread)
           const notificationsWithReadStatus = allNotifications.map((notif) => ({
             ...notif,
-            read: notif.read || false, // Respect the actual read status from the database
+            read: cachedMap[notif.id]?.read !== undefined ? cachedMap[notif.id].read : false,
+            archived: cachedMap[notif.id]?.archived !== undefined ? cachedMap[notif.id].archived : false,
           }));
+          
           setNotifications(notificationsWithReadStatus);
+          
+          // Save to localStorage
+          localStorage.setItem('healthWorkerNotifications', JSON.stringify(notificationsWithReadStatus));
         }
       }
     } catch (err) {
@@ -84,24 +114,67 @@ export default function NotificationsPage() {
     }
   };
 
-  // NOTIF-03: Subscribe to real-time updates
+  // NOTIF-03: Subscribe to real-time updates instead of polling
   useEffect(() => {
     if (!userId || !barangayId) return;
 
+    // Helper function to refresh notifications while preserving read/archived status
+    const refreshNotificationsPreservingStatus = async () => {
+      try {
+        // Get current read/archived status from state
+        const currentReadStatus = Object.fromEntries(
+          notifications.map(n => [n.id, { read: n.read, archived: n.archived }])
+        );
+
+        // Fetch fresh data from database
+        const [
+          { data: vaccineNotifications },
+          { data: residentNotifications },
+          { data: sessionNotifications }
+        ] = await Promise.all([
+          fetchVaccineRequestNotifications(userId),
+          fetchResidentApprovalNotifications(userId),
+          fetchVaccinationSessionNotifications(userId, barangayId, false)
+        ]);
+
+        // Combine all notifications
+        const allNotifications = [
+          ...(vaccineNotifications || []),
+          ...(residentNotifications || []),
+          ...(sessionNotifications || [])
+        ];
+
+        // Sort by date descending
+        allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Apply current read/archived status to new notifications
+        const notificationsWithReadStatus = allNotifications.map((notif) => ({
+          ...notif,
+          read: currentReadStatus[notif.id]?.read !== undefined ? currentReadStatus[notif.id].read : false,
+          archived: currentReadStatus[notif.id]?.archived !== undefined ? currentReadStatus[notif.id].archived : false,
+        }));
+
+        setNotifications(notificationsWithReadStatus);
+        localStorage.setItem('healthWorkerNotifications', JSON.stringify(notificationsWithReadStatus));
+      } catch (err) {
+        console.error('Error refreshing notifications:', err);
+      }
+    };
+
     // Subscribe to all three notification types
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(userId, (payload) => {
-      console.log('Vaccine request update received:', payload);
-      initializeNotifications();
+      console.log('🔔 Real-time vaccine request update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     const unsubscribeResident = subscribeToResidentUpdates(userId, (payload) => {
-      console.log('Resident update received:', payload);
-      initializeNotifications();
+      console.log('🔔 Real-time resident update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     const unsubscribeSessions = subscribeToVaccinationSessionUpdates(barangayId, (payload) => {
-      console.log('Vaccination session update received:', payload);
-      initializeNotifications();
+      console.log('🔔 Real-time session update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     return () => {
@@ -109,39 +182,46 @@ export default function NotificationsPage() {
       if (unsubscribeResident) unsubscribeResident();
       if (unsubscribeSessions) unsubscribeSessions();
     };
-  }, [userId, barangayId]);
-
-  // NOTIF-03: Check for new notifications periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('Checking for new notifications...');
-      initializeNotifications();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  }, [userId, barangayId, notifications]);
 
   // NOTIF-03: Mark as read/unread
   const handleToggleRead = (id) => {
-    setNotifications(prev =>
-      prev.map(notif =>
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
         notif.id === id ? { ...notif, read: !notif.read } : notif
-      )
-    );
+      );
+      // Save to localStorage
+      localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // NOTIF-03: Archive notification
   const handleArchive = (id) => {
-    setNotifications(prev =>
-      prev.map(notif =>
+    setNotifications(prev => {
+      const updated = prev.map(notif =>
         notif.id === id ? { ...notif, archived: true, read: true } : notif
-      )
-    );
+      );
+      // Save to localStorage
+      localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // Delete notification
   const handleDelete = (id) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
+    setNotifications(prev => {
+      const updated = prev.filter(notif => notif.id !== id);
+      // Save to localStorage
+      localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+      // Trigger storage event for Header component to update
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'healthWorkerNotifications',
+        newValue: JSON.stringify(updated),
+        oldValue: JSON.stringify(prev)
+      }));
+      return updated;
+    });
   };
 
   // NOTIF-03: Sort notifications
@@ -150,12 +230,12 @@ export default function NotificationsPage() {
     
     switch (sortBy) {
       case 'date-desc':
-        return sorted.sort((a, b) => b.date - a.date);
+        return sorted.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       case 'date-asc':
-        return sorted.sort((a, b) => a.date - b.date);
+        return sorted.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       case 'status':
-        const statusOrder = { pending: 0, approved: 1, rejected: 2, released: 3 };
-        return sorted.sort((a, b) => statusOrder[a.status] - statusOrder[b.status]);
+        const statusOrder = { pending: 0, approved: 1, rejected: 2, released: 3, 'in-progress': 4, completed: 5, scheduled: 6 };
+        return sorted.sort((a, b) => (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99));
       default:
         return sorted;
     }
@@ -265,8 +345,29 @@ export default function NotificationsPage() {
               </button>
             </div>
 
-            {/* NOTIF-03: Sort Dropdown */}
-            <div className="flex items-center gap-2">
+            {/* NOTIF-03: Sort Dropdown and Mark All as Read */}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => {
+                    setNotifications(prev => {
+                      const updated = prev.map(notif =>
+                        !notif.archived ? { ...notif, read: true } : notif
+                      );
+                      localStorage.setItem('healthWorkerNotifications', JSON.stringify(updated));
+                      window.dispatchEvent(new StorageEvent('storage', {
+                        key: 'healthWorkerNotifications',
+                        newValue: JSON.stringify(updated),
+                        oldValue: JSON.stringify(prev)
+                      }));
+                      return updated;
+                    });
+                  }}
+                  className="px-3 py-2 text-sm font-medium text-white bg-[#3E5F44] hover:bg-[#2d4532] rounded-md transition-colors"
+                >
+                  Mark All as Read
+                </button>
+              )}
               <label className="text-sm text-gray-600">Sort by:</label>
               <select
                 value={sortBy}

@@ -91,10 +91,11 @@ export default function NotificationsPage() {
           }
           
           // Apply cached read/archived status to new notifications
+          // IMPORTANT: Use the cached status if it exists, otherwise default to false (unread)
           const notificationsWithReadStatus = allNotifications.map((notif) => ({
             ...notif,
-            read: cachedMap[notif.id]?.read ?? false,
-            archived: cachedMap[notif.id]?.archived ?? false,
+            read: cachedMap[notif.id]?.read !== undefined ? cachedMap[notif.id].read : false,
+            archived: cachedMap[notif.id]?.archived !== undefined ? cachedMap[notif.id].archived : false,
           }));
           
           setNotifications(notificationsWithReadStatus);
@@ -111,24 +112,67 @@ export default function NotificationsPage() {
     }
   };
 
-  // NOTIF-03: Subscribe to real-time updates
+  // NOTIF-03: Subscribe to real-time updates instead of polling
   useEffect(() => {
     if (!userId) return;
 
+    // Helper function to refresh notifications while preserving read/archived status
+    const refreshNotificationsPreservingStatus = async () => {
+      try {
+        // Get current read/archived status from state
+        const currentReadStatus = Object.fromEntries(
+          notifications.map(n => [n.id, { read: n.read, archived: n.archived }])
+        );
+
+        // Fetch fresh data from database
+        const [
+          { data: vaccineNotifications },
+          { data: residentNotifications },
+          { data: sessionNotifications }
+        ] = await Promise.all([
+          fetchVaccineRequestNotifications(userId),
+          fetchResidentApprovalNotifications(userId),
+          fetchVaccinationSessionNotifications(userId, null, true)
+        ]);
+
+        // Combine all notifications
+        const allNotifications = [
+          ...(vaccineNotifications || []),
+          ...(residentNotifications || []),
+          ...(sessionNotifications || [])
+        ];
+
+        // Sort by date descending
+        allNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Apply current read/archived status to new notifications
+        const notificationsWithReadStatus = allNotifications.map((notif) => ({
+          ...notif,
+          read: currentReadStatus[notif.id]?.read !== undefined ? currentReadStatus[notif.id].read : false,
+          archived: currentReadStatus[notif.id]?.archived !== undefined ? currentReadStatus[notif.id].archived : false,
+        }));
+
+        setNotifications(notificationsWithReadStatus);
+        localStorage.setItem('headNurseNotifications', JSON.stringify(notificationsWithReadStatus));
+      } catch (err) {
+        console.error('Error refreshing notifications:', err);
+      }
+    };
+
     // Subscribe to all three notification types
-    const unsubscribeVaccine = subscribeToVaccineRequestUpdates(userId, (payload) => {
-      console.log('Vaccine request update received:', payload);
-      initializeNotifications();
+    const unsubscribeVaccine = subscribeToVaccineRequestUpdates(null, (payload) => {
+      console.log('🔔 Real-time vaccine request update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     const unsubscribeResident = subscribeToResidentUpdates(userId, (payload) => {
-      console.log('Resident update received:', payload);
-      initializeNotifications();
+      console.log('🔔 Real-time resident update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     const unsubscribeSessions = subscribeToVaccinationSessionUpdates(null, (payload) => {
-      console.log('Vaccination session update received:', payload);
-      initializeNotifications();
+      console.log('🔔 Real-time session update:', payload);
+      refreshNotificationsPreservingStatus();
     });
 
     return () => {
@@ -136,17 +180,7 @@ export default function NotificationsPage() {
       if (unsubscribeResident) unsubscribeResident();
       if (unsubscribeSessions) unsubscribeSessions();
     };
-  }, [userId]);
-
-  // NOTIF-03: Check for new notifications periodically
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('Checking for new notifications...');
-      initializeNotifications();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  }, [userId, notifications]);
 
   // NOTIF-03: Mark as read/unread
   const handleToggleRead = (id) => {
@@ -178,6 +212,12 @@ export default function NotificationsPage() {
       const updated = prev.filter(notif => notif.id !== id);
       // Save to localStorage
       localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
+      // Trigger storage event for Header component to update
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'headNurseNotifications',
+        newValue: JSON.stringify(updated),
+        oldValue: JSON.stringify(prev)
+      }));
       return updated;
     });
   };
@@ -304,8 +344,29 @@ export default function NotificationsPage() {
               </button>
             </div>
 
-            {/* NOTIF-03: Sort Dropdown */}
-            <div className="flex items-center gap-2">
+            {/* NOTIF-03: Sort Dropdown and Mark All as Read */}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={() => {
+                    setNotifications(prev => {
+                      const updated = prev.map(notif =>
+                        !notif.archived ? { ...notif, read: true } : notif
+                      );
+                      localStorage.setItem('headNurseNotifications', JSON.stringify(updated));
+                      window.dispatchEvent(new StorageEvent('storage', {
+                        key: 'headNurseNotifications',
+                        newValue: JSON.stringify(updated),
+                        oldValue: JSON.stringify(prev)
+                      }));
+                      return updated;
+                    });
+                  }}
+                  className="px-3 py-2 text-sm font-medium text-white bg-[#3E5F44] hover:bg-[#2d4532] rounded-md transition-colors"
+                >
+                  Mark All as Read
+                </button>
+              )}
               <label className="text-sm text-gray-600">Sort by:</label>
               <select
                 value={sortBy}

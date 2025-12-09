@@ -13,10 +13,13 @@ import {
 import { supabase } from "@/lib/supabase";
 import { OfflineIndicator } from "@/components/OfflineStatusBanner";
 import { loadUserProfile } from "@/lib/vaccineRequest";
-import { 
-  fetchVaccineRequestNotifications, 
+import {
+  fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,
-  fetchVaccinationSessionNotifications
+  fetchVaccinationSessionNotifications,
+  subscribeToVaccineRequestUpdates,
+  subscribeToResidentUpdates,
+  subscribeToVaccinationSessionUpdates,
 } from "@/lib/notification";
 
 export default function InventoryHeader({ title, subtitle }) {
@@ -38,7 +41,7 @@ export default function InventoryHeader({ title, subtitle }) {
           setBarangayId(profile.assigned_barangay_id);
         }
       } catch (err) {
-        console.error('Error initializing user:', err);
+        console.error("Error initializing user:", err);
       }
     };
 
@@ -48,72 +51,110 @@ export default function InventoryHeader({ title, subtitle }) {
   useEffect(() => {
     if (!userId || !userRole) return;
 
+    // Initial fetch
     fetchNotificationCount();
-    
-    // Refresh notification count every 10 seconds
-    const interval = setInterval(fetchNotificationCount, 10000);
+
+    // Listen for localStorage changes from notification pages
+    // This is the primary way the Header gets updated
+    const handleStorageChange = (e) => {
+      if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
+        console.log("🔔 localStorage change detected, updating notification count");
+        fetchNotificationCount();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [userId, userRole, barangayId]);
 
   const fetchNotificationCount = async () => {
     try {
-      let totalUnread = 0;
+      let unreadCount = 0;
 
-      if (userRole === 'Health Worker') {
-        // Health Worker: Resident Approvals + Vaccine Requests + Sessions
-        const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
-          fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
-          fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
-          fetchVaccinationSessionNotifications(userId, barangayId, false).catch(() => ({ data: [] })),
-        ]);
+      // Normalize role (support both spaced and underscored variants)
+      const rawRole = userRole || "";
+      const normalizedRole = rawRole.replace(/\s+/g, "_");
 
-        // Get cached read status from localStorage
-        let cachedNotifications = {};
-        try {
-          const cached = localStorage.getItem('healthWorkerNotifications');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            cachedNotifications = Object.fromEntries(parsed.map(n => [n.id, { read: n.read, archived: n.archived }]));
-          }
-        } catch (e) {
-          // Ignore localStorage errors
+      const isSupervisor =
+        normalizedRole === "Head_Nurse" ||
+        normalizedRole === "Rural_Health_Midwife";
+
+      // Determine cache key based on role
+      // Support both spaced and underscored role names
+      const cacheKey = isSupervisor ? "headNurseNotifications" : "healthWorkerNotifications";
+
+      // Get cached read/archived status from localStorage
+      let cachedMap = {};
+      let cachedNotifications = [];
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          cachedNotifications = JSON.parse(cached);
+          cachedMap = Object.fromEntries(
+            cachedNotifications.map((n) => [n.id, { read: n.read, archived: n.archived }])
+          );
         }
-
-        const residentUnread = residentNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read)).length || 0;
-        const vaccineUnread = vaccineNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read)).length || 0;
-        const sessionUnread = sessionNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && n.isUpcoming).length || 0;
-
-        totalUnread = residentUnread + vaccineUnread + sessionUnread;
-      } else if (userRole === 'Head Nurse') {
-        // Head Nurse: Vaccine Requests + All Sessions
-        const vaccineNotifs = await fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] }));
-        const sessionNotifs = await fetchVaccinationSessionNotifications(userId, null, true).catch(() => ({ data: [] }));
-
-        // Get cached read status from localStorage
-        let cachedNotifications = {};
-        try {
-          const cached = localStorage.getItem('headNurseNotifications');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            cachedNotifications = Object.fromEntries(parsed.map(n => [n.id, { read: n.read, archived: n.archived }]));
-          }
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-
-        const vaccineUnread = vaccineNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && n.status === 'pending').length || 0;
-        // For Head Nurse, count all upcoming sessions (not just within 1 day)
-        const sessionUnread = sessionNotifs.data?.filter(n => !(cachedNotifications[n.id]?.read ?? n.read) && (n.isUpcoming || (n.daysUntil > 0))).length || 0;
-
-        totalUnread = vaccineUnread + sessionUnread;
+      } catch (e) {
+        // Ignore cache errors
       }
 
-      setNotificationCount(totalUnread);
+      // Count unread from cached notifications (faster, more reliable)
+      const cachedUnreadCount = cachedNotifications.filter(
+        (n) => !n.read && !n.archived
+      ).length;
+
+      // If we have cached data, use it immediately
+      if (cachedNotifications.length > 0) {
+        setNotificationCount(cachedUnreadCount);
+        return; // Don't fetch from database if we have fresh cache
+      }
+
+      // Only fetch from database if cache is empty
+      const residentPromise = fetchResidentApprovalNotifications(userId).catch(
+        () => ({ data: [] })
+      );
+
+      // For supervisors, see ALL vaccine requests + ALL sessions.
+      // For front-line users, see only their own requests/sessions.
+      const vaccinePromise = isSupervisor
+        ? fetchVaccineRequestNotifications(null).catch(() => ({ data: [] }))
+        : fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] }));
+
+      const sessionPromise = isSupervisor
+        ? fetchVaccinationSessionNotifications(userId, null, true).catch(
+            () => ({ data: [] })
+          )
+        : fetchVaccinationSessionNotifications(userId, barangayId, false).catch(
+            () => ({ data: [] })
+          );
+
+      const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
+        residentPromise,
+        vaccinePromise,
+        sessionPromise,
+      ]);
+
+      // Count unread notifications: those NOT marked as read AND NOT archived
+      const residentUnread = (residentNotifs.data || []).filter(
+        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
+      ).length;
+
+      const vaccineUnread = (vaccineNotifs.data || []).filter(
+        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
+      ).length;
+
+      const sessionUnread = (sessionNotifs.data || []).filter(
+        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
+      ).length;
+
+      unreadCount = residentUnread + vaccineUnread + sessionUnread;
+
+      setNotificationCount(unreadCount);
     } catch (err) {
-      // Silently fail
+      // On error, just hide the badge
       setNotificationCount(0);
     }
   };
@@ -122,10 +163,11 @@ export default function InventoryHeader({ title, subtitle }) {
     try {
       await supabase.auth.signOut();
     } catch {}
-    try { 
-      localStorage.removeItem('vaxsync_user'); 
+    try {
+      localStorage.removeItem("vaxsync_user");
       // Clear the auth cookie
-      document.cookie = 'vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie =
+        "vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     } catch {}
     window.location.href = "/pages/signin";
   }
@@ -134,7 +176,7 @@ export default function InventoryHeader({ title, subtitle }) {
     // Determine the base path (Public_Health_Nurse or Rural_Health_Midwife)
     const isPublicHealthNurse = pathname.includes("Public_Health_Nurse");
     const isRuralHealthMidwife = pathname.includes("Rural_Health_Midwife");
-    
+
     if (isPublicHealthNurse) {
       router.push("/pages/Public_Health_Nurse/notifications");
     } else if (isRuralHealthMidwife) {
@@ -142,7 +184,9 @@ export default function InventoryHeader({ title, subtitle }) {
     } else {
       // Fallback: check localStorage for user role if pathname doesn't indicate role
       try {
-        const cachedUser = JSON.parse(localStorage.getItem('vaxsync_user') || 'null');
+        const cachedUser = JSON.parse(
+          localStorage.getItem("vaxsync_user") || "null"
+        );
         if (cachedUser?.user_role === "Public Health Nurse") {
           router.push("/pages/Public_Health_Nurse/notifications");
         } else {
@@ -164,9 +208,19 @@ export default function InventoryHeader({ title, subtitle }) {
       <div className="flex items-center space-x-8">
         {/* Offline status indicator */}
         <OfflineIndicator />
-        
-        <div className="relative cursor-pointer" onClick={handleNotificationClick}>
-          <Bell className={`h-5 w-5 transition-colors ${notificationCount > 0 ? 'text-red-500 hover:text-red-600' : 'text-gray-700 hover:text-gray-900'}`} />
+
+        <div
+          className="relative cursor-pointer"
+          onClick={handleNotificationClick}
+          title={`Unread notifications: ${notificationCount}`}
+        >
+          <Bell
+            className={`h-5 w-5 transition-colors ${
+              notificationCount > 0
+                ? "text-red-500 hover:text-red-600"
+                : "text-gray-700 hover:text-gray-900"
+            }`}
+          />
           {notificationCount > 0 && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 animate-pulse border border-white"></span>
           )}

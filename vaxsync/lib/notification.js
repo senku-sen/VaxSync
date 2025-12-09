@@ -346,7 +346,6 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
         administered,
         status,
         created_at,
-        barangay_vaccine_inventory:vaccine_id(id, vaccine_id, vaccine_doses:vaccine_id(id, dose_code, vaccine:vaccine_id(id, name, doses))),
         barangays(name)
       `)
       .order("session_date", { ascending: true });
@@ -366,6 +365,29 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
       return { data: [], error: sessionError.message };
     }
 
+    // Build a vaccine map so we can show human-readable names
+    const vaccineIds = Array.from(
+      new Set(
+        sessions
+          .map((s) => s.vaccine_id)
+          .filter((id) => id && id.length > 0)
+      )
+    );
+
+    let vaccineMap = {};
+    if (vaccineIds.length > 0) {
+      const { data: vaccines, error: vaccineError } = await supabase
+        .from("vaccines")
+        .select("id, name, doses")
+        .in("id", vaccineIds);
+
+      if (vaccineError) {
+        console.error("Error fetching vaccines:", vaccineError);
+      } else if (Array.isArray(vaccines)) {
+        vaccineMap = Object.fromEntries(vaccines.map((v) => [v.id, v]));
+      }
+    }
+
     // Transform sessions into notifications
     const notifications = sessions.map((session) => {
       const sessionDate = new Date(session.session_date);
@@ -374,7 +396,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
       const isUpcoming = daysUntil > 0 && daysUntil <= 1;
       const isOverdue = daysUntil < 0;
 
-      const vaccine = session.barangay_vaccine_inventory?.vaccine_doses?.vaccine;
+      const vaccine = vaccineMap[session.vaccine_id] || null;
       const vaccineName = vaccine?.name || "Unknown Vaccine";
       const doses = vaccine?.doses || 10;
       const vaccineDisplay = `${vaccineName} (${doses} doses)`;
