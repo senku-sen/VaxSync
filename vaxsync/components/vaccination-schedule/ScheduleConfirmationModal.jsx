@@ -20,7 +20,7 @@ export default function ScheduleConfirmationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-opacity-50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -75,14 +75,14 @@ export default function ScheduleConfirmationModal({
               </div>
 
               {/* Vaccines - Handle both single and multiple */}
-              {sessionData.isMultiple && sessionData.sessions ? (
+              {sessionData.sessions && sessionData.sessions.length > 0 ? (
                 <div className="mb-3">
                   <p className="text-xs text-gray-500 mb-2">Vaccines Scheduled</p>
                   <div className="space-y-2">
                     {sessionData.sessions.map((session, idx) => (
                       <div key={idx} className="p-2 bg-gray-50 rounded border border-gray-200">
-                        <p className="text-sm font-medium text-gray-900">{session.vaccineName}</p>
-                        <p className="text-xs text-gray-600">Target: {session.target} people</p>
+                        <p className="text-sm font-medium text-gray-900">{session.vaccineName || "Unknown Vaccine"}</p>
+                        <p className="text-xs text-gray-600">Target: {session.target || "N/A"} people</p>
                       </div>
                     ))}
                   </div>
@@ -93,7 +93,7 @@ export default function ScheduleConfirmationModal({
                   <div className="mb-3">
                     <p className="text-xs text-gray-500">Vaccine</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {vaccineInfo?.name || sessionData.vaccineName || "N/A"}
+                      {vaccineInfo?.name || sessionData.vaccineName || "Unknown Vaccine"}
                     </p>
                   </div>
 

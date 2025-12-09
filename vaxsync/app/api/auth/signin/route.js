@@ -35,15 +35,78 @@ export async function POST(req) {
     }
 
     // Get user profile to retrieve role
-    const { data: profile, error: profileError } = await supabase
+    let { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('first_name, last_name, user_role, address')
       .eq('id', authData.user.id)
       .single();
 
-    if (profileError) {
-      console.error('Profile fetch error:', profileError);
-      return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 });
+    // If profile doesn't exist, try to create it from user metadata
+    if (profileError || !profile) {
+      console.log('Profile not found, attempting to create from user metadata...');
+      
+      const userMetadata = authData.user.user_metadata || {};
+      let profileData;
+      
+      try {
+        if (userMetadata?.profile_data) {
+          profileData = JSON.parse(userMetadata.profile_data);
+        } else {
+          profileData = {
+            first_name: userMetadata?.first_name || email.split('@')[0],
+            last_name: userMetadata?.last_name || '',
+            email: authData.user.email,
+            date_of_birth: userMetadata?.date_of_birth || null,
+            sex: userMetadata?.sex || null,
+            address: userMetadata?.address || '',
+            user_role: userMetadata?.user_role || 'Public Health Nurse',
+            auth_code: userMetadata?.auth_code || ''
+          };
+        }
+
+        // Create the missing profile
+        const { error: createError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: authData.user.id,
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            email: profileData.email || authData.user.email,
+            date_of_birth: profileData.date_of_birth,
+            sex: profileData.sex,
+            address: profileData.address,
+            user_role: profileData.user_role,
+            auth_code: profileData.auth_code,
+            assigned_barangay_id: null,
+            created_at: new Date().toISOString()
+          });
+
+        if (createError) {
+          console.error('Failed to create profile during signin:', createError);
+          return NextResponse.json({ error: "Failed to create user profile. Please contact support." }, { status: 500 });
+        }
+
+        console.log('Profile created successfully during signin for user:', authData.user.id);
+        
+        // Set profile for response
+        profile = {
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+          user_role: profileData.user_role,
+          address: profileData.address
+        };
+      } catch (parseError) {
+        console.error('Error creating profile:', parseError);
+        return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 });
+      }
+    }
+
+    // Normalize old role names to new ones
+    let normalizedRole = profile.user_role;
+    if (normalizedRole === 'Health Worker') {
+      normalizedRole = 'Public Health Nurse';
+    } else if (normalizedRole === 'Head Nurse' || normalizedRole === 'RHM/HRH' || normalizedRole === 'HRH/RHM') {
+      normalizedRole = 'Rural Health Midwife (RHM)';
     }
 
     // Return user data with role
@@ -52,7 +115,7 @@ export async function POST(req) {
       id: authData.user.id, 
       firstName: profile.first_name,
       lastName: profile.last_name,
-      userRole: profile.user_role,
+      userRole: normalizedRole,
       email: authData.user.email,
       address: profile.address || ""
     });

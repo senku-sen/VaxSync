@@ -53,13 +53,19 @@ export async function fetchVaccineRequestNotifications(userId) {
         .order("created_at", { ascending: false });
       
       if (altError) {
-        console.error("Error fetching vaccine requests:", altError);
+        // Only log error if we're actually online
+        if (typeof navigator !== 'undefined' && navigator.onLine) {
+          console.error("Error fetching vaccine requests:", altError);
+        }
         return { data: [], error: altError.message };
       }
       requests = allRequests;
       requestError = null;
     } else if (requestError) {
-      console.error("Error fetching vaccine requests:", requestError);
+      // Only log error if we're actually online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.error("Error fetching vaccine requests:", requestError);
+      }
       return { data: [], error: requestError.message };
     }
 
@@ -234,6 +240,275 @@ export function subscribeToVaccineRequestUpdates(userId, callback) {
     .subscribe();
 
   // Return unsubscribe function
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+}
+
+/**
+ * FEATURE 1: Fetch resident approval notifications
+ * @param {string} userId - The user ID (Health Worker)
+ * @returns {Promise<{data: Array, error: string|null}>}
+ */
+export async function fetchResidentApprovalNotifications(userId) {
+  try {
+    // Fetch residents submitted by this Health Worker
+    const { data: residents, error: residentError } = await supabase
+      .from("residents")
+      .select(`
+        id,
+        name,
+        vaccine_status,
+        status,
+        barangay,
+        submitted_at,
+        updated_at
+      `)
+      .eq("submitted_by", userId)
+      .order("submitted_at", { ascending: false });
+
+    if (residentError) {
+      console.error("Error fetching resident notifications:", residentError);
+      return { data: [], error: residentError.message };
+    }
+
+    // Transform residents into notifications
+    const notifications = residents.map((resident) => {
+      const statusMessages = {
+        pending: {
+          title: "Resident Approval Pending",
+          description: `${resident.name} is awaiting approval`,
+          icon: "pending",
+          color: "yellow",
+        },
+        approved: {
+          title: "Resident Approved ✓",
+          description: `${resident.name} has been approved by Head Nurse`,
+          icon: "approved",
+          color: "green",
+        },
+        rejected: {
+          title: "Resident Rejected",
+          description: `${resident.name} has been rejected`,
+          icon: "rejected",
+          color: "red",
+        },
+      };
+
+      const statusInfo = statusMessages[resident.status] || statusMessages.pending;
+
+      return {
+        id: resident.id,
+        type: "resident-approval",
+        title: statusInfo.title,
+        description: statusInfo.description,
+        residentName: resident.name,
+        barangay: resident.barangay,
+        vaccineStatus: resident.vaccine_status,
+        status: resident.status,
+        timestamp: resident.submitted_at || resident.updated_at,
+        date: new Date(resident.submitted_at || resident.updated_at),
+        read: false,
+        archived: false,
+        icon: statusInfo.icon,
+        color: statusInfo.color,
+      };
+    });
+
+    return { data: notifications, error: null };
+  } catch (err) {
+    // Only log error if we're actually online
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      console.error("Error in fetchResidentApprovalNotifications:", err);
+    }
+    return { data: [], error: err.message };
+  }
+}
+
+/**
+ * FEATURE 3: Fetch vaccination session notifications
+ * @param {string} userId - The user ID
+ * @param {string} barangayId - The barangay ID (for Health Workers)
+ * @param {boolean} isAdmin - If true, fetch all sessions (for Head Nurse)
+ * @returns {Promise<{data: Array, error: string|null}>}
+ */
+export async function fetchVaccinationSessionNotifications(userId, barangayId = null, isAdmin = false) {
+  try {
+    let query = supabase
+      .from("vaccination_sessions")
+      .select(`
+        id,
+        vaccine_id,
+        barangay_id,
+        session_date,
+        session_time,
+        target,
+        administered,
+        status,
+        created_at,
+        barangays(name)
+      `)
+      .order("session_date", { ascending: true });
+
+    // Filter by barangay for Health Workers
+    if (!isAdmin && barangayId) {
+      query = query.eq("barangay_id", barangayId);
+    }
+
+    const { data: sessions, error: sessionError } = await query;
+
+    if (sessionError) {
+      // Only log error if we're actually online
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        console.error("Error fetching session notifications:", sessionError);
+      }
+      return { data: [], error: sessionError.message };
+    }
+
+    // Build a vaccine map so we can show human-readable names
+    const vaccineIds = Array.from(
+      new Set(
+        sessions
+          .map((s) => s.vaccine_id)
+          .filter((id) => id && id.length > 0)
+      )
+    );
+
+    let vaccineMap = {};
+    if (vaccineIds.length > 0) {
+      const { data: vaccines, error: vaccineError } = await supabase
+        .from("vaccines")
+        .select("id, name, doses")
+        .in("id", vaccineIds);
+
+      if (vaccineError) {
+        console.error("Error fetching vaccines:", vaccineError);
+      } else if (Array.isArray(vaccines)) {
+        vaccineMap = Object.fromEntries(vaccines.map((v) => [v.id, v]));
+      }
+    }
+
+    // Transform sessions into notifications
+    const notifications = sessions.map((session) => {
+      const sessionDate = new Date(session.session_date);
+      const now = new Date();
+      const daysUntil = Math.ceil((sessionDate - now) / (1000 * 60 * 60 * 24));
+      const isUpcoming = daysUntil > 0 && daysUntil <= 1;
+      const isOverdue = daysUntil < 0;
+
+      const vaccine = vaccineMap[session.vaccine_id] || null;
+      const vaccineName = vaccine?.name || "Unknown Vaccine";
+      const doses = vaccine?.doses || 10;
+      const vaccineDisplay = `${vaccineName} (${doses} doses)`;
+      
+      const statusMessages = {
+        scheduled: {
+          title: isUpcoming ? "Upcoming Vaccination Session" : "Scheduled Session",
+          description: `${vaccineName} session on ${sessionDate.toLocaleDateString()}`,
+          icon: "scheduled",
+          color: "blue",
+        },
+        "in-progress": {
+          title: "Session In Progress",
+          description: `${vaccineName} session is currently active`,
+          icon: "in-progress",
+          color: "yellow",
+        },
+        completed: {
+          title: "Session Completed",
+          description: `${vaccineName} session completed with ${session.administered}/${session.target} vaccinations`,
+          icon: "completed",
+          color: "green",
+        },
+      };
+
+      const statusInfo = statusMessages[session.status] || statusMessages.scheduled;
+
+      return {
+        id: session.id,
+        type: "vaccination-session",
+        title: statusInfo.title,
+        description: statusInfo.description,
+        vaccineName: vaccineDisplay,
+        barangayName: session.barangays?.name || "Unknown Barangay",
+        sessionDate: sessionDate.toLocaleDateString(),
+        sessionTime: session.session_time,
+        target: session.target,
+        administered: session.administered,
+        progress: Math.round((session.administered / session.target) * 100),
+        status: session.status,
+        daysUntil,
+        isUpcoming,
+        isOverdue,
+        timestamp: session.created_at,
+        date: new Date(session.created_at),
+        read: false,
+        archived: false,
+        icon: statusInfo.icon,
+        color: statusInfo.color,
+      };
+    });
+
+    return { data: notifications, error: null };
+  } catch (err) {
+    console.error("Error in fetchVaccinationSessionNotifications:", err);
+    return { data: [], error: err.message };
+  }
+}
+
+/**
+ * Subscribe to real-time resident approval updates
+ * @param {string} userId - The user ID
+ * @param {Function} callback - Callback function when updates occur
+ * @returns {Function} - Unsubscribe function
+ */
+export function subscribeToResidentUpdates(userId, callback) {
+  const subscription = supabase
+    .channel(`residents_${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "residents",
+        filter: `submitted_by=eq.${userId}`,
+      },
+      (payload) => {
+        console.log("Resident update received:", payload);
+        callback(payload);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(subscription);
+  };
+}
+
+/**
+ * Subscribe to real-time vaccination session updates
+ * @param {string} barangayId - The barangay ID
+ * @param {Function} callback - Callback function when updates occur
+ * @returns {Function} - Unsubscribe function
+ */
+export function subscribeToVaccinationSessionUpdates(barangayId, callback) {
+  const subscription = supabase
+    .channel(`sessions_${barangayId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "vaccination_sessions",
+        filter: `barangay_id=eq.${barangayId}`,
+      },
+      (payload) => {
+        console.log("Vaccination session update received:", payload);
+        callback(payload);
+      }
+    )
+    .subscribe();
+
   return () => {
     supabase.removeChannel(subscription);
   };

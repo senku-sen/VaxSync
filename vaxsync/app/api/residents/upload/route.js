@@ -193,6 +193,7 @@ function determineVaccineStatus(vaccines) {
   return vaccines.length > 3 ? 'fully_vaccinated' : 'partially_vaccinated';
 }
 
+// CSV Upload POST handler
 export async function POST(request) {
   try {
     const formData = await request.formData();
@@ -456,20 +457,20 @@ export async function POST(request) {
         name: name,
         birthday: parsedBirthday,
         sex: normalizedSex || 'Male', // Default to 'Male' if missing (database might require it)
-        address: defaultAddress,
-        contact: 'N/A', // CSV doesn't have contact, use default
+        administered_date: dateOfVaccine ? (parseDate(dateOfVaccine)?.date || null) : null,
         vaccine_status: vaccineStatus,
         status: 'pending',
         barangay: effectiveBarangayName || null,
         barangay_id: barangayId,
         submitted_by: submittedBy,
         vaccines_given: vaccines,
+        missed_schedule_of_vaccine: [], // Initialize as empty array, can be updated later
         submitted_at: new Date().toISOString()
       };
       
       // Validate required fields for database
-      if (!resident.name || !resident.birthday || !resident.address || !resident.contact) {
-        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, address, contact)`);
+      if (!resident.name || !resident.birthday || !resident.administered_date) {
+        errors.push(`Row ${i + 1}: Missing required fields (name, birthday, date of vaccine)`);
         continue;
       }
       
@@ -549,3 +550,280 @@ export async function POST(request) {
   }
 }
 
+// GET - Fetch residents
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || 'pending';
+    const search = searchParams.get('search') || '';
+    const barangay = searchParams.get('barangay') || '';
+    const barangayId = searchParams.get('barangay_id') || '';
+
+    // Build the query
+    let query = supabase
+      .from('residents')
+      .select('*')
+      .eq('status', status);
+
+    // Apply search filter
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,address.ilike.%${search}%`);
+    }
+
+    // Apply barangay filter
+    // Prefer barangay_id when available, but be tolerant of casing / legacy name-only rows
+    if (barangayId) {
+      query = query.eq('barangay_id', barangayId);
+    }
+
+    if (barangay) {
+      // Case-insensitive match on barangay name so 'MAGANG', 'Magang', etc. all match
+      query = query.ilike('barangay', barangay);
+    }
+
+    // Order by submitted_at descending
+    query = query.order('submitted_at', { ascending: false });
+
+    const { data: residents, error } = await query;
+
+    if (error) {
+      console.error('Supabase error:', error);
+      // Check if it's a connection error
+      if (error.message?.includes('fetch failed') || error.message?.includes('TypeError')) {
+        return NextResponse.json(
+          { success: false, error: 'Unable to connect to database. Please check your internet connection and Supabase configuration.' },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch residents' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      residents: residents || [],
+      total: residents?.length || 0
+    });
+  } catch (error) {
+    console.error('Error fetching residents:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to fetch residents',
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update resident
+export async function PUT(request) {
+  try {
+    const body = await request.json();
+    const { id, name, birthday, sex, address, contact, vaccine_status, barangay, barangay_id, municipality, barangay_municipality, vaccines_given, missed_schedule_of_vaccine } = body;
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Resident ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Resolve barangay_id if provided as name
+    let resolvedBarangayId = barangay_id || null;
+    if (!resolvedBarangayId && barangay) {
+      const { data: foundBarangay, error: findBarangayError } = await supabase
+        .from('barangays')
+        .select('id')
+        .eq('name', barangay)
+        .maybeSingle();
+      
+      if (findBarangayError) {
+        console.error('Supabase error (find barangay):', findBarangayError);
+      }
+      if (foundBarangay?.id) {
+        resolvedBarangayId = foundBarangay.id;
+      } else {
+        const { data: newBarangay, error: insertBarangayError } = await supabase
+          .from('barangays')
+          .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
+          .select('id')
+          .single();
+        if (!insertBarangayError) {
+          resolvedBarangayId = newBarangay.id;
+        }
+      }
+    }
+
+    // Update resident in Supabase
+    const updateData = {
+      name,
+      birthday: birthday !== undefined ? birthday : undefined,
+      sex: sex !== undefined ? sex : undefined,
+      address,
+      contact,
+      vaccine_status: vaccine_status || 'not_vaccinated',
+      barangay: barangay || null,
+      barangay_id: resolvedBarangayId ?? undefined,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update vaccines_given if provided
+    if (vaccines_given !== undefined) {
+      updateData.vaccines_given = Array.isArray(vaccines_given) ? vaccines_given : [];
+    }
+
+    // Only update missed_schedule_of_vaccine if provided
+    if (missed_schedule_of_vaccine !== undefined) {
+      updateData.missed_schedule_of_vaccine = Array.isArray(missed_schedule_of_vaccine) ? missed_schedule_of_vaccine : [];
+    }
+
+    const { data: updatedResident, error } = await supabase
+      .from('residents')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error (update resident):', error);
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { success: false, error: 'Resident not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to update resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      resident: updatedResident,
+      message: 'Resident updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating resident:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update resident' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Update resident status (approve/reject)
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    const { id, action } = body;
+
+    if (!id || !action) {
+      return NextResponse.json(
+        { success: false, error: 'Resident ID and action are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate action
+    if (!['approve', 'reject'].includes(action)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid action. Must be "approve" or "reject"' },
+        { status: 400 }
+      );
+    }
+
+    // Update status in Supabase
+    const { data: updatedResident, error } = await supabase
+      .from('residents')
+      .update({
+        status: action === 'approve' ? 'approved' : 'rejected',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error (update status):', error);
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { success: false, error: 'Resident not found' },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to update resident status',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      resident: updatedResident,
+      message: `Resident ${action}d successfully`
+    });
+  } catch (error) {
+    console.error('Error updating resident status:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to update resident status' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete resident
+export async function DELETE(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: 'Resident ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Delete resident from Supabase
+    const { error } = await supabase
+      .from('residents')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Supabase error (delete resident):', error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to delete resident',
+          details: process.env.NODE_ENV === 'development' ? error : undefined
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Resident deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting resident:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to delete resident' },
+      { status: 500 }
+    );
+  }
+}

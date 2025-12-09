@@ -21,4 +21,3 @@ export const supabaseAdmin = hasSupabaseAdmin
   : null;
 
 export default supabaseAdmin;
-

@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 // This is for deleting the user in user management page

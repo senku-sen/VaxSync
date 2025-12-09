@@ -6,9 +6,47 @@
 // Calculates: Stock %, Status
 // ============================================
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { fetchMonthlyVaccineReport, getAvailableMonths } from "@/lib/vaccineMonthlyReport";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+
+// Memoized row component to prevent unnecessary re-renders
+const ReportRow = memo(({ report, index, getStatusBadge }) => (
+  <tr key={report.id || index} className="hover:bg-gray-50 transition-colors">
+    <td className="px-4 py-3 font-medium text-gray-900">
+      {report.vaccine?.name || 'Unknown'}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.initial_inventory || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_supplied || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_used || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.quantity_wastage || 0}
+    </td>
+    <td className="px-4 py-3 text-center font-medium text-gray-900 bg-blue-50">
+      {report.ending_inventory || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.vials_needed || 0}
+    </td>
+    <td className="px-4 py-3 text-center text-gray-600">
+      {report.max_allocation || 0}
+    </td>
+    <td className="px-4 py-3 text-center font-medium text-gray-900">
+      {report.stock_level_percentage || 0}%
+    </td>
+    <td className="px-4 py-3 text-center">
+      {getStatusBadge(report.status)}
+    </td>
+  </tr>
+));
+
+ReportRow.displayName = 'ReportRow';
 
 export default function MonthlyReportTable({ barangayId }) {
   // Monthly reports data
@@ -27,13 +65,12 @@ export default function MonthlyReportTable({ barangayId }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (barangayId) {
-      initializeData();
-    }
+    // Initialize even if barangayId is null (for general data view)
+    initializeData();
   }, [barangayId]);
 
   useEffect(() => {
-    if (barangayId && selectedMonth) {
+    if (selectedMonth) {
       fetchReports();
     }
   }, [selectedMonth, barangayId]);
@@ -52,15 +89,10 @@ export default function MonthlyReportTable({ barangayId }) {
 
       setAvailableMonths(months || []);
       
-      // Set default to current month or latest available
-      if (months && months.length > 0) {
-        setSelectedMonth(months[0].month);
-      } else {
-        // Default to current month
-        const today = new Date();
-        const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-        setSelectedMonth(currentMonth);
-      }
+      // Set default to current month
+      const today = new Date();
+      const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+      setSelectedMonth(currentMonth);
     } catch (err) {
       console.error('Error initializing data:', err);
       setError(err.message);
@@ -115,7 +147,8 @@ export default function MonthlyReportTable({ barangayId }) {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
   };
 
-  const getStatusBadge = (status) => {
+  // Memoize status badge function to prevent recreating on every render
+  const getStatusBadge = useMemo(() => {
     const statusMap = {
       'OVERSTOCK': { color: 'bg-purple-100 text-purple-800', icon: '🟣' },
       'UNDERSTOCK': { color: 'bg-yellow-100 text-yellow-800', icon: '🟡' },
@@ -123,13 +156,15 @@ export default function MonthlyReportTable({ barangayId }) {
       'GOOD': { color: 'bg-green-100 text-green-800', icon: '🟢' }
     };
     
-    const statusInfo = statusMap[status] || statusMap['GOOD'];
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-        {statusInfo.icon} {status}
-      </span>
-    );
-  };
+    return (status) => {
+      const statusInfo = statusMap[status] || statusMap['GOOD'];
+      return (
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+          {statusInfo.icon} {status}
+        </span>
+      );
+    };
+  }, []);
 
   if (isLoading && reports.length === 0) {
     return (
@@ -151,98 +186,43 @@ export default function MonthlyReportTable({ barangayId }) {
         </div>
       )}
 
-      {/* Month Selector */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
+      {/* Month Navigation */}
+      <div className="flex items-center justify-between mb-6">
         <button
           onClick={handlePreviousMonth}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          disabled={isLoading}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="w-5 h-5 text-gray-600" />
         </button>
         
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {formatMonth(selectedMonth)}
-          </h3>
-          <p className="text-sm text-gray-500">Monthly Vaccine Report</p>
+          <h2 className="text-lg font-semibold text-gray-800">
+            {selectedMonth ? new Date(selectedMonth).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : 'Select Month'}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+                Loading Report...
+              </span>
+            ) : (
+              'Monthly Vaccine Report'
+            )}
+          </p>
         </div>
         
         <button
           onClick={handleNextMonth}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          disabled={isLoading}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronRight className="w-5 h-5 text-gray-600" />
         </button>
       </div>
 
-      {/* Monthly Report Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Vaccine Name</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Initial</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">IN</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">OUT</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Wastage</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Ending</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Vials Needed</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Max Alloc</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">%Stock</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {reports.length > 0 ? (
-                reports.map((report, index) => (
-                  <tr key={report.id || index} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {report.vaccine?.name || 'Unknown'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.initial_inventory || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_supplied || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_used || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.quantity_wastage || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-900">
-                      {report.ending_inventory || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.vials_needed || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {report.max_allocation || 0}
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-900">
-                      {report.stock_level_percentage || 0}%
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {getStatusBadge(report.status)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                    No vaccine data available for this month
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      {/* Status Legend */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
         <h4 className="font-semibold text-blue-900 mb-2">Status Legend</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div className="flex items-center gap-2">
@@ -263,6 +243,47 @@ export default function MonthlyReportTable({ barangayId }) {
           </div>
         </div>
       </div>
+
+      {/* Monthly Report Table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Vaccine Name</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Initial</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">IN</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">OUT</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Wastage</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Ending</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Vials Needed (Monthly)</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Max Alloc</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">%Stock</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {reports.length > 0 ? (
+                reports.map((report, index) => (
+                  <ReportRow 
+                    key={report.id || index} 
+                    report={report} 
+                    index={index} 
+                    getStatusBadge={getStatusBadge}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                    No vaccine data available for this month
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 }

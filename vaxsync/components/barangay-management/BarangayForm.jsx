@@ -90,7 +90,7 @@ export default function BarangayForm({
           <Input
             id="name"
             name="name"
-            value={formData.name}
+            value={formData.name || ""}
             onChange={onChange}
             placeholder="Enter barangay name"
             className={`text-sm sm:text-base border-gray-300 focus:border-green-500 focus:ring-green-500 ${
@@ -109,7 +109,7 @@ export default function BarangayForm({
             disabled
             id="municipality"
             name="municipality"
-            value={formData.municipality}
+            value={formData.municipality || "Daet"}
             onChange={onChange}
             placeholder="Daet"
             className={`text-sm sm:text-base border-gray-300 focus:border-green-500 focus:ring-green-500 ${

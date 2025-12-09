@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Pencil, Trash2 } from "lucide-react";
@@ -109,4 +110,3 @@ export default function UserTable({
     </div>
   );
 }
-
