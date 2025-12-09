@@ -219,7 +219,7 @@ export async function POST(request) {
     // Handle JSON request for adding a single resident
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
+      let { name, birthday, sex, administered_date, vaccine_status, barangay, barangay_id,
          submitted_by, vaccines_given, missed_schedule_of_vaccine, mother } = body;
 
       // If barangay_id is missing but barangay name is provided, try to resolve it
