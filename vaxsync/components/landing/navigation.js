@@ -19,18 +19,18 @@ export default function Navigation({ onGetStarted }) {
 
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-8">
-          <Link href="#home" scroll={true} className="text-foreground/70 hover:text-foreground transition">
+          <a href="#hero" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
             Home  
-          </Link>
-          <Link href="#features" scroll={true} className="text-foreground/70 hover:text-foreground transition">
+          </a>
+          <a href="#features" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
             Features
-          </Link>
-          <Link href="#tutorial" scroll={true} className="text-foreground/70 hover:text-foreground transition">
+          </a>
+          <a href="#tutorial" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
             Tutorial
-          </Link>
-          <Link href="#about" scroll={true} className="text-foreground/70 hover:text-foreground transition">
+          </a>
+          <a href="#about" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
             About
-          </Link>
+          </a>
         </div>
 
         {/* CTA Button */}

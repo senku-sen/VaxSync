@@ -190,7 +190,17 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+      {/* Back Button - Outside Modal */}
+      <div className="w-full max-w-lg mb-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:opacity-70" style={{ color: '#3E5F44' }}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Home
+        </Link>
+      </div>
+
       <div className="w-full max-w-lg bg-white rounded-2xl border-2 border-gray-300 shadow-lg overflow-hidden">
         {/* Header */}
         <div className="text-center mb-8 pb-8 px-8 pt-8 ">

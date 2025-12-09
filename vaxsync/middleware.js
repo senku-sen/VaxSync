@@ -59,11 +59,6 @@ export async function middleware(request) {
     }
   }
 
-  // Redirect root to signin
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL('/pages/signin', siteUrl));
-  }
-
   return NextResponse.next();
 }
 
