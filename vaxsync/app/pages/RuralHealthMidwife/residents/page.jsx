@@ -858,16 +858,7 @@ export default function ResidentsPage() {
           subtitle={`Assigned Barangay: ${selectedBarangay || "Not Assigned"}`} 
         />
 
-        <main className="p-2 md:p-3 lg:p-4 flex-1 overflow-auto w-full">
-          {/* User Info Display */}
-          {userProfile && (
-            <div className="mb-2 p-1 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-900">
-                <span className="font-semibold">Logged in as:</span> {userProfile.first_name} {userProfile.last_name} ({userProfile.user_role})
-              </p>
-            </div>
-          )}
-
+        <main className="p-2 md:p-3 lg:p-4 flex-1 overflow-auto">
           {/* Offline Cache Indicator */}
           {isFromCache && (
             <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">

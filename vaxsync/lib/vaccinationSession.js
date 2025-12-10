@@ -590,25 +590,56 @@ export const updateSessionStatus = async (sessionId, status) => {
 
     console.log('Session status updated successfully');
 
-    // If session is being completed or cancelled, release reserved vials
+    // If session is being completed or cancelled, release reserved vials and add back unused doses
     if ((status === 'Completed' || status === 'Cancelled') && session.status !== status) {
-      console.log('🟢 Releasing reserved vaccine vials for', status, 'session...');
+      console.log('🟢 Processing inventory for', status, 'session...');
       
-      const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
-      const vialsToRelease = session.target - (session.administered || 0);
+      const { releaseBarangayVaccineReservation, addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
       
-      if (vialsToRelease > 0) {
-        const releaseResult = await releaseBarangayVaccineReservation(
+      // Calculate unused doses (target - administered)
+      const unusedDoses = session.target - (session.administered || 0);
+      
+      console.log(`📊 Session stats: Target=${session.target}, Administered=${session.administered || 0}, Unused=${unusedDoses}`);
+      
+      // Add back unused doses to barangay inventory
+      if (unusedDoses > 0) {
+        console.log('🟢 Adding back unused doses to barangay inventory:', unusedDoses);
+        
+        const addBackResult = await addBackBarangayVaccineInventory(
           session.barangay_id,
           session.vaccine_id,
-          vialsToRelease
+          unusedDoses
         );
 
-        if (releaseResult.success) {
-          console.log('✅ Reserved vaccine vials released');
+        if (addBackResult.success) {
+          console.log('✅ Unused doses added back to barangay inventory');
         } else {
-          console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+          console.warn('⚠️ Warning: Failed to add back unused doses to barangay inventory:', addBackResult.error);
         }
+        
+        // Also add back to main vaccine inventory
+        console.log('🟢 Adding back unused doses to main vaccine inventory:', unusedDoses);
+        const mainAddBackResult = await addMainVaccineInventory(session.vaccine_id, unusedDoses);
+        
+        if (mainAddBackResult.success) {
+          console.log('✅ Unused doses added back to main vaccine inventory');
+        } else {
+          console.warn('⚠️ Warning: Failed to add back unused doses to main vaccine inventory:', mainAddBackResult.error);
+        }
+      }
+      
+      // Release reserved vials
+      console.log('🟢 Releasing reserved vaccine vials...');
+      const releaseResult = await releaseBarangayVaccineReservation(
+        session.barangay_id,
+        session.vaccine_id,
+        unusedDoses
+      );
+
+      if (releaseResult.success) {
+        console.log('✅ Reserved vaccine vials released');
+      } else {
+        console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
       }
     }
 
@@ -711,43 +742,44 @@ export const deleteVaccinationSession = async (sessionId) => {
         const actualVaccineId = doseRecord[0].vaccine_id;
         console.log('  → vaccines.id:', actualVaccineId);
 
-        // Restore inventory: add back the administered doses
-        if (session.administered && session.administered > 0) {
-          console.log('🟢 Restoring administered doses to inventory:', session.administered);
-          
-          // Import functions dynamically to avoid circular dependencies
-          const { addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
-          
-          // Add back to barangay inventory (using barangay_vaccine_inventory.id)
-          const addBackResult = await addBackBarangayVaccineInventory(
-            session.barangay_id,
-            actualVaccineId,
-            session.administered
-          );
+        // Restore inventory: add back ALL doses (administered + unused)
+        const totalDosesToRestore = session.target;
+        const unusedDoses = session.target - (session.administered || 0);
+        
+        console.log(`📊 Session stats: Target=${session.target}, Administered=${session.administered || 0}, Unused=${unusedDoses}`);
+        console.log('🟢 Restoring ALL doses to inventory:', totalDosesToRestore);
+        
+        // Import functions dynamically to avoid circular dependencies
+        const { addBackBarangayVaccineInventory, addMainVaccineInventory, releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+        
+        // Add back to barangay inventory (using barangay_vaccine_inventory.id)
+        const addBackResult = await addBackBarangayVaccineInventory(
+          session.barangay_id,
+          actualVaccineId,
+          totalDosesToRestore
+        );
 
-          if (addBackResult.success) {
-            console.log('✅ Barangay inventory restored');
-          } else {
-            console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
-          }
+        if (addBackResult.success) {
+          console.log('✅ Barangay inventory restored with', totalDosesToRestore, 'doses');
+        } else {
+          console.warn('⚠️ Warning: Failed to restore barangay inventory:', addBackResult.error);
+        }
 
-          // Add back to main vaccine inventory (using vaccines.id)
-          const mainAddBackResult = await addMainVaccineInventory(
-            actualVaccineId,
-            session.administered
-          );
+        // Add back to main vaccine inventory (using vaccines.id)
+        const mainAddBackResult = await addMainVaccineInventory(
+          actualVaccineId,
+          totalDosesToRestore
+        );
 
-          if (mainAddBackResult.success) {
-            console.log('✅ Main vaccine inventory restored');
-          } else {
-            console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
-          }
+        if (mainAddBackResult.success) {
+          console.log('✅ Main vaccine inventory restored with', totalDosesToRestore, 'doses');
+        } else {
+          console.warn('⚠️ Warning: Failed to restore main vaccine inventory:', mainAddBackResult.error);
         }
 
         // Release reserved vials
         console.log('🟢 Releasing reserved vaccine vials...');
-        const { releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
-        const vialsToRelease = session.target - (session.administered || 0);
+        const vialsToRelease = unusedDoses;
         
         if (vialsToRelease > 0) {
           const releaseResult = await releaseBarangayVaccineReservation(
@@ -757,7 +789,7 @@ export const deleteVaccinationSession = async (sessionId) => {
           );
 
           if (releaseResult.success) {
-            console.log('✅ Reserved vaccine vials released');
+            console.log('✅ Reserved vaccine vials released:', vialsToRelease);
           } else {
             console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
           }
