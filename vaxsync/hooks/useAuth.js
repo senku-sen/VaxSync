@@ -17,12 +17,29 @@ export function useAuth(redirectPath) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (!session) {
+        // Also verify localStorage has user data
+        const cachedUser = typeof window !== 'undefined' 
+          ? localStorage.getItem('vaxsync_user') 
+          : null;
+        
+        if (!session || error || !cachedUser) {
+          // Clear all auth data
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('vaxsync_user');
+            localStorage.removeItem('headNurseNotifications');
+            localStorage.removeItem('healthWorkerNotifications');
+            document.cookie = 'vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          }
           const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
           const redirect = redirectPath || currentPath;
-          router.replace(`/pages/signin?redirect=${encodeURIComponent(redirect)}`);
+          // Use window.location.replace for stronger redirect (prevents back-button)
+          if (typeof window !== 'undefined') {
+            window.location.replace(`/pages/signin?redirect=${encodeURIComponent(redirect)}`);
+          } else {
+            router.replace(`/pages/signin?redirect=${encodeURIComponent(redirect)}`);
+          }
           return;
         }
         
@@ -30,7 +47,14 @@ export function useAuth(redirectPath) {
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Auth check error:', error);
-        router.replace('/pages/signin');
+        // Clear everything on error
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('vaxsync_user');
+          document.cookie = 'vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          window.location.replace('/pages/signin');
+        } else {
+          router.replace('/pages/signin');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -38,19 +62,52 @@ export function useAuth(redirectPath) {
 
     checkAuth();
 
+    // Re-check auth when page becomes visible (prevents back-button access)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkAuth();
+      }
+    };
+
+    // Re-check auth on focus (prevents back-button access)
+    const handleFocus = () => {
+      checkAuth();
+    };
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         setIsAuthenticated(false);
         setUser(null);
-        router.replace('/pages/signin');
+        // Clear all auth data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('vaxsync_user');
+          localStorage.removeItem('headNurseNotifications');
+          localStorage.removeItem('healthWorkerNotifications');
+          document.cookie = 'vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+          window.location.replace('/pages/signin');
+        } else {
+          router.replace('/pages/signin');
+        }
       } else if (event === 'SIGNED_IN' && session) {
         setUser(session.user);
         setIsAuthenticated(true);
       }
     });
 
-    return () => subscription?.unsubscribe();
+    // Set up event listeners
+    if (typeof window !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleFocus);
+    }
+
+    return () => {
+      subscription?.unsubscribe();
+      if (typeof window !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleFocus);
+      }
+    };
   }, [router, redirectPath]);
 
   const signOut = async () => {

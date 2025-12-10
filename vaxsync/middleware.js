@@ -55,8 +55,30 @@ export async function middleware(request) {
       console.log('Available cookies:', allCookies.map(c => c.name));
       const signinUrl = new URL('/pages/signin', siteUrl);
       signinUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(signinUrl);
+      const response = NextResponse.redirect(signinUrl);
+      // Add no-cache headers to prevent caching
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      response.headers.set('Pragma', 'no-cache');
+      response.headers.set('Expires', '0');
+      return response;
     }
+    
+    // Add no-cache headers to protected routes to prevent back-button access
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    return response;
+  }
+
+  // Add no-cache headers to signin page as well
+  if (pathname.startsWith('/pages/signin')) {
+    const response = NextResponse.next();
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    return response;
   }
 
   return NextResponse.next();

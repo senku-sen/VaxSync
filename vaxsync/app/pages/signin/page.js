@@ -11,6 +11,36 @@ export default function SignIn() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Clear any cached auth data when accessing signin page
+  useEffect(() => {
+    // Clear localStorage and cookies to prevent back-button access
+    try {
+      localStorage.removeItem("vaxsync_user");
+      localStorage.removeItem("headNurseNotifications");
+      localStorage.removeItem("healthWorkerNotifications");
+      document.cookie = "vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      // Clear all Supabase cookies
+      document.cookie.split(";").forEach((c) => {
+        const cookieName = c.split("=")[0].trim();
+        if (cookieName.includes("sb-") || cookieName.includes("supabase")) {
+          document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        }
+      });
+      // Clear Supabase session
+      supabase.auth.signOut().catch(() => {});
+      
+      // Prevent back navigation to protected pages
+      if (window.history && window.history.pushState) {
+        window.history.pushState(null, '', window.location.href);
+        window.addEventListener('popstate', () => {
+          window.history.pushState(null, '', window.location.href);
+        });
+      }
+    } catch (e) {
+      console.warn("Error clearing auth data:", e);
+    }
+  }, []);
+
   // Check for verification success or errors from URL parameters (both query and hash)
   useEffect(() => {
     // Check hash parameters first (Supabase often uses hash for tokens and errors)

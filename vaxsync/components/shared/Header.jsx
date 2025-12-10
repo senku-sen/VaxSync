@@ -227,12 +227,23 @@ const isSupervisor =
       await supabase.auth.signOut();
     } catch {}
     try {
+      // Clear all localStorage items related to auth
       localStorage.removeItem("vaxsync_user");
+      localStorage.removeItem("headNurseNotifications");
+      localStorage.removeItem("healthWorkerNotifications");
       // Clear the auth cookie
       document.cookie =
         "vaxsync_authenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      // Clear all Supabase cookies
+      document.cookie.split(";").forEach((c) => {
+        const cookieName = c.split("=")[0].trim();
+        if (cookieName.includes("sb-") || cookieName.includes("supabase")) {
+          document.cookie = `${cookieName}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+        }
+      });
     } catch {}
-    window.location.href = "/pages/signin";
+    // Use replace instead of href to prevent back-button access
+    window.location.replace("/pages/signin");
   }
 
   const handleNotificationClick = () => {
