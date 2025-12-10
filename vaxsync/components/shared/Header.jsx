@@ -81,9 +81,16 @@ export default function InventoryHeader({ title, subtitle }) {
     const normalizedRole = rawRole.replace(/\s+/g, "_");
     const isSupervisor =
       normalizedRole === "Head_Nurse" ||
+<<<<<<< Updated upstream
       normalizedRole === "Rural_Health_Midwife" ||
       normalizedRole === "Rural_Health_Midwife_(RHM)" ||
       rawRole === "Rural Health Midwife (RHM)";
+=======
+      normalizedRole === "PublicHealthNurse" ||
+      normalizedRole === "PublicHealthNurse" ||
+      normalizedRole === "PublicHealthNurse_(RHM)" ||
+      rawRole === "Public Health Nurse";
+>>>>>>> Stashed changes
 
     // Subscribe to vaccine requests (null for admins to see all, userId for users)
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(
@@ -128,9 +135,16 @@ export default function InventoryHeader({ title, subtitle }) {
 
       const isSupervisor =
         normalizedRole === "Head_Nurse" ||
+<<<<<<< Updated upstream
         normalizedRole === "Rural_Health_Midwife" ||
         normalizedRole === "Rural_Health_Midwife_(RHM)" ||
         rawRole === "Rural Health Midwife (RHM)";
+=======
+        normalizedRole === "PublicHealthNurse" ||
+        normalizedRole === "PublicHealthNurse" ||
+        normalizedRole === "PublicHealthNurse_(RHM)" ||
+        rawRole === "Public Health Nurse";
+>>>>>>> Stashed changes
 
       // Determine cache key based on role
       // Support both spaced and underscored role names
@@ -152,10 +166,12 @@ export default function InventoryHeader({ title, subtitle }) {
       }
 
       // Count unread from cached notifications (faster, more reliable)
+      // but don't set state from cache; always compute final count from fresh fetch.
       const cachedUnreadCount = cachedNotifications.filter(
         (n) => !n.read && !n.archived
       ).length;
 
+<<<<<<< Updated upstream
       // Use cached count immediately for instant UI update (defer to avoid setState during render)
       if (cachedNotifications.length > 0) {
         setTimeout(() => {
@@ -166,6 +182,9 @@ export default function InventoryHeader({ title, subtitle }) {
       }
 
       // Only fetch from database if cache is empty
+=======
+      // Fetch fresh data every time to avoid stale badge
+>>>>>>> Stashed changes
       const residentPromise = fetchResidentApprovalNotifications(userId).catch(
         () => ({ data: [] })
       );
@@ -243,14 +262,16 @@ export default function InventoryHeader({ title, subtitle }) {
   }
 
   const handleNotificationClick = () => {
-    // Determine the base path (Public_Health_Nurse or Rural_Health_Midwife)
-    const isPublicHealthNurse = pathname.includes("Rural_Health_Midwife");
-    const isRuralHealthMidwife = pathname.includes("Public_Health_Nurse");
+    // Don't clear localStorage - we want to preserve read/archived status
+    // The notification page will handle refreshing and updating the count
+    // Determine the base path (RuralHealthMidwife or PublicHealthNurse)
+    const isRuralHealthMidwife = pathname.includes("RuralHealthMidwife");
+    const isPublicHealthNurse = pathname.includes("PublicHealthNurse");
 
-    if (isPublicHealthNurse) {
-      router.push("/pages/Rural_Health_Midwife/notifications");
-    } else if (isRuralHealthMidwife) {
-      router.push("/pages/Public_Health_Nurse/notifications");
+    if (isRuralHealthMidwife) {
+      router.push("/pages/RuralHealthMidwife/notifications");
+    } else if (isPublicHealthNurse) {
+      router.push("/pages/PublicHealthNurse/notifications");
     } else {
       // Fallback: check localStorage for user role if pathname doesn't indicate role
       try {
@@ -258,13 +279,13 @@ export default function InventoryHeader({ title, subtitle }) {
           localStorage.getItem("vaxsync_user") || "null"
         );
         if (cachedUser?.user_role === "Public Health Nurse") {
-          router.push("/pages/Rural_Health_Midwife/notifications");
+          router.push("/pages/PublicHealthNurse/notifications");
         } else {
-          router.push("/pages/Public_Health_Nurse/notifications");
+          router.push("/pages/RuralHealthMidwife/notifications");
         }
       } catch (err) {
-        // Default to Public Health Nurse if error
-        router.push("/pages/Public_Health_Nurse/notifications");
+        // Default to RuralHealthMidwife if error
+        router.push("/pages/RuralHealthMidwife/notifications");
       }
     }
   };
@@ -292,12 +313,45 @@ export default function InventoryHeader({ title, subtitle }) {
             >
               {notificationCount > 9 ? (
                 <span className="text-[9px] font-bold text-white leading-none">9+</span>
+<<<<<<< Updated upstream
               ) : notificationCount > 1 ? (
                 <span className="text-[9px] font-bold text-white leading-none">{notificationCount}</span>
               ) : null}
+=======
+              ) : (
+                <span className="text-[9px] font-bold text-white leading-none">
+                  {notificationCount}
+                </span>
+              )}
+>>>>>>> Stashed changes
             </span>
           )}
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="p-0 h-6 w-6">
+              <User className="h-5 w-5 text-gray-700" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 border border-[#3E5F44] rounded-md shadow-sm">
+            <DropdownMenuItem
+              className="flex items-center cursor-pointer"
+              onClick={() => {
+                const settingsPath = userRole === "Public Health Nurse" 
+                  ? "/pages/PublicHealthNurse/settings-privacy" 
+                  : "/pages/RuralHealthMidwife/settings-privacy";
+                router.push(settingsPath);
+              }}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings & Privacy
+            </DropdownMenuItem>
+            <DropdownMenuItem className="flex items-center cursor-pointer" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

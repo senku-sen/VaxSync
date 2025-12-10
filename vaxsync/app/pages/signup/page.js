@@ -15,7 +15,7 @@ export default function SignUp() {
     year: "",
     sex: "Male",
     address: "",
-    userRole: "Public Health Nurse",
+    userRole: "Rural Health Midwife (RHM)",
     authCode: ""
   });
   const [error, setError] = useState("");
@@ -588,23 +588,23 @@ export default function SignUp() {
                       <input
                         type="radio"
                         name="userRole"
-                        value="Public Health Nurse"
-                        checked={formData.userRole === "Public Health Nurse"}
-                        onChange={handleInputChange}
-                        style={{ accentColor: '#3E5F44' }}
-                      />
-                      <span className="ml-2 text-sm text-gray-700 font-medium">Public Health Nurse</span>
-                    </label>
-                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 cursor-pointer transition-colors" style={{ '--hover-border': '#3E5F44', '--hover-bg': '#f0f9f4' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3E5F44'; e.currentTarget.style.backgroundColor = '#f0f9f4'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
-                      <input
-                        type="radio"
-                        name="userRole"
                         value="Rural Health Midwife (RHM)"
                         checked={formData.userRole === "Rural Health Midwife (RHM)"}
                         onChange={handleInputChange}
                         style={{ accentColor: '#3E5F44' }}
                       />
                       <span className="ml-2 text-sm text-gray-700 font-medium">Rural Health Midwife (RHM)</span>
+                    </label>
+                    <label className="flex items-center p-2.5 rounded-lg border border-gray-300 cursor-pointer transition-colors" style={{ '--hover-border': '#3E5F44', '--hover-bg': '#f0f9f4' }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3E5F44'; e.currentTarget.style.backgroundColor = '#f0f9f4'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                      <input
+                        type="radio"
+                        name="userRole"
+                        value="Public Health Nurse"
+                        checked={formData.userRole === "Public Health Nurse"}
+                        onChange={handleInputChange}
+                        style={{ accentColor: '#3E5F44' }}
+                      />
+                      <span className="ml-2 text-sm text-gray-700 font-medium">Public Health Nurse</span>
                     </label>
                   </div>
                 </div>

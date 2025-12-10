@@ -257,8 +257,8 @@ export function subscribeToVaccineRequestUpdates(userId, callback) {
  */
 export async function fetchResidentApprovalNotifications(userId) {
   try {
-    // Fetch residents submitted by this Health Worker
-    const { data: residents, error: residentError } = await supabase
+    // If no userId provided (PHN/admin), fetch all; otherwise filter by submitted_by
+    let query = supabase
       .from("residents")
       .select(`
         id,
@@ -269,12 +269,18 @@ export async function fetchResidentApprovalNotifications(userId) {
         submitted_at,
         updated_at
       `)
-      .eq("submitted_by", userId)
       .order("submitted_at", { ascending: false });
 
+    if (userId) {
+      query = query.eq("submitted_by", userId);
+    }
+
+    const { data: residents, error: residentError } = await query;
+
     if (residentError) {
+      // Return empty gracefully; log for debugging
       console.error("Error fetching resident notifications:", residentError);
-      return { data: [], error: residentError.message };
+      return { data: [], error: residentError.message || residentError };
     }
 
     // Transform residents into notifications
@@ -818,4 +824,8 @@ export async function createInventoryChangeNotification(vaccineName, barangayNam
     console.error('Error creating inventory change notification:', err);
     return { success: false, error: err.message };
   }
+<<<<<<< Updated upstream
 }
+=======
+}
+>>>>>>> Stashed changes

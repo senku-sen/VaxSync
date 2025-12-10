@@ -63,7 +63,14 @@ export async function POST(request) {
       // Don't fail signup if check fails
     }
 
-    const validAuthCodes = { 'Public Health Nurse': 'PHN-6A9F', 'Rural Health Midwife (RHM)': 'RHM-4Z7Q' };
+    // Authentication codes for each role
+    // To change auth codes, update the values below:
+    // Format: 'Role Name': 'AUTH-CODE'
+    const validAuthCodes = { 
+      'Rural Health Midwife (RHM)': 'RHM-4Z7Q', 
+      'Public Health Nurse': 'PHN-6A9F' 
+    };
+    
     if (validAuthCodes[userRole] !== authCode) {
       return NextResponse.json({ error: `Invalid authentication code for ${userRole}. Please contact your administrator.` }, { status: 400 });
     }

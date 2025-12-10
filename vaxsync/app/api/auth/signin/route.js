@@ -59,7 +59,7 @@ export async function POST(req) {
             date_of_birth: userMetadata?.date_of_birth || null,
             sex: userMetadata?.sex || null,
             address: userMetadata?.address || '',
-            user_role: userMetadata?.user_role || 'Public Health Nurse',
+            user_role: userMetadata?.user_role || 'Rural Health Midwife (RHM)',
             auth_code: userMetadata?.auth_code || ''
           };
         }
@@ -101,12 +101,12 @@ export async function POST(req) {
       }
     }
 
-    // Normalize old role names to new ones
+    // Normalize legacy labels only; do NOT swap current roles
     let normalizedRole = profile.user_role;
-    if (normalizedRole === 'Health Worker') {
-      normalizedRole = 'Public Health Nurse';
-    } else if (normalizedRole === 'Head Nurse' || normalizedRole === 'RHM/HRH' || normalizedRole === 'HRH/RHM') {
+    if (normalizedRole === 'Health Worker' || normalizedRole === 'RHM/HRH' || normalizedRole === 'HRH/RHM') {
       normalizedRole = 'Rural Health Midwife (RHM)';
+    } else if (normalizedRole === 'Head Nurse') {
+      normalizedRole = 'Public Health Nurse';
     }
 
     // Return user data with role

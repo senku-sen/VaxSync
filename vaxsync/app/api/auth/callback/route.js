@@ -86,7 +86,7 @@ export async function GET(request) {
                 date_of_birth: userMetadata?.date_of_birth || null,
                 sex: userMetadata?.sex || null,
                 address: userMetadata?.address || '',
-                user_role: userMetadata?.user_role || 'Public Health Nurse',
+                user_role: userMetadata?.user_role || 'Rural Health Midwife (RHM)',
                 auth_code: userMetadata?.auth_code || ''
               };
             }
@@ -213,7 +213,7 @@ export async function GET(request) {
               date_of_birth: userMetadata?.date_of_birth || null,
               sex: userMetadata?.sex || null,
               address: userMetadata?.address || '',
-              user_role: userMetadata?.user_role || 'Health Worker',
+              user_role: userMetadata?.user_role || 'Rural Health Midwife (RHM)',
               auth_code: userMetadata?.auth_code || ''
             };
           }

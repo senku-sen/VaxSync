@@ -173,13 +173,13 @@ export default function SignIn() {
       // Redirect based on user role
       console.log('Redirecting based on role:', data.userRole);
       if (data.userRole === 'Public Health Nurse') {
-        window.location.href = '/pages/Rural_Health_Midwife/dashboard';
+        window.location.href = '/pages/PublicHealthNurse/dashboard';
       } else if (data.userRole === 'Rural Health Midwife (RHM)') {
-        window.location.href = '/pages/Public_Health_Nurse/dashboard';
+        window.location.href = '/pages/RuralHealthMidwife/dashboard';
       } else {
-        // Fallback for unknown roles - default to Public Health Nurse dashboard
+        // Fallback for unknown roles - default to Rural Health Midwife dashboard
         console.warn('Unknown user role:', data.userRole);
-        window.location.href = '/pages/Public_Health_Nurse/dashboard';
+        window.location.href = '/pages/RuralHealthMidwife/dashboard';
       }
     } catch (err) {
       console.error('Sign in error:', err);

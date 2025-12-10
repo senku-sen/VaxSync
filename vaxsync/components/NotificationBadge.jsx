@@ -46,8 +46,8 @@ export default function NotificationBadge() {
         let totalUnread = 0;
         let hasUrgent = false;
 
-        if (userRole === 'Public Health Nurse') {
-          // Public Health Nurse: Resident Approvals + Vaccine Requests + Sessions
+        if (userRole === 'Rural Health Midwife (RHM)') {
+          // Rural Health Midwife (RHM): Resident Approvals + Vaccine Requests + Sessions
           const [residentNotifs, vaccineNotifs, sessionNotifs] = await Promise.all([
             fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
             fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
@@ -63,8 +63,8 @@ export default function NotificationBadge() {
 
           // Check for urgent notifications
           hasUrgent = residentUnread > 0 || vaccineUnread > 0 || sessionUnread > 0;
-        } else if (userRole === 'Head Nurse') {
-          // Head Nurse: Vaccine Requests + All Sessions
+        } else if (userRole === 'Head Nurse' || userRole === 'Public Health Nurse') {
+          // Public Health Nurse (head): Vaccine Requests + All Sessions
           const [vaccineNotifs, sessionNotifs] = await Promise.all([
             fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
             fetchVaccinationSessionNotifications(userId, null, true).catch(() => ({ data: [] })),

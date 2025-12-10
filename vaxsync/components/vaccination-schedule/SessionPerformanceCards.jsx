@@ -12,7 +12,7 @@ import { Activity, CheckCircle, Clock, AlertCircle } from "lucide-react";
 
 export default function SessionPerformanceCards({ sessions, userRole, userBarangayId }) {
   // Filter sessions based on user role
-  const filteredSessions = userRole === "Public Health Nurse" && userBarangayId
+  const filteredSessions = userRole === "Rural Health Midwife (RHM)" && userBarangayId
     ? sessions.filter(s => s.barangay_id === userBarangayId)
     : sessions;
 
@@ -94,7 +94,7 @@ export default function SessionPerformanceCards({ sessions, userRole, userBarang
       </div>
 
       {/* Info Text */}
-      {userRole === "Public Health Nurse" && (
+      {userRole === "Rural Health Midwife (RHM)" && (
         <p className="text-xs text-gray-500 text-center">
           Showing sessions for your assigned barangay
         </p>

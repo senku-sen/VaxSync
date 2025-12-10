@@ -107,7 +107,7 @@ export default function UpdateAdministeredModal({
   const canUploadPhotos =
     !isViewOnly &&
     userProfile &&
-    userProfile.user_role === "Public Health Nurse" &&
+    userProfile.user_role === "Rural Health Midwife (RHM)" &&
     (session.status === "In progress" || session.status === "Completed");
 
   const handleChange = (e) => {

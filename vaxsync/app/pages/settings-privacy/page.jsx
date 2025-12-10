@@ -196,7 +196,7 @@ export default function SettingsPrivacyPage() {
               {/* Right: role */}
               <div>
                 <Label className="text-gray-800 mb-2 block">Role</Label>
-                <RadioGroup value={profile?.user_role === "Rural Health Midwife (RHM)" ? "rhm" : "phn"} className="grid grid-cols-1 gap-3">
+                <RadioGroup value={profile?.user_role === "Public Health Nurse" ? "phn" : "rhm"} className="grid grid-cols-1 gap-3">
                   <div className="flex items-center space-x-3">
                     <RadioGroupItem
                       value="rhm"

@@ -16,7 +16,6 @@ import {
   BarChart3,
   Bell,
   UserCog,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -40,22 +39,19 @@ export default function Sidebar() {
     }
   }, []);
 
-  const isPublicHealthNurse = pathname.includes("Rural_Health_Midwife");
-  const isRuralHealthMidwife = pathname.includes("Public_Health_Nurse");
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
-  if (!isPublicHealthNurse && !isRuralHealthMidwife && !isSettingsStandalone) return null;
+  // If we don't have a role yet, don't render (prevents flicker/incorrect base on settings)
+  if (!userRole) return null;
 
-  // Determine base path: use pathname if available, otherwise use cached user role
-  let basePath = "/pages/Public_Health_Nurse"; // default
-  if (isPublicHealthNurse) {
-    basePath = "/pages/Rural_Health_Midwife";
-  } else if (isRuralHealthMidwife) {
-    basePath = "/pages/Public_Health_Nurse";
-  } else if (isSettingsStandalone && userRole) {
-    // Use cached user role for settings page
-    basePath = userRole === "Public Health Nurse" ? "/pages/Rural_Health_Midwife" : "/pages/Public_Health_Nurse";
-  }
+  // Always derive basePath from userRole (not from current pathname) so settings page does not flip context
+  const basePath = userRole === "Public Health Nurse"
+    ? "/pages/PublicHealthNurse"
+    : "/pages/RuralHealthMidwife";
+
+  // Only render for known contexts or settings page
+  const isRolePath = pathname.startsWith(basePath);
+  if (!isRolePath && !isSettingsStandalone) return null;
 
   // Full list of items
   const allMenuItems = [
@@ -70,11 +66,14 @@ export default function Sidebar() {
    
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
     { name: "User Management", icon: UserCog, path: `${basePath}/usermanagement`, adminOnly: true },
-  
   ];
 
-  // Filter: Public Health Nurse = no admin items | Rural Health Midwife = all
-  const menuItems = allMenuItems.filter(item => !item.adminOnly || isRuralHealthMidwife);
+  // Filter: Public Health Nurse = all | Rural Health Midwife = no admin items
+  const menuItems = allMenuItems.filter(item => {
+    if (!item.adminOnly) return true;
+    // Admin items only for Public Health Nurse
+    return userRole === "Public Health Nurse";
+  });
 
 
   return (

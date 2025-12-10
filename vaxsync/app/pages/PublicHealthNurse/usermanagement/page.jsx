@@ -22,7 +22,7 @@ const FEATURE_CHECKLIST = [
   { key: "notifications", label: "Notifications" },
 ];
 
-const ROLE_OPTIONS = ["Public Health Nurse", "Rural Health Midwife (RHM)"];
+const ROLE_OPTIONS = ["Rural Health Midwife (RHM)", "Public Health Nurse"];
 const BARANGAY_NAMES = [
   "BARANGAY II",
   "CALASGASAN",
@@ -35,14 +35,19 @@ const BARANGAY_NAMES = [
   "MANCRUZ",
 ];
 const normalizeRole = (role) => {
-  if (!role) return "Public Health Nurse";
-  if (role === "RHM/HRH" || role === "HRH/RHM" || role === "Rural Health Midwife (RHM)") return "Rural Health Midwife (RHM)";
-  return role;
+  if (!role) return "Rural Health Midwife (RHM)";
+  // Map legacy role names to current labels without swapping current roles
+  if (role === "Health Worker") return "Rural Health Midwife (RHM)";
+  if (role === "Head Nurse" || role === "RHM/HRH" || role === "HRH/RHM") return "Public Health Nurse";
+  return role; // keep current labels as-is
 };
 
 const toDatabaseRole = (role) => {
-  if (role === "HRH/RHM" || role === "RHM/HRH" || role === "Rural Health Midwife (RHM)") return "Rural Health Midwife (RHM)";
-  return "Public Health Nurse";
+  // Preserve selected role (only normalize legacy labels)
+  if (!role) return "Rural Health Midwife (RHM)";
+  if (role === "Health Worker") return "Rural Health Midwife (RHM)";
+  if (role === "Head Nurse" || role === "RHM/HRH" || role === "HRH/RHM") return "Public Health Nurse";
+  return role;
 };
 
 const defaultPermissionsForRole = (role) => {
@@ -67,7 +72,7 @@ export default function HeadNurseUserManagement() {
     first_name: "",
     last_name: "",
     email: "",
-    user_role: "Public Health Nurse",
+    user_role: "Rural Health Midwife (RHM)",
     address: "",
     assigned_barangay_id: "",
   });
@@ -239,20 +244,20 @@ export default function HeadNurseUserManagement() {
   const displayUsers = useMemo(() => {
     return users.map((user) => {
       const roleLabel = normalizeRole(user.user_role);
-      const isRuralHealthMidwife = roleLabel === "Rural Health Midwife (RHM)";
+      const isPublicHealthNurse = roleLabel === "Public Health Nurse";
       
-      // For Rural Health Midwife, always show "RHU"
-      if (isRuralHealthMidwife) {
+      // For Public Health Nurse, always show "RHU" in UI but keep assigned_barangay_id as null in data
+      if (isPublicHealthNurse) {
         return {
           ...user,
-          assigned_barangay_id: rhuBarangayId,
+          // Keep assigned_barangay_id as null (don't modify the actual data)
           name:
             [user.first_name, user.last_name].filter(Boolean).join(" ") ||
             user.email ||
             "Unknown user",
           email: user.email || "—",
           role: roleLabel,
-          assignedBarangayLabel: "RHU",
+          assignedBarangayLabel: "RHU", // Display "RHU" in UI even though DB has null
           status: user.status || "Active",
         };
       }
@@ -419,7 +424,7 @@ export default function HeadNurseUserManagement() {
     console.log('User assigned_barangay_id:', user.assigned_barangay_id);
     console.log('Available barangay options:', barangayOptions);
     
-    const isRuralHealthMidwife = normalizeRole(user.user_role) === "Rural Health Midwife (RHM)";
+    const isPublicHealthNurse = normalizeRole(user.user_role) === "Public Health Nurse";
     
     setActiveUser(user);
     setFormState({
@@ -428,8 +433,8 @@ export default function HeadNurseUserManagement() {
       email: user.email || "",
       user_role: normalizeRole(user.user_role),
       address: user.address || "",
-      // For Rural Health Midwife, always use RHU barangay ID; for others, use their assigned barangay
-      assigned_barangay_id: isRuralHealthMidwife ? (rhuBarangayId || "") : (user.assigned_barangay_id || ""),
+      // For Public Health Nurse, set to empty string (will be saved as null); for others, use their assigned barangay
+      assigned_barangay_id: isPublicHealthNurse ? "" : (user.assigned_barangay_id || ""),
     });
     setModalError("");
     setIsModalOpen(true);
@@ -460,45 +465,17 @@ export default function HeadNurseUserManagement() {
       : isOnline;
     
     try {
-      const isRuralHealthMidwife = normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)";
-      // Preserve original role for Rural Health Midwife users
-      const roleToSave = isRuralHealthMidwife 
-        ? toDatabaseRole(normalizeRole(activeUser.user_role))
-        : toDatabaseRole(normalizeRole(formState.user_role));
+      const isPublicHealthNurse = normalizeRole(formState.user_role) === "Public Health Nurse";
+      const roleToSave = toDatabaseRole(formState.user_role);
       
-      // For Rural Health Midwife, always assign to RHU barangay
-      // For other users, only set assigned_barangay_id if a valid selection was made
+      // For Public Health Nurse, always set assigned_barangay_id to null in database
+      // For Rural Health Midwife, set assigned_barangay_id if a valid selection was made
       let allowedBarangayId = null;
-      if (isRuralHealthMidwife) {
-        // Ensure RHU barangay exists
-        if (!rhuBarangayId) {
-          // Try to get or create RHU barangay
-          const { data: existingRHU } = await supabase
-            .from("barangays")
-            .select("id")
-            .eq("name", "RHU")
-            .maybeSingle();
-          
-          if (existingRHU) {
-            setRhuBarangayId(existingRHU.id);
-            allowedBarangayId = existingRHU.id;
-          } else {
-            const { data: newRHU } = await supabase
-              .from("barangays")
-              .insert({ name: "RHU", municipality: "DAET" })
-              .select("id")
-              .single();
-            
-            if (newRHU) {
-              setRhuBarangayId(newRHU.id);
-              allowedBarangayId = newRHU.id;
-            }
-          }
-        } else {
-          allowedBarangayId = rhuBarangayId;
-        }
+      if (isPublicHealthNurse) {
+        // PHN should always have null assigned_barangay_id in database
+        allowedBarangayId = null;
       } else {
-        // For non-Rural Health Midwife users, validate the selected barangay
+        // For RHM, validate the selected barangay
         const selectedBarangayId = formState.assigned_barangay_id?.trim() || "";
         allowedBarangayId = 
           selectedBarangayId !== "" && 
@@ -826,8 +803,8 @@ export default function HeadNurseUserManagement() {
                 Edit User
               </h2>
               <p className="text-sm text-gray-500">
-                {normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)"
-                  ? "Update user details. Role and barangay assignment cannot be changed for Rural Health Midwife accounts (defaults to RHU)."
+                {normalizeRole(activeUser.user_role) === "Public Health Nurse"
+                  ? "Update user details. Role and barangay assignment cannot be changed for Public Health Nurse accounts (defaults to RHU)."
                   : "Update user details and access permissions."}
               </p>
             </div>
@@ -887,8 +864,12 @@ export default function HeadNurseUserManagement() {
                 onChange={(e) => {
                   const newRole = e.target.value;
                   handleFormChange("user_role", newRole);
+                  // If changing to PHN, clear assigned barangay; if changing to RHM, keep current or clear
+                  if (normalizeRole(newRole) === "Public Health Nurse") {
+                    handleFormChange("assigned_barangay_id", "");
+                  }
                 }}
-                disabled={normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)"}
+                disabled={normalizeRole(activeUser.user_role) === "Public Health Nurse"}
               >
                 {ROLE_OPTIONS.map((roleOption) => (
                   <option key={roleOption} value={roleOption}>
@@ -911,7 +892,7 @@ export default function HeadNurseUserManagement() {
               <label className="text-xs font-semibold uppercase text-gray-500">
                 Assigned Barangay
               </label>
-              {normalizeRole(activeUser.user_role) === "Rural Health Midwife (RHM)" ? (
+              {normalizeRole(activeUser.user_role) === "Public Health Nurse" ? (
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
                   value="RHU"
