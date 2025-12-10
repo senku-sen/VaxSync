@@ -5,6 +5,13 @@ import { useState } from "react"
 export default function Tutorial() {
   const [activeInfo, setActiveInfo] = useState(0)
 
+  const images = [
+    "/rhu1.jpg",
+    "/service.jpg",
+    "/vaccine.jpg",
+    "/hours and loc.jpg"
+  ]
+
   const rhuInfo = [
     {
       title: "About RHU 1 Daet",
@@ -16,14 +23,14 @@ export default function Tutorial() {
       title: "Our Services",
       description:
         "We offer immunization services, prenatal and postnatal care, family planning services, basic healthcare consultations, and disease prevention programs. Our team is committed to providing accessible and quality healthcare to all residents.",
-         icon: <img src="/nurse.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
-     },
+      icon: <img src="/nurse.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
+    },
     {
       title: "Vaccine Management",
       description:
         "We maintain a comprehensive vaccine inventory including routine immunizations for infants, children, adolescents, and adults. All vaccines are stored in proper cold chain conditions to ensure efficacy and safety.",
       icon: <img src="/injection.png" alt="RHU 1 Logo" className="w-12 h-12 square-full" />
-      },
+    },
     {
       title: "Operating Hours & Location",
       description:
@@ -41,34 +48,31 @@ export default function Tutorial() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Info list */}
+          {/* Info list - icons with titles */}
           <div className="space-y-4">
             {rhuInfo.map((info, index) => (
               <div
                 key={index}
                 onClick={() => setActiveInfo(index)}
-                className={`p-6 rounded-xl cursor-pointer transition ${
-                  activeInfo === index
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted/50 text-foreground hover:bg-muted"
+                className={`p-4 rounded-xl cursor-pointer transition flex items-center gap-4 ${
+                  activeInfo === index ? "ring-2 ring-green-500 bg-white" : "bg-muted/50 hover:bg-muted"
                 }`}
               >
-                <div className="flex items-start gap-4">
-                  <div className="text-3xl flex-shrink-0">{info.icon}</div>
-                  <div>
-                    <h3 className="text-lg font-bold mb-1">{info.title}</h3>
-                    {activeInfo === index && <p className="text-sm opacity-90">{info.description}</p>}
-                  </div>
+                <div className="flex-shrink-0">
+                  {info.icon}
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold mb-1">{info.title}</h3>
+                  {activeInfo === index && <p className="text-sm opacity-90">{info.description}</p>}
                 </div>
               </div>
             ))}
           </div>
 
-          {/* Active info detail */}
-          <div className="bg-accent/10 rounded-2xl p-12 flex flex-col items-center justify-center min-h-96">
-            <div className="text-6xl mb-6">{rhuInfo[activeInfo].icon}</div>
-            <h3 className="text-3xl font-bold text-foreground mb-4 text-center">{rhuInfo[activeInfo].title}</h3>
-            <p className="text-lg text-foreground/70 text-center leading-relaxed">{rhuInfo[activeInfo].description}</p>
+          {/* Active info detail - shows large image only */}
+          <div className="bg-accent/10 rounded-2xl p-12 flex items-center justify-center min-h-96">
+            <img src={images[activeInfo]} alt={rhuInfo[activeInfo].title} className="w-full h-auto max-w-lg object-cover rounded-lg" />
           </div>
         </div>
       </div>

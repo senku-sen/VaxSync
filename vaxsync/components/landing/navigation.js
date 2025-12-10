@@ -26,7 +26,7 @@ export default function Navigation({ onGetStarted }) {
             Features
           </a>
           <a href="#tutorial" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
-            Tutorial
+            RHU1
           </a>
           <a href="#about" className="text-foreground/70 hover:text-foreground transition cursor-pointer">
             About
@@ -37,8 +37,7 @@ export default function Navigation({ onGetStarted }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onGetStarted}
-            className="px-6 py-2 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition"
-          >
+            className="px-6 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-primary-foreground font-medium hover:opacity-90 transition">
             Get Started
           </button>
         </div>
