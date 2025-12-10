@@ -247,26 +247,23 @@ export default function VaccinationSchedule() {
           action: administeredDifference > 0 ? 'DEDUCT' : administeredDifference < 0 ? 'ADD BACK' : 'NO CHANGE'
         });
 
-        // Check if status is changing to Completed or Cancelled, OR if it's already Completed/Cancelled
+        // Check if status is changing to Completed or Cancelled
         const statusChanged = updatedSession.status !== updatingSession?.status;
         const isCompletingOrCancelling = (updatedSession.status === 'Completed' || updatedSession.status === 'Cancelled') && statusChanged;
-        const isAlreadyCompletedOrCancelled = updatedSession.status === 'Completed' || updatedSession.status === 'Cancelled';
         
         console.log('🔄 Status change check:', {
           oldStatus: updatingSession?.status,
           newStatus: updatedSession.status,
           statusChanged,
           isCompletingOrCancelling,
-          isAlreadyCompletedOrCancelled,
           administeredDifference,
-          shouldCallUpdateSessionStatus: isCompletingOrCancelling || (isAlreadyCompletedOrCancelled && administeredDifference !== 0)
+          shouldCallUpdateSessionStatus: isCompletingOrCancelling
         });
 
         let result;
         
-        // If status is changing to Completed/Cancelled OR if it's already Completed/Cancelled and administered count changed
-        // Call updateSessionStatus to trigger inventory restoration
-        if (isCompletingOrCancelling || (isAlreadyCompletedOrCancelled && administeredDifference !== 0)) {
+        // If status is changing to Completed/Cancelled, call updateSessionStatus to trigger inventory restoration
+        if (isCompletingOrCancelling) {
           console.log('📊 Calling updateSessionStatus for inventory restoration');
           
           // First update the administered count
@@ -362,10 +359,9 @@ export default function VaccinationSchedule() {
       } finally {
         setIsSubmitting(false);
       }
-    } else if (action === 'update') {
-      // Update local state while editing
-      setUpdatingSession(updatedSession);
     }
+    // Note: Don't update updatingSession on 'update' action
+    // Keep the original session unchanged so we can detect status changes on submit
   };
 
   // Handle delete session

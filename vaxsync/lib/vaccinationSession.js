@@ -722,7 +722,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       console.log('🟢 Releasing reserved vaccine vials...');
       const releaseResult = await releaseBarangayVaccineReservation(
         session.barangay_id,
-        vaccineDoseId,  // Pass vaccine_doses.id, not barangay_vaccine_inventory.id
+        session.vaccine_id,  // ✅ FIXED: Pass barangay_vaccine_inventory.id (not vaccine_doses.id)
         unusedVials  // Pass vials, not doses
       );
 
@@ -773,6 +773,7 @@ export const deleteVaccinationSession = async (sessionId) => {
     }
 
     console.log('Session found:', session);
+    console.log('📊 Session status:', session.status);
 
     // Reset resident vaccine data before deleting session
     console.log('🔄 Resetting resident vaccine data for session...');
@@ -800,6 +801,15 @@ export const deleteVaccinationSession = async (sessionId) => {
     }
 
     console.log('✅ Session deleted successfully');
+
+    // Determine how many vials to restore based on administered count
+    // If some were administered: restore only administered count
+    // If none were administered: restore all target vials
+    const totalVialsToRestore = (session.administered || 0) > 0 
+      ? session.administered  // Restore what was administered
+      : session.target;       // Restore all target if nothing was administered
+    
+    console.log(`📊 Session was ${session.status}. Administered=${session.administered || 0}. Restoring ${totalVialsToRestore} vials out of ${session.target} target`);
 
     // Resolve the vaccine ID chain:
     // session.vaccine_id → barangay_vaccine_inventory.id
@@ -832,8 +842,6 @@ export const deleteVaccinationSession = async (sessionId) => {
         const actualVaccineId = doseRecord[0].vaccine_id;
         console.log('  → vaccines.id:', actualVaccineId);
 
-        // Restore inventory: add back ALL vials (administered + unused)
-        const totalVialsToRestore = session.target;
         const unusedVials = session.target - (session.administered || 0);
         
         console.log(`📊 Session stats: Target=${session.target}, Administered=${session.administered || 0}, Unused Vials=${unusedVials}`);
@@ -864,10 +872,10 @@ export const deleteVaccinationSession = async (sessionId) => {
         // Import functions dynamically to avoid circular dependencies
         const { addBackBarangayVaccineInventory, addMainVaccineInventory, releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
         
-        // Add back to barangay inventory (using barangay_vaccine_inventory.id)
+        // Add back to barangay inventory (using vaccine_doses.id)
         const addBackResult = await addBackBarangayVaccineInventory(
           session.barangay_id,
-          actualVaccineId,
+          vaccineDoseId,  // ✅ FIXED: Pass vaccine_doses.id, not vaccines.id
           totalVialsToRestore  // Pass vials, not doses
         );
 

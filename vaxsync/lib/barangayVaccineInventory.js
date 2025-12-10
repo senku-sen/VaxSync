@@ -305,7 +305,7 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
  * Add back vaccine to barangay inventory (when administered count is decreased) - FIFO Method
  * Adds back to oldest inventory records first, handles multiple records
  * @param {string} barangayId - The barangay ID
- * @param {string} vaccineId - The vaccine ID
+ * @param {string} vaccineId - The vaccine_doses ID (not vaccines.id)
  * @param {number} quantityToAdd - Number of vials to add back
  * @returns {Promise<{success: boolean, error: Object|null, addedRecords: Array}>}
  */
@@ -314,35 +314,25 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
     console.log('🟢 FIFO Adding back vaccine to inventory:', { barangayId, vaccineId, quantityToAdd });
 
     // Get vaccine name to look up doses per vial
-    // Fetch vaccine with error handling
-    const { data: vaccineData, error: vaccineError } = await supabase
-      .from('vaccines')
-      .select('id, name')
-      .eq('id', vaccineId);
+    // vaccineId is vaccine_doses.id, so we need to query vaccine_doses first
+    const { data: dosesData, error: dosesError } = await supabase
+      .from('vaccine_doses')
+      .select('id, vaccine:vaccine_id(id, name)')
+      .eq('id', vaccineId)
+      .single();
 
-    if (vaccineError || !vaccineData || vaccineData.length === 0) {
-      console.warn('⚠️ Warning: Vaccine not found (may have been deleted):', vaccineError?.message);
-      return { success: false, error: 'Vaccine not found', addedRecords: [] };
+    if (dosesError || !dosesData) {
+      console.warn('⚠️ Warning: Vaccine doses not found (may have been deleted):', dosesError?.message);
+      return { success: false, error: 'Vaccine doses not found', addedRecords: [] };
     }
 
-    const vaccineName = vaccineData[0]?.name || '';
+    const vaccineName = dosesData.vaccine?.name || '';
     const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
     console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
 
-    // Find all vaccine_doses for this vaccine
+    // vaccineId is already vaccine_doses.id, so we can use it directly
     // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
-    const { data: vaccineDoses, error: dosesError } = await supabase
-      .from('vaccine_doses')
-      .select('id')
-      .eq('vaccine_id', vaccineId);
-
-    if (dosesError || !vaccineDoses || vaccineDoses.length === 0) {
-      console.warn('⚠️ Warning: No vaccine_doses found for vaccine:', vaccineId);
-      // Don't fail - vaccine_doses may not exist, just skip this step
-      return { success: true, error: null, addedRecords: [] };
-    }
-
-    const vaccineDoseIds = vaccineDoses.map(d => d.id);
+    const vaccineDoseIds = [vaccineId];  // Already have the vaccine_doses.id
     console.log('Vaccine dose IDs:', vaccineDoseIds);
 
     // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
