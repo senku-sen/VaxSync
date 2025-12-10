@@ -434,13 +434,6 @@ export default function HeadNurseVaccinationSchedule() {
           {!isLoading && (
             <div className="mb-6 flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => setIsModalOpen(true)}
-                className="inline-flex items-center justify-center sm:justify-start gap-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium px-4 py-2.5 rounded-lg shadow-md transition-colors whitespace-nowrap w-full sm:w-fit text-sm sm:text-base"
-              >
-                <Plus size={18} className="sm:w-5 sm:h-5" />
-                Schedule Session
-              </button>
-              <button
                 onClick={() => setIsCalendarView(!isCalendarView)}
                 className="inline-flex items-center justify-center sm:justify-start gap-2 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium px-4 py-2.5 rounded-lg shadow-md transition-colors whitespace-nowrap w-full sm:w-fit text-sm sm:text-base"
               >

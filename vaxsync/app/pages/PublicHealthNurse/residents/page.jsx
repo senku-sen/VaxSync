@@ -57,7 +57,7 @@ export default function ResidentsPage() {
     vaccine_status: "not_vaccinated",
     administered_date: "",
     barangay: "",
-    mother: "",
+    mother: "", // Mother's name field
     vaccines_given: [],
     missed_schedule_of_vaccine: []
   });
