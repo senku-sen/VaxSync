@@ -12,7 +12,7 @@ export default function CTA({ onGetStarted }) {
         </h2>
 
         <p className="text-lg text-foreground/70 mb-12 leading-relaxed max-w-2xl mx-auto">
-          Join hundreds of healthcare facilities managing their vaccine inventory with VaxSync. Start your hassle free inventory.me
+          et Started with VaxSync Today. Get Started - It's Free!
         </p>
 
         <div className="grid sm:grid-cols-3 gap-8 mb-16 pb-12 border-b border-foreground/20">
