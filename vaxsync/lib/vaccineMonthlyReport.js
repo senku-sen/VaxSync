@@ -385,6 +385,15 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       console.log(`  Sessions found: ${sessions?.length || 0}`);
       console.log(`  Administered: ${totalAdministered}, Target: ${totalTarget}`);
 
+      // Get wastage data for this vaccine during the month (if tracked)
+      // For now, default to 0 unless we have a wastage tracking table
+      let totalWastage = 0;
+      // TODO: Add wastage tracking from a dedicated table if available
+      
+      // Calculate total OUT = Administered + Wastage + Other deductions
+      const totalOut = totalAdministered + totalWastage;
+      console.log(`  Total OUT (Administered + Wastage): ${totalOut} doses`);
+
       // Get initial inventory from previous month's ending inventory
       // Calculate previous month
       const previousMonth = new Date(monthDate);
@@ -421,22 +430,39 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
             monthlyReportCache[previousMonthStr][vaccine.id] = { ending_inventory: initialVials };
           } else {
             console.log(`  ⚠️ No previous month data found for ${vaccine.name} in ${previousMonthStr}`);
-            // Fallback: Sum all vaccines created BEFORE this month
-            const { data: vaccinesBeforeMonth, error: beforeError } = await supabase
-              .from('vaccines')
-              .select('quantity_available, created_at')
-              .eq('id', vaccine.id)
-              .lt('created_at', startDateStr);
+            // Fallback: Sum all inventory added BEFORE this month from barangay_vaccine_inventory
+            const { data: inventoryBeforeMonth, error: beforeError } = await supabase
+              .from('barangay_vaccine_inventory')
+              .select('quantity_dose, received_date')
+              .eq('vaccine_id', vaccine.id)
+              .lt('received_date', startDateStr);
             
-            if (!beforeError && vaccinesBeforeMonth && vaccinesBeforeMonth.length > 0) {
-              initialVials = vaccinesBeforeMonth.reduce((sum, v) => sum + (v.quantity_available || 0), 0);
-              console.log(`  ✅ Initial inventory (from vaccines before month): ${initialVials} doses`);
+            if (!beforeError && inventoryBeforeMonth && inventoryBeforeMonth.length > 0) {
+              initialVials = inventoryBeforeMonth.reduce((sum, inv) => sum + (inv.quantity_dose || 0), 0);
+              console.log(`  ✅ Initial inventory (from barangay inventory before month): ${initialVials} doses`);
             }
           }
         } catch (err) {
           console.warn(`  ⚠️ Database query error: ${err.message}`);
           // If error, keep initialVials = 0 and continue
         }
+      }
+      
+      // Step 3: Also consider current barangay_vaccine_inventory quantity for this month start
+      // Get inventory that existed at the START of this month (received before or on first day)
+      const { data: inventoryAtMonthStart, error: monthStartError } = await supabase
+        .from('barangay_vaccine_inventory')
+        .select('quantity_dose, received_date')
+        .eq('vaccine_id', vaccine.id)
+        .lt('received_date', startDateStr);
+      
+      if (!monthStartError && inventoryAtMonthStart && inventoryAtMonthStart.length > 0) {
+        const inventoryAtStart = inventoryAtMonthStart.reduce((sum, inv) => sum + (inv.quantity_dose || 0), 0);
+        console.log(`  📦 Current barangay inventory at month start: ${inventoryAtStart} doses`);
+        // Use the maximum of previous month ending or current inventory at month start
+        // This ensures we don't lose inventory if it wasn't properly recorded in previous month
+        initialVials = Math.max(initialVials, inventoryAtStart);
+        console.log(`  ✅ Initial inventory (adjusted with current barangay inventory): ${initialVials} doses`);
       }
       
       // Get current month's sessions to calculate how much was administered this month
@@ -454,22 +480,22 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       }
 
       // Calculate total quantity supplied (IN) during the month
-      // IN = Sum of vaccines created DURING this month (from vaccines table)
-      // This represents new stock that arrived/was added during the month
-      const { data: newVaccinesThisMonth, error: newVaccineError } = await supabase
-        .from('vaccines')
-        .select('quantity_available, created_at')
-        .eq('id', vaccine.id)
-        .gte('created_at', startDateStr)
-        .lte('created_at', endDateStr);
+      // IN = Sum of doses added to barangay_vaccine_inventory DURING this month (from received_date)
+      // This represents actual stock that arrived/was added during the month
+      const { data: inventoryAdditions, error: inventoryAddError } = await supabase
+        .from('barangay_vaccine_inventory')
+        .select('quantity_dose, received_date')
+        .eq('vaccine_id', vaccine.id)
+        .gte('received_date', startDateStr)
+        .lte('received_date', endDateStr);
 
       let quantitySupplied = 0;
-      if (!newVaccineError && newVaccinesThisMonth && newVaccinesThisMonth.length > 0) {
-        // Sum all quantities from vaccines created DURING this month
-        // These represent new stock that arrived during the month
-        quantitySupplied = newVaccinesThisMonth.reduce((sum, v) => sum + (v.quantity_available || 0), 0);
+      if (!inventoryAddError && inventoryAdditions && inventoryAdditions.length > 0) {
+        // Sum all doses added to inventory DURING this month
+        // These represent actual stock that arrived during the month
+        quantitySupplied = inventoryAdditions.reduce((sum, inv) => sum + (inv.quantity_dose || 0), 0);
       }
-      console.log(`  Quantity Supplied (IN): ${quantitySupplied} doses (from vaccines created this month)`);
+      console.log(`  Quantity Supplied (IN): ${quantitySupplied} doses (from barangay inventory additions this month)`);
 
       // Get total current inventory for this vaccine across all barangays
       const { data: inventory, error: inventoryError } = await supabase
@@ -496,7 +522,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       
       // Calculate ending inventory using NIP formula
       // Ending = Initial + IN - OUT - Wastage
-      const endingInventory = initialVials + quantitySupplied - totalAdministered - 0; // 0 = wastage (default)
+      const endingInventory = initialVials + quantitySupplied - totalOut;
       
       // Calculate stock percentage based on NIP formula
       // Stock % = (Ending Inventory / Max Allocation) × 100
@@ -536,16 +562,15 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
         else existing.status = 'GOOD';
       } else {
         // Create new report record for vaccine using NIP formula
-        const endingInventoryCalc = initialVials + quantitySupplied - totalAdministered;
         const report = {
           id: `${vaccine.id}-${month}`,
           vaccine_id: vaccine.id,
           month: month,
           initial_inventory: initialVials,
           quantity_supplied: quantitySupplied, // IN: New stock added during month
-          quantity_used: totalAdministered,
-          quantity_wastage: 0,
-          ending_inventory: endingInventoryCalc, // Initial + IN - OUT - Wastage
+          quantity_used: totalAdministered,    // OUT: Doses administered
+          quantity_wastage: totalWastage,      // Wastage: Tracked wastage
+          ending_inventory: endingInventory,   // Initial + IN - OUT - Wastage
           vials_needed: monthlyVialsNeeded, // Monthly Vials Needed from NIP table
           max_allocation: maxAllocation, // Max Allocation (Buffer + 1 month) from NIP table
           stock_level_percentage: stockPercentage,
