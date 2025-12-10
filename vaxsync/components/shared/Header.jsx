@@ -79,18 +79,12 @@ export default function InventoryHeader({ title, subtitle }) {
     // Subscribe to real-time Supabase updates for instant notifications
     const rawRole = userRole || "";
     const normalizedRole = rawRole.replace(/\s+/g, "_");
-    const isSupervisor =
-      normalizedRole === "Head_Nurse" ||
-<<<<<<< Updated upstream
-      normalizedRole === "Rural_Health_Midwife" ||
-      normalizedRole === "Rural_Health_Midwife_(RHM)" ||
-      rawRole === "Rural Health Midwife (RHM)";
-=======
-      normalizedRole === "PublicHealthNurse" ||
-      normalizedRole === "PublicHealthNurse" ||
-      normalizedRole === "PublicHealthNurse_(RHM)" ||
-      rawRole === "Public Health Nurse";
->>>>>>> Stashed changes
+const isSupervisor =
+  normalizedRole === "HeadNurse" ||  // If you have this role
+  normalizedRole === "PublicHealthNurse" ||
+  normalizedRole === "RuralHealthMidwife" ||
+  rawRole === "Public Health Nurse" ||
+  rawRole === "Rural Health Midwife";
 
     // Subscribe to vaccine requests (null for admins to see all, userId for users)
     const unsubscribeVaccine = subscribeToVaccineRequestUpdates(
@@ -135,16 +129,9 @@ export default function InventoryHeader({ title, subtitle }) {
 
       const isSupervisor =
         normalizedRole === "Head_Nurse" ||
-<<<<<<< Updated upstream
         normalizedRole === "Rural_Health_Midwife" ||
         normalizedRole === "Rural_Health_Midwife_(RHM)" ||
         rawRole === "Rural Health Midwife (RHM)";
-=======
-        normalizedRole === "PublicHealthNurse" ||
-        normalizedRole === "PublicHealthNurse" ||
-        normalizedRole === "PublicHealthNurse_(RHM)" ||
-        rawRole === "Public Health Nurse";
->>>>>>> Stashed changes
 
       // Determine cache key based on role
       // Support both spaced and underscored role names
@@ -171,20 +158,7 @@ export default function InventoryHeader({ title, subtitle }) {
         (n) => !n.read && !n.archived
       ).length;
 
-<<<<<<< Updated upstream
-      // Use cached count immediately for instant UI update (defer to avoid setState during render)
-      if (cachedNotifications.length > 0) {
-        setTimeout(() => {
-          setNotificationCount(cachedUnreadCount);
-          console.log('🔔 Using cached notification count:', cachedUnreadCount);
-        }, 0);
-        // Continue to fetch fresh data in background to ensure accuracy
-      }
-
-      // Only fetch from database if cache is empty
-=======
       // Fetch fresh data every time to avoid stale badge
->>>>>>> Stashed changes
       const residentPromise = fetchResidentApprovalNotifications(userId).catch(
         () => ({ data: [] })
       );
@@ -313,17 +287,11 @@ export default function InventoryHeader({ title, subtitle }) {
             >
               {notificationCount > 9 ? (
                 <span className="text-[9px] font-bold text-white leading-none">9+</span>
-<<<<<<< Updated upstream
-              ) : notificationCount > 1 ? (
-                <span className="text-[9px] font-bold text-white leading-none">{notificationCount}</span>
-              ) : null}
-=======
               ) : (
                 <span className="text-[9px] font-bold text-white leading-none">
                   {notificationCount}
                 </span>
               )}
->>>>>>> Stashed changes
             </span>
           )}
         </div>

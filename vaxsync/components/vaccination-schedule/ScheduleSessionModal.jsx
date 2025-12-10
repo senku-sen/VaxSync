@@ -1,9 +1,6 @@
-// ============================================
-// SCHEDULE SESSION MODAL
-// ============================================
+// Schedule Session Modal
 // Modal form for scheduling vaccination sessions
 // Collects date, time, vaccine, and target information
-// ============================================
 
 import { useState, useEffect, useRef } from "react";
 import { X, AlertCircle, CheckCircle } from "lucide-react";
@@ -82,101 +79,52 @@ export default function ScheduleSessionModal({
           return;
         }
 
-<<<<<<< Updated upstream
-        console.log('Raw inventory data:', inventory);
-
-        // Create vaccine objects from inventory data with quantities
-        // The inventory structure is: item.vaccine_doses?.vaccine?.name for vaccine name
-        // and item.vaccine_id is the vaccine_dose ID (not vaccine ID)
-        const vaccinesWithQty = inventory
-          .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => {
-            // Get vaccine info from the nested structure
-            const vaccineDose = item.vaccine_doses;
-            const vaccine = vaccineDose?.vaccine;
-            const vaccineId = vaccine?.id || vaccineDose?.vaccine_id || item.vaccine_id;
-            const vaccineName = vaccine?.name || 'Unknown Vaccine';
-            const doseCode = vaccineDose?.dose_code || '';
-            
-=======
-        // Get vaccine IDs that have inventory (filter out zero quantity)
-        // Note: item.vaccine_id references vaccine_doses.id, we need vaccine_doses.vaccine_id for the actual vaccine
-        const vaccineIdsWithInventory = inventory
-          .filter(item => (item.quantity_vial || 0) > 0)
-          .map(item => {
-            // Get the actual vaccine ID from the nested structure
-            return item.vaccine_doses?.vaccine?.id || item.vaccine_doses?.vaccine_id || null;
-          })
-          .filter(id => id !== null);
-
-        console.log('Vaccine IDs with inventory:', vaccineIdsWithInventory);
-
-        // Filter vaccines to only show those with inventory
-        const filteredVaccines = vaccines.filter(vaccine => {
-          const hasInventory = vaccineIdsWithInventory.includes(vaccine.id);
-          return hasInventory;
-        });
-
-        let vaccinesWithQty = [];
-
-        if (filteredVaccines.length > 0) {
-          // Use filtered vaccines from props
-          vaccinesWithQty = filteredVaccines.map(vaccine => {
-            // Find inventory items that match this vaccine ID
-            const inventoryItems = inventory.filter(item => {
-              const vaccineId = item.vaccine_doses?.vaccine?.id || item.vaccine_doses?.vaccine_id;
-              return vaccineId === vaccine.id && (item.quantity_vial || 0) > 0;
-            });
-            // Sum up all quantities for this vaccine
-            const quantity = inventoryItems.reduce((sum, item) => sum + (item.quantity_vial || 0), 0);
->>>>>>> Stashed changes
-            return {
-              id: vaccineId,  // Use the actual vaccine ID
-              vaccine_dose_id: item.vaccine_id,  // Store the vaccine_dose ID for inventory operations
-              inventory_id: item.id,  // Store the inventory record ID
-              name: doseCode ? `${vaccineName} (${doseCode})` : vaccineName,
-              vaccineName: vaccineName,
-              doseCode: doseCode,
+        // Group inventory items by vaccine ID
+        const inventoryByVaccine = inventory.reduce((acc, item) => {
+          if ((item.quantity_vial || 0) <= 0) return acc;
+          
+          const vaccineDose = item.vaccine_doses || {};
+          const vaccine = vaccineDose.vaccine || {};
+          const vaccineId = vaccine.id || vaccineDose.vaccine_id || item.vaccine_id;
+          
+          if (!vaccineId) return acc;
+          
+          if (!acc[vaccineId]) {
+            acc[vaccineId] = {
+              id: vaccineId,
+              name: vaccine.name || 'Unknown Vaccine',
+              doseCode: vaccineDose.dose_code || '',
               batch_number: item.batch_number,
               expiry_date: item.expiry_date,
-              availableQuantity: item.quantity_vial || 0,
-              availableDoses: item.quantity_dose || 0
+              items: [],
+              totalVials: 0,
+              totalDoses: 0
             };
-          });
-<<<<<<< Updated upstream
-=======
-        } else {
-          // Fallback: Create vaccine objects from inventory data
-          console.log('No vaccines matched from props, using inventory data as fallback');
-          vaccinesWithQty = inventory
-            .filter(item => (item.quantity_vial || 0) > 0)
-            .map(item => {
-              const vaccine = item.vaccine_doses?.vaccine;
-              return {
-                id: vaccine?.id || item.vaccine_doses?.vaccine_id || item.vaccine_id,
-                name: vaccine?.name || 'Unknown Vaccine',
-                availableQuantity: item.quantity_vial || 0
-              };
-            })
-            // Remove duplicates by vaccine ID
-            .filter((vaccine, index, self) => 
-              index === self.findIndex(v => v.id === vaccine.id)
-            )
-            // Sum quantities for duplicate vaccines
-            .map(vaccine => {
-              const totalQty = inventory
-                .filter(item => {
-                  const vaccineId = item.vaccine_doses?.vaccine?.id || item.vaccine_doses?.vaccine_id;
-                  return vaccineId === vaccine.id && (item.quantity_vial || 0) > 0;
-                })
-                .reduce((sum, item) => sum + (item.quantity_vial || 0), 0);
-              return {
-                ...vaccine,
-                availableQuantity: totalQty
-              };
-            });
-        }
->>>>>>> Stashed changes
+          }
+          
+          acc[vaccineId].items.push(item);
+          acc[vaccineId].totalVials += item.quantity_vial || 0;
+          acc[vaccineId].totalDoses += item.quantity_dose || 0;
+          
+          return acc;
+        }, {});
+        
+        // Convert to array of vaccines with aggregated quantities
+        const vaccinesWithQty = Object.values(inventoryByVaccine).map(vaccine => ({
+          id: vaccine.id,
+          vaccine_dose_id: vaccine.items[0]?.vaccine_id,
+          inventory_id: vaccine.items[0]?.id,
+          name: vaccine.doseCode ? `${vaccine.name} (${vaccine.doseCode})` : vaccine.name,
+          vaccineName: vaccine.name,
+          doseCode: vaccine.doseCode,
+          batch_number: vaccine.batch_number,
+          expiry_date: vaccine.expiry_date,
+          availableQuantity: vaccine.totalVials,
+          availableDoses: vaccine.totalDoses,
+          items: vaccine.items // Keep reference to all inventory items for this vaccine
+        }));
+        
+        console.log('Vaccines with quantity:', vaccinesWithQty);
 
         console.log('Vaccines with quantity:', vaccinesWithQty);
         setVaccinesWithInventory(vaccinesWithQty);
@@ -232,6 +180,28 @@ export default function ScheduleSessionModal({
 
     validateVaccineInventory();
   }, [formData.vaccine_id, effectiveBarangayId]);
+
+  // Handle form submission with doses_per_person included
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Include doses_per_person in formData before submitting
+    const formDataWithDoses = { 
+      ...formData, 
+      doses_per_person: dosesPerPerson,
+      // Include the first inventory item's ID for reference
+      inventory_item_id: vaccinesWithInventory.find(v => v.id === formData.vaccine_id)?.inventory_id
+    };
+    
+    // Update form data with the new values
+    onFormChange(formDataWithDoses);
+    
+    // Attach doses_per_person to event for immediate access
+    e.doses_per_person = dosesPerPerson;
+    
+    // Call the original onSubmit handler
+    onSubmit(e);
+  };
+
   if (!isOpen) return null;
 
   const handleChange = (e) => {
@@ -258,22 +228,9 @@ export default function ScheduleSessionModal({
           </button>
         </div>
 
-<<<<<<< Updated upstream
-        {/* Modal Body - Scrollable */}
-        <div className="p-6 overflow-y-auto flex-1">
-          {/* Validation Errors */}
-          {Object.keys(errors).length > 0 && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-              <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-red-700">Please fix the following errors</p>
-                {Object.values(errors).map((error, idx) => (
-                  error && <p key={idx} className="text-sm text-red-600">{error}</p>
-                ))}
-=======
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1">
-          <form ref={formRef} onSubmit={onSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             {/* Validation Errors */}
             {Object.keys(errors).length > 0 && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
@@ -284,53 +241,42 @@ export default function ScheduleSessionModal({
                     error && <p key={idx} className="text-sm text-red-600">{error}</p>
                   ))}
                 </div>
->>>>>>> Stashed changes
               </div>
             )}
-
-            {/* Vaccine Inventory Validation Errors */}
+            
+            {/* Vaccine Inventory Validation */}
             {formData.vaccine_id && vaccineInventory.validationErrors.length > 0 && (
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-amber-700">Inventory issues</p>
+                  <p className="text-sm font-medium text-amber-700">Inventory Issues</p>
                   {vaccineInventory.validationErrors.map((error, idx) => (
-                    <p key={idx} className="text-sm text-amber-600">{error}</p>
+                    <p key={`inventory-error-${idx}`} className="text-sm text-amber-600">{error}</p>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* Vaccine Inventory Available */}
+            
+            {/* Vaccine Available */}
             {formData.vaccine_id && vaccineInventory.isValid && !vaccineInventory.isChecking && (
               <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex gap-2">
                 <CheckCircle className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-green-700">Vaccine available in inventory</p>
-                  <p className="text-sm text-green-600">Available: {vaccineInventory.availableQuantity} vials</p>
-                  {dosesPerPerson > 0 && (
-                    <p className="text-sm text-green-600 mt-1">
-                      At {dosesPerPerson} dose(s) per person: <span className="font-semibold">Max {maxPossibleTarget} people</span>
-                    </p>
-                  )}
+                  <p className="text-sm font-medium text-green-700">Vaccine Available</p>
+                  <p className="text-sm text-green-600">
+                    {vaccineInventory.availableQuantity} vials available
+                    {dosesPerPerson > 0 && (
+                      <span className="block mt-1">
+                        At {dosesPerPerson} dose(s) per person: <span className="font-semibold">
+                          Max {maxPossibleTarget} people
+                        </span>
+                      </span>
+                    )}
+                  </p>
                 </div>
               </div>
-<<<<<<< Updated upstream
-            </div>
-          )}
-
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            // Include dosesPerPerson in formData before submitting
-            const formDataWithDoses = { ...formData, doses_per_person: dosesPerPerson };
-            onFormChange(formDataWithDoses);
-            // Attach doses_per_person to event for immediate access
-            e.doses_per_person = dosesPerPerson;
-            onSubmit(e);
-          }} className="space-y-4">
-=======
             )}
->>>>>>> Stashed changes
+            
             {/* Barangay */}
             <div>
               <label htmlFor="barangay_id" className="block text-sm font-medium text-gray-700 mb-2">

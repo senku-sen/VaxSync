@@ -824,8 +824,4 @@ export async function createInventoryChangeNotification(vaccineName, barangayNam
     console.error('Error creating inventory change notification:', err);
     return { success: false, error: err.message };
   }
-<<<<<<< Updated upstream
 }
-=======
-}
->>>>>>> Stashed changes
