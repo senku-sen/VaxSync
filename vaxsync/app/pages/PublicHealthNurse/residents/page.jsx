@@ -265,7 +265,7 @@ export default function ResidentsPage() {
 
         const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-        const filename = `${activeTab === "pending" ? "Pending" : "Approved"} Residents Masterlist.csv`;
+        const filename = `masterlist.csv`;
 
         const a = document.createElement("a");
         a.href = url;
@@ -292,7 +292,7 @@ export default function ResidentsPage() {
 
         const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-        const filename = `${selectedBarangay} ${activeTab === "pending" ? "pending" : "approved"} residents.csv`;
+        const filename = `masterlist_${selectedBarangay}.csv`;
 
         const a = document.createElement("a");
         a.href = url;

@@ -253,8 +253,7 @@ export default function ResidentsPage() {
 
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const filename = `${activeTab === "pending" ? "Pending" : "Approved"}_Residents_${timestamp}${isFromCache ? "_OFFLINE" : ""}.csv`;
+      const filename = `masterlist_${selectedBarangay}.csv`;
 
       const a = document.createElement("a");
       a.href = url;
