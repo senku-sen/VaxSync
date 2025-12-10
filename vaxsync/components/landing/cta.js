@@ -21,8 +21,8 @@ export default function CTA({ onGetStarted }) {
             <p className="text-foreground/70 text-sm">Reliable</p>
           </div>
           <div>
-            <p className="text-4xl font-bold text-foreground mb-1">Zero</p>
-            <p className="text-foreground/70 text-sm">Credit Card Required</p>
+            <p className="text-4xl font-bold text-foreground mb-1">Free</p>
+            <p className="text-foreground/70 text-sm">No cost</p>
           </div>
           <div>
             <p className="text-4xl font-bold text-foreground mb-1">24/7</p>
