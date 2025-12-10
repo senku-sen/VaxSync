@@ -209,29 +209,10 @@ export default function SessionParticipantsMonitor({
           if (updateResult.success) {
             console.log('✅ Session administered count updated');
             
-            // Deduct from inventory
-            if (barangayId && actualVaccineId) {
-              const deductResult = await deductBarangayVaccineInventory(
-                barangayId,
-                actualVaccineId,
-                1
-              );
-              
-              if (deductResult.success) {
-                console.log('✅ Barangay inventory deducted');
-              } else {
-                console.warn('⚠️ Warning: Failed to deduct from barangay inventory:', deductResult.error);
-              }
-              
-              // Also deduct from main vaccine inventory
-              const mainDeductResult = await deductMainVaccineInventory(actualVaccineId, 1);
-              
-              if (mainDeductResult.success) {
-                console.log('✅ Main vaccine inventory deducted');
-              } else {
-                console.warn('⚠️ Warning: Failed to deduct from main vaccine inventory:', mainDeductResult.error);
-              }
-            }
+            // ✅ NOTE: Inventory is already deducted when session is scheduled (based on target)
+            // When a beneficiary is approved, we're just using from the reserved inventory
+            // No need to deduct again from barangay_vaccine_inventory
+            console.log('📊 Using from reserved inventory (already deducted on session schedule)');
           } else {
             console.error('Failed to update session administered count:', updateResult.error);
           }

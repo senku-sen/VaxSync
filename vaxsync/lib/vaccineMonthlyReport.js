@@ -345,11 +345,12 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
     
     console.log(`📅 Date range: ${startDateStr} to ${endDateStr}`);
 
-    // Get all vaccines that existed BEFORE or DURING this month
-    // Only include vaccines created on or before the end of this month
+    // Get all vaccines CREATED DURING this month
+    // Only include vaccines created on or after the start of this month AND on or before the end
     const { data: vaccines, error: vaccineError } = await supabase
       .from('vaccines')
       .select('id, name, batch_number, created_at')
+      .gte('created_at', startDateStr)
       .lte('created_at', endDateStr);
 
     if (vaccineError) {
@@ -357,11 +358,11 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       return { data: [], error: vaccineError };
     }
     
-    console.log(`📦 Found ${vaccines?.length || 0} vaccines created by ${endDateStr}`);
+    console.log(`📦 Found ${vaccines?.length || 0} vaccines created in ${month}`);
 
     const reportMap = new Map(); // Use Map to merge duplicates by vaccine name
 
-    // For each vaccine, calculate aggregated data across ALL barangays
+    // For each vaccine CREATED THIS MONTH, calculate aggregated data across ALL barangays
     for (const vaccine of vaccines) {
       console.log(`\n🔍 Processing: ${vaccine.name}`);
 

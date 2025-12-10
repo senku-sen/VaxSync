@@ -197,10 +197,21 @@ export default function UpdateAdministeredModal({
                 ? beneficiaries.filter((b) => b.vaccinated).length
                 : (session.administered || 0);
 
+              // Get the current status from the form (may have been changed by dropdown)
+              const statusSelect = document.getElementById('status');
+              const currentStatus = statusSelect ? statusSelect.value : session.status;
+
               const updatedSession = {
                 ...session,
-                administered: vaccinatedCount
+                administered: vaccinatedCount,
+                status: currentStatus  // ✅ Include the status from the dropdown
               };
+
+              console.log('🔍 DEBUG: Form submission with:', {
+                administered: vaccinatedCount,
+                status: currentStatus,
+                previousStatus: session.status
+              });
 
               // Save beneficiary changes to database
               if (beneficiaries.length > 0) {
@@ -214,7 +225,7 @@ export default function UpdateAdministeredModal({
                 console.log('✅ Beneficiary changes saved successfully');
               }
 
-              // Then submit the session update with derived administered count
+              // Then submit the session update with derived administered count and status
               onSubmit(updatedSession, 'submit');
             }
           }} className="space-y-4">

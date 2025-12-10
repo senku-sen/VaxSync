@@ -294,29 +294,49 @@ export const fetchVaccinationSessions = async (userId) => {
       const inventoryIds = [...new Set(data.map(s => s.vaccine_id))];
       const barangayIds = [...new Set(data.map(s => s.barangay_id))];
 
-      // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
+      // Fetch barangay_vaccine_inventory with vaccine_id references
       const { data: inventoryData } = inventoryIds.length > 0 
         ? await supabase
             .from("barangay_vaccine_inventory")
-            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .select("id, vaccine_id")
             .in("id", inventoryIds)
         : { data: [] };
+
+      const vaccinesMap = {};
+      const vaccineDoseIds = [];
+
+      // Collect all vaccine_dose IDs
+      if (inventoryData) {
+        inventoryData.forEach(inv => {
+          if (inv.vaccine_id) {
+            vaccineDoseIds.push(inv.vaccine_id);
+          }
+        });
+      }
+
+      // Fetch vaccine_doses and their vaccines in a separate query
+      if (vaccineDoseIds.length > 0) {
+        const { data: dosesData } = await supabase
+          .from("vaccine_doses")
+          .select("id, vaccine_id, vaccines(id, name)")
+          .in("id", vaccineDoseIds);
+
+        if (dosesData) {
+          dosesData.forEach(dose => {
+            // Find the inventory record that references this vaccine_dose
+            const invRecord = inventoryData.find(inv => inv.vaccine_id === dose.id);
+            if (invRecord && dose.vaccines) {
+              vaccinesMap[invRecord.id] = dose.vaccines;
+            }
+          });
+        }
+      }
 
       const [barangaysData] = await Promise.all([
         barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
-      const vaccinesMap = {};
       const barangaysMap = {};
-
-      // Build vaccines map from inventory data
-      if (inventoryData) {
-        inventoryData.forEach(inv => {
-          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
-          }
-        });
-      }
 
       if (barangaysData.data) {
         barangaysData.data.forEach(b => {
@@ -385,29 +405,49 @@ export const fetchAllVaccinationSessions = async () => {
       const inventoryIds = [...new Set(data.map(s => s.vaccine_id))];
       const barangayIds = [...new Set(data.map(s => s.barangay_id))];
 
-      // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
+      // Fetch barangay_vaccine_inventory with vaccine_id references
       const { data: inventoryData } = inventoryIds.length > 0 
         ? await supabase
             .from("barangay_vaccine_inventory")
-            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .select("id, vaccine_id")
             .in("id", inventoryIds)
         : { data: [] };
+
+      const vaccinesMap = {};
+      const vaccineDoseIds = [];
+
+      // Collect all vaccine_dose IDs
+      if (inventoryData) {
+        inventoryData.forEach(inv => {
+          if (inv.vaccine_id) {
+            vaccineDoseIds.push(inv.vaccine_id);
+          }
+        });
+      }
+
+      // Fetch vaccine_doses and their vaccines in a separate query
+      if (vaccineDoseIds.length > 0) {
+        const { data: dosesData } = await supabase
+          .from("vaccine_doses")
+          .select("id, vaccine_id, vaccines(id, name)")
+          .in("id", vaccineDoseIds);
+
+        if (dosesData) {
+          dosesData.forEach(dose => {
+            // Find the inventory record that references this vaccine_dose
+            const invRecord = inventoryData.find(inv => inv.vaccine_id === dose.id);
+            if (invRecord && dose.vaccines) {
+              vaccinesMap[invRecord.id] = dose.vaccines;
+            }
+          });
+        }
+      }
 
       const [barangaysData] = await Promise.all([
         barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
-      const vaccinesMap = {};
       const barangaysMap = {};
-
-      // Build vaccines map from inventory data
-      if (inventoryData) {
-        inventoryData.forEach(inv => {
-          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
-          }
-        });
-      }
 
       if (barangaysData.data) {
         barangaysData.data.forEach(b => {
@@ -508,9 +548,14 @@ export const updateSessionAdministered = async (sessionId, administered, status 
       updated_at: new Date().toISOString()
     };
 
-    // Add status if provided
+    // ⚠️ IMPORTANT: Do NOT update status here!
+    // Status changes are handled by updateSessionStatus() which needs to detect the transition
+    // If we update status here, updateSessionStatus() won't be able to detect the old status
+    // and the inventory logic won't execute.
+    // 
+    // The status parameter is kept for backwards compatibility but is ignored.
     if (status) {
-      updateData.status = status;
+      console.log('⚠️ Note: Status parameter ignored. Use updateSessionStatus() for status changes.');
     }
 
     const { data, error } = await supabase
@@ -528,7 +573,7 @@ export const updateSessionAdministered = async (sessionId, administered, status 
       };
     }
 
-    console.log('Session updated successfully');
+    console.log('✅ Session administered count updated successfully');
     return {
       success: true,
       data: data?.[0] || null,
@@ -550,9 +595,9 @@ export const updateSessionAdministered = async (sessionId, administered, status 
  * @param {string} status - New status (Scheduled, In progress, Completed)
  * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
  */
-export const updateSessionStatus = async (sessionId, status) => {
+export const updateSessionStatus = async (sessionId, status, previousStatus = null) => {
   try {
-    console.log('Updating session status:', { sessionId, status });
+    console.log('Updating session status:', { sessionId, status, previousStatus });
 
     // Fetch session to get current data
     const { data: session, error: fetchError } = await supabase
@@ -569,6 +614,10 @@ export const updateSessionStatus = async (sessionId, status) => {
         error: 'Session not found'
       };
     }
+
+    // Use the passed previousStatus or fall back to the current session status
+    const oldStatus = previousStatus || session.status;
+    console.log('🔍 DEBUG: Status transition - FROM:', oldStatus, 'TO:', status);
 
     const { data, error } = await supabase
       .from("vaccination_sessions")
@@ -590,16 +639,39 @@ export const updateSessionStatus = async (sessionId, status) => {
 
     console.log('Session status updated successfully');
 
+    // Handle inventory changes based on status transitions
+    const { releaseBarangayVaccineReservation, addBackBarangayVaccineInventory, addMainVaccineInventory, deductBarangayVaccineInventory, deductMainVaccineInventory } = await import('./barangayVaccineInventory.js');
+    
     // If session is being completed or cancelled, release reserved vials and add back unused doses
-    if ((status === 'Completed' || status === 'Cancelled') && session.status !== status) {
+    console.log('🔍 DEBUG: Checking condition - status is Completed/Cancelled?', (status === 'Completed' || status === 'Cancelled'), 'and status changed?', oldStatus !== status);
+    
+    if ((status === 'Completed' || status === 'Cancelled') && oldStatus !== status) {
       console.log('🟢 Processing inventory for', status, 'session...');
-      
-      const { releaseBarangayVaccineReservation, addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
       
       // Calculate unused doses (target - administered)
       const unusedDoses = session.target - (session.administered || 0);
       
       console.log(`📊 Session stats: Target=${session.target}, Administered=${session.administered || 0}, Unused=${unusedDoses}`);
+      
+      // Resolve the vaccine ID chain to get the actual vaccines.id
+      // session.vaccine_id is vaccine_doses.id
+      // vaccine_doses.vaccine_id → vaccines.id
+      console.log('🔍 Resolving vaccine ID chain from vaccine_doses.id:', session.vaccine_id);
+      
+      let actualVaccineId = session.vaccine_id; // Fallback to session.vaccine_id
+      
+      // Get the actual vaccines.id from vaccine_doses
+      const { data: doseRecord, error: doseError } = await supabase
+        .from('vaccine_doses')
+        .select('vaccine_id')
+        .eq('id', session.vaccine_id);
+      
+      if (!doseError && doseRecord && doseRecord.length > 0) {
+        actualVaccineId = doseRecord[0].vaccine_id;
+        console.log('  → vaccines.id:', actualVaccineId);
+      } else {
+        console.warn('⚠️ Warning: Could not resolve vaccine_doses for:', session.vaccine_id);
+      }
       
       // Add back unused doses to barangay inventory
       if (unusedDoses > 0) {
@@ -607,7 +679,7 @@ export const updateSessionStatus = async (sessionId, status) => {
         
         const addBackResult = await addBackBarangayVaccineInventory(
           session.barangay_id,
-          session.vaccine_id,
+          actualVaccineId,
           unusedDoses
         );
 
@@ -619,7 +691,7 @@ export const updateSessionStatus = async (sessionId, status) => {
         
         // Also add back to main vaccine inventory
         console.log('🟢 Adding back unused doses to main vaccine inventory:', unusedDoses);
-        const mainAddBackResult = await addMainVaccineInventory(session.vaccine_id, unusedDoses);
+        const mainAddBackResult = await addMainVaccineInventory(actualVaccineId, unusedDoses);
         
         if (mainAddBackResult.success) {
           console.log('✅ Unused doses added back to main vaccine inventory');
@@ -640,6 +712,61 @@ export const updateSessionStatus = async (sessionId, status) => {
         console.log('✅ Reserved vaccine vials released');
       } else {
         console.warn('⚠️ Warning: Failed to release reserved vials:', releaseResult.error);
+      }
+    }
+    
+    // If session is being changed back to "In Progress" or "Scheduled" from Completed/Cancelled, deduct doses again
+    if ((status === 'In progress' || status === 'Scheduled') && (oldStatus === 'Completed' || oldStatus === 'Cancelled')) {
+      console.log('🔴 Session status changed back to', status, '- deducting doses again for session...');
+      
+      // Calculate total doses needed for the session
+      const totalDosesNeeded = session.target;
+      
+      console.log(`📊 Session stats: Target=${session.target}, Deducting=${totalDosesNeeded}`);
+      
+      // Resolve the vaccine ID chain to get the actual vaccines.id
+      console.log('🔍 Resolving vaccine ID chain from vaccine_doses.id:', session.vaccine_id);
+      
+      let actualVaccineId = session.vaccine_id; // Fallback
+      
+      // Get the actual vaccines.id from vaccine_doses
+      const { data: doseRecord, error: doseError } = await supabase
+        .from('vaccine_doses')
+        .select('vaccine_id')
+        .eq('id', session.vaccine_id);
+      
+      if (!doseError && doseRecord && doseRecord.length > 0) {
+        actualVaccineId = doseRecord[0].vaccine_id;
+        console.log('  → vaccines.id:', actualVaccineId);
+      } else {
+        console.warn('⚠️ Warning: Could not resolve vaccine_doses for:', session.vaccine_id);
+      }
+      
+      // Deduct doses from barangay inventory
+      if (totalDosesNeeded > 0) {
+        console.log('🔴 Deducting doses from barangay inventory:', totalDosesNeeded);
+        
+        const deductResult = await deductBarangayVaccineInventory(
+          session.barangay_id,
+          actualVaccineId,
+          totalDosesNeeded
+        );
+
+        if (deductResult.success) {
+          console.log('✅ Doses deducted from barangay inventory');
+        } else {
+          console.warn('⚠️ Warning: Failed to deduct from barangay inventory:', deductResult.error);
+        }
+        
+        // Also deduct from main vaccine inventory
+        console.log('🔴 Deducting doses from main vaccine inventory:', totalDosesNeeded);
+        const mainDeductResult = await deductMainVaccineInventory(actualVaccineId, totalDosesNeeded);
+        
+        if (mainDeductResult.success) {
+          console.log('✅ Doses deducted from main vaccine inventory');
+        } else {
+          console.warn('⚠️ Warning: Failed to deduct from main vaccine inventory:', mainDeductResult.error);
+        }
       }
     }
 

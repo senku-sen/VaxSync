@@ -252,10 +252,40 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
       throw error;
     }
     
-    // If approved, automatically add to inventory
+    // If approved, automatically transfer vaccine from source to destination barangay
     let inventoryAdded = false;
     if (status === 'approved' && requestDetails) {
-      console.log('Status is approved, adding to inventory...');
+      console.log('Status is approved, transferring vaccine from source to destination barangay...');
+      
+      // Get the health worker's profile to find their assigned barangay
+      const { data: requesterProfile, error: requesterError } = await supabase
+        .from('profiles')
+        .select('barangay_id, barangays(id, name)')
+        .eq('id', requestDetails.requested_by)
+        .single();
+      
+      if (requesterError || !requesterProfile) {
+        console.warn('⚠️ Warning: Could not fetch requester barangay:', requesterError?.message);
+        // Use the request barangay as fallback
+        var destinationBarangayId = requestDetails.barangay_id;
+      } else {
+        var destinationBarangayId = requesterProfile.barangay_id || requestDetails.barangay_id;
+        console.log('Health worker assigned barangay:', destinationBarangayId);
+      }
+      
+      // Get the Public Health Nurse's barangay (source) - usually the first barangay or central
+      // For now, we'll use the barangay from the request as source (where vaccines are stored)
+      // In a real system, you might have a "central" barangay designated
+      const { data: sourceBarangay, error: sourceError } = await supabase
+        .from('barangays')
+        .select('id')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+      
+      const sourceBarangayId = sourceBarangay?.id || requestDetails.barangay_id;
+      console.log('Source barangay (Public Health Nurse):', sourceBarangayId);
+      console.log('Destination barangay (Health Worker):', destinationBarangayId);
       
       // Extract dose code from notes (format: "Dose: TT1")
       let doseCode = null;
@@ -264,10 +294,11 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
         console.log('Extracted dose code from notes:', doseCode);
       }
       
-      const { success: inventorySuccess, error: inventoryError } = await addApprovedRequestToInventory(
+      const { success: inventorySuccess, error: inventoryError, deductedFromSource, addedToDestination } = await addApprovedRequestToInventory(
         requestId,
         requestDetails.vaccine_id,
-        requestDetails.barangay_id,
+        sourceBarangayId,
+        destinationBarangayId,
         requestDetails.quantity_vial || 0,
         requestDetails.quantity_dose || 0,
         doseCode  // Pass the specific dose code
@@ -275,9 +306,9 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
       
       if (inventorySuccess) {
         inventoryAdded = true;
-        console.log('Successfully added to inventory');
+        console.log('✅ Successfully transferred vaccine:', { deductedFromSource, addedToDestination });
       } else {
-        console.warn('Failed to add to inventory:', inventoryError);
+        console.warn('⚠️ Warning: Failed to transfer vaccine:', inventoryError);
         // Don't fail the entire operation, just warn
       }
     }
