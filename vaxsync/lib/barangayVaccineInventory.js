@@ -781,22 +781,26 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
       return { success: true, error: null };
     }
 
-    // Get doses per vial from mapping
+    // Get vaccine name (quantityToDeduct is ALREADY in doses, no need to multiply again)
     const vaccineName = vaccine.name || '';
-    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
-    const dosesToDeductFromVaccines = quantityToDeduct * dosesPerVial;
     
-    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
-    console.log(`   Deducting ${quantityToDeduct} vials = ${dosesToDeductFromVaccines} doses from vaccines table`);
+    console.log(`📊 Vaccine: ${vaccineName}`);
+    console.log(`   Deducting ${quantityToDeduct} doses from vaccines table`);
 
-    const newVaccineQuantity = Math.max(0, vaccine.quantity_available - dosesToDeductFromVaccines);
+    const newVaccineQuantity = Math.max(0, vaccine.quantity_available - quantityToDeduct);
 
-    const { error: updateVaccineError } = await supabase
+    // Use admin client if available to bypass RLS
+    const client = supabaseAdmin || supabase;
+    console.log(`🔑 Using ${supabaseAdmin ? 'ADMIN' : 'REGULAR'} client for vaccines table update`);
+
+    const { error: updateVaccineError } = await client
       .from('vaccines')
       .update({
-        quantity_available: newVaccineQuantity
+        quantity_available: newVaccineQuantity,
+        updated_at: new Date().toISOString()
       })
-      .eq('id', vaccineId);
+      .eq('id', vaccineId)
+      .select();
 
     if (updateVaccineError) {
       console.error('Error updating vaccines table:', updateVaccineError);
@@ -808,7 +812,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
     // Also deduct from vaccine_doses table (all doses of this vaccine)
     // Use FIFO (First-In-First-Out) - deduct from oldest doses first
     console.log('🔍 Attempting to fetch vaccine_doses for vaccine:', vaccineId);
-    console.log(`📊 Using same mapping: Doses per vial: ${dosesPerVial}, Total doses to deduct: ${dosesToDeductFromVaccines}`);
+    console.log(`📊 Total doses to deduct: ${quantityToDeduct}`);
     
     const { data: doses, error: fetchDosesError } = await supabase
       .from('vaccine_doses')
@@ -830,7 +834,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
       );
 
       // Deduct from doses in FIFO order
-      let remainingToDeduct = dosesToDeductFromVaccines;
+      let remainingToDeduct = quantityToDeduct;
 
       for (const dose of doses) {
         if (remainingToDeduct <= 0) break;

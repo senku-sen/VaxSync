@@ -34,10 +34,10 @@ export async function addApprovedRequestToInventory(
       quantityDose
     });
 
-    // Fetch vaccine details to get batch number and expiry date
+    // Fetch vaccine details to get batch number, expiry date, and quantity_available
     const { data: vaccine, error: vaccineError } = await supabase
       .from('vaccines')
-      .select('batch_number, expiry_date')
+      .select('batch_number, expiry_date, name, quantity_available')
       .eq('id', vaccineId)
       .single();
 
@@ -174,19 +174,14 @@ export async function addApprovedRequestToInventory(
     // ✅ Step 2: Deduct from main vaccine tables (vaccines and vaccine_doses)
     console.log('📊 Deducting from main vaccine inventory...');
     
-    // Get vaccine name to calculate doses
-    const { data: vaccineData, error: vaccineNameError } = await supabase
-      .from('vaccines')
-      .select('name')
-      .eq('id', vaccineId)
-      .single();
+    // Use vaccine name from the already-fetched vaccine data
+    const vaccineName = vaccine?.name || '';
+    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
+    const dosesToDeduct = quantityVial * dosesPerVial;
 
-    if (!vaccineNameError && vaccineData) {
-      const vaccineName = vaccineData.name || '';
-      const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
-      const dosesToDeduct = quantityVial * dosesPerVial;
+    console.log(`💉 Vaccine: ${vaccineName}, Vials: ${quantityVial}, Doses per vial: ${dosesPerVial}, Total doses to deduct: ${dosesToDeduct}`);
 
-      console.log(`💉 Vaccine: ${vaccineName}, Vials: ${quantityVial}, Doses per vial: ${dosesPerVial}, Total doses to deduct: ${dosesToDeduct}`);
+    if (vaccineName) {
 
       // If doseCode is provided, deduct only from that specific dose
       if (doseCode) {
