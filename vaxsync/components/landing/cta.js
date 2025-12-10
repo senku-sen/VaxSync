@@ -12,7 +12,7 @@ export default function CTA({ onGetStarted }) {
         </h2>
 
         <p className="text-lg text-foreground/70 mb-12 leading-relaxed max-w-2xl mx-auto">
-          et Started with VaxSync Today. Get Started - It's Free!
+          Get Started with VaxSync Today - It's Free and Accessible to All!
         </p>
 
         <div className="grid sm:grid-cols-3 gap-8 mb-16 pb-12 border-b border-foreground/20">
