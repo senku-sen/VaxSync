@@ -33,10 +33,12 @@ export default function UpdateAdministeredModal({
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [isLoadingBeneficiaries, setIsLoadingBeneficiaries] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [updatedSession, setUpdatedSession] = useState(session);
 
   // Load user profile, photos, and beneficiaries when modal opens
   useEffect(() => {
     if (isOpen && session?.id) {
+      setUpdatedSession(session);  // Sync session state when modal opens
       loadUserData();
       loadPhotos();
       loadBeneficiaries();
@@ -113,10 +115,12 @@ export default function UpdateAdministeredModal({
   const handleChange = (e) => {
     if (isViewOnly) return;
     const { name, value } = e.target;
-    onSubmit({
-      ...session,
+    const updated = {
+      ...updatedSession,
       [name]: name === 'administered' ? Math.min(parseInt(value, 10) || 0, target) : value
-    }, 'update');
+    };
+    setUpdatedSession(updated);
+    onSubmit(updated, 'update');
   };
 
   return (
@@ -197,21 +201,10 @@ export default function UpdateAdministeredModal({
                 ? beneficiaries.filter((b) => b.vaccinated).length
                 : (session.administered || 0);
 
-              // Get the current status from the form (may have been changed by dropdown)
-              const statusSelect = document.getElementById('status');
-              const currentStatus = statusSelect ? statusSelect.value : session.status;
-
               const updatedSession = {
                 ...session,
-                administered: vaccinatedCount,
-                status: currentStatus  // ✅ Include the status from the dropdown
+                administered: vaccinatedCount
               };
-
-              console.log('🔍 DEBUG: Form submission with:', {
-                administered: vaccinatedCount,
-                status: currentStatus,
-                previousStatus: session.status
-              });
 
               // Save beneficiary changes to database
               if (beneficiaries.length > 0) {
@@ -225,7 +218,7 @@ export default function UpdateAdministeredModal({
                 console.log('✅ Beneficiary changes saved successfully');
               }
 
-              // Then submit the session update with derived administered count and status
+              // Then submit the session update with derived administered count
               onSubmit(updatedSession, 'submit');
             }
           }} className="space-y-4">
@@ -266,7 +259,7 @@ export default function UpdateAdministeredModal({
               <select
                 id="status"
                 name="status"
-                value={session.status || "Scheduled"}
+                value={updatedSession?.status || "Scheduled"}
                 onChange={handleChange}
                 disabled={isViewOnly}
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A7C59] focus:border-transparent ${
@@ -359,7 +352,7 @@ export default function UpdateAdministeredModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              onClick={() => onSubmit(session, 'submit')}
+              onClick={() => onSubmit(updatedSession, 'submit')}
               className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
             >
               {isSubmitting ? "Updating..." : "Update Progress"}

@@ -265,43 +265,6 @@ export default function HeadNurseVaccinationSchedule() {
           // Note: Inventory is already deducted when session is scheduled (based on target)
           // No need to deduct again when updating administered count
 
-          // ✅ If status changed to Completed or Cancelled, trigger inventory return for unused doses
-          const previousStatus = updatingSession?.status;
-          const newStatus = updatedSession.status;
-          const statusChanged = previousStatus !== newStatus;
-          
-          console.log('🔍 DEBUG: Checking status condition:', {
-            previousStatus,
-            newStatus,
-            statusChanged,
-            isCompleted: newStatus === 'Completed',
-            isCancelled: newStatus === 'Cancelled',
-            shouldTrigger: (newStatus === 'Completed' || newStatus === 'Cancelled') && statusChanged
-          });
-          
-          if ((newStatus === 'Completed' || newStatus === 'Cancelled') && statusChanged) {
-            console.log('🔄 Status changed from', previousStatus, 'to', newStatus, '- triggering inventory return for unused doses...');
-            const { updateSessionStatus } = await import('@/lib/vaccinationSession');
-            const statusResult = await updateSessionStatus(updatedSession.id, newStatus, previousStatus);
-            
-            if (statusResult.success) {
-              console.log('✅ Inventory return processed for', newStatus, 'session');
-            } else {
-              console.warn('⚠️ Warning: Failed to process inventory return:', statusResult.error);
-            }
-          } else if (statusChanged && (previousStatus === 'Completed' || previousStatus === 'Cancelled')) {
-            // Status changed FROM Completed/Cancelled back to In Progress/Scheduled
-            console.log('🔄 Status changed from', previousStatus, 'to', newStatus, '- triggering inventory deduction...');
-            const { updateSessionStatus } = await import('@/lib/vaccinationSession');
-            const statusResult = await updateSessionStatus(updatedSession.id, newStatus, previousStatus);
-            
-            if (statusResult.success) {
-              console.log('✅ Inventory deduction processed for status change back to', newStatus);
-            } else {
-              console.warn('⚠️ Warning: Failed to process inventory deduction:', statusResult.error);
-            }
-          }
-
           setIsUpdateProgressOpen(false);
           setUpdatingSession(null);
           await reloadSessions();

@@ -247,16 +247,53 @@ export default function VaccinationSchedule() {
           action: administeredDifference > 0 ? 'DEDUCT' : administeredDifference < 0 ? 'ADD BACK' : 'NO CHANGE'
         });
 
-        // Update session in database
-        const result = await updateSessionAdministered(
-          updatedSession.id,
-          updatedSession.administered,
-          updatedSession.status
-        );
+        // Check if status is changing to Completed or Cancelled, OR if it's already Completed/Cancelled
+        const statusChanged = updatedSession.status !== updatingSession?.status;
+        const isCompletingOrCancelling = (updatedSession.status === 'Completed' || updatedSession.status === 'Cancelled') && statusChanged;
+        const isAlreadyCompletedOrCancelled = updatedSession.status === 'Completed' || updatedSession.status === 'Cancelled';
+        
+        console.log('🔄 Status change check:', {
+          oldStatus: updatingSession?.status,
+          newStatus: updatedSession.status,
+          statusChanged,
+          isCompletingOrCancelling,
+          isAlreadyCompletedOrCancelled,
+          administeredDifference,
+          shouldCallUpdateSessionStatus: isCompletingOrCancelling || (isAlreadyCompletedOrCancelled && administeredDifference !== 0)
+        });
+
+        let result;
+        
+        // If status is changing to Completed/Cancelled OR if it's already Completed/Cancelled and administered count changed
+        // Call updateSessionStatus to trigger inventory restoration
+        if (isCompletingOrCancelling || (isAlreadyCompletedOrCancelled && administeredDifference !== 0)) {
+          console.log('📊 Calling updateSessionStatus for inventory restoration');
+          
+          // First update the administered count
+          const adminResult = await updateSessionAdministered(
+            updatedSession.id,
+            updatedSession.administered,
+            null  // Don't pass status here
+          );
+          
+          if (!adminResult.success) {
+            throw new Error('Failed to update administered count: ' + adminResult.error);
+          }
+          
+          // Then update the status (which will trigger inventory restoration)
+          const { updateSessionStatus } = await import('@/lib/vaccinationSession');
+          result = await updateSessionStatus(updatedSession.id, updatedSession.status);
+        } else {
+          // Just update administered count and status without inventory restoration
+          result = await updateSessionAdministered(
+            updatedSession.id,
+            updatedSession.administered,
+            updatedSession.status
+          );
+        }
 
         if (result.success) {
           console.log('Session progress updated successfully');
-          console.log('🔍 DEBUG: updatedSession.status =', updatedSession.status, 'type:', typeof updatedSession.status);
 
           // Handle inventory changes based on administered count difference
           if (administeredDifference !== 0) {
@@ -306,45 +343,6 @@ export default function VaccinationSchedule() {
                 console.warn('Warning: Failed to add back to main vaccine inventory:', mainAddBackResult.error);
               }
             }
-          }
-
-          // ✅ If status changed to Completed or Cancelled, trigger inventory return for unused doses
-          const previousStatus = updatingSession?.status;
-          const newStatus = updatedSession.status;
-          const statusChanged = previousStatus !== newStatus;
-          
-          console.log('🔍 DEBUG: Checking status condition:', {
-            previousStatus,
-            newStatus,
-            statusChanged,
-            isCompleted: newStatus === 'Completed',
-            isCancelled: newStatus === 'Cancelled',
-            shouldTrigger: (newStatus === 'Completed' || newStatus === 'Cancelled') && statusChanged
-          });
-          
-          if ((newStatus === 'Completed' || newStatus === 'Cancelled') && statusChanged) {
-            console.log('🔄 Status changed from', previousStatus, 'to', newStatus, '- triggering inventory return for unused doses...');
-            const { updateSessionStatus } = await import('@/lib/vaccinationSession');
-            const statusResult = await updateSessionStatus(updatedSession.id, newStatus, previousStatus);
-            
-            if (statusResult.success) {
-              console.log('✅ Inventory return processed for', newStatus, 'session');
-            } else {
-              console.warn('⚠️ Warning: Failed to process inventory return:', statusResult.error);
-            }
-          } else if (statusChanged && (previousStatus === 'Completed' || previousStatus === 'Cancelled')) {
-            // Status changed FROM Completed/Cancelled back to In Progress/Scheduled
-            console.log('🔄 Status changed from', previousStatus, 'to', newStatus, '- triggering inventory deduction...');
-            const { updateSessionStatus } = await import('@/lib/vaccinationSession');
-            const statusResult = await updateSessionStatus(updatedSession.id, newStatus, previousStatus);
-            
-            if (statusResult.success) {
-              console.log('✅ Inventory deduction processed for status change back to', newStatus);
-            } else {
-              console.warn('⚠️ Warning: Failed to process inventory deduction:', statusResult.error);
-            }
-          } else {
-            console.log('⚠️ Status not changed or no inventory action needed');
           }
 
           setIsUpdateProgressOpen(false);
