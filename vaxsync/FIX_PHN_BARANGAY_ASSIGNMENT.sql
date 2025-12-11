@@ -32,3 +32,4 @@ COMMIT;
 -- All Public Health Nurse users should have assigned_barangay_id = NULL
 -- All Rural Health Midwife (RHM) users should retain their assigned_barangay_id values
 
+

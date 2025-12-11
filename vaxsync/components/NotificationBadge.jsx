@@ -43,6 +43,28 @@ export default function NotificationBadge() {
 
     const fetchNotifications = async () => {
       try {
+        // Determine cache key based on role
+        const isSupervisor = userRole === 'Head Nurse' || userRole === 'Public Health Nurse';
+        const cacheKey = isSupervisor ? "headNurseNotifications" : "healthWorkerNotifications";
+
+        // Get cached read/archived status from localStorage
+        let cachedMap = {};
+        try {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            const cachedNotifications = JSON.parse(cached);
+            // Normalize IDs to strings for consistent comparison
+            cachedMap = Object.fromEntries(
+              cachedNotifications.map((n) => [String(n.id), { 
+                read: n.read === true || n.read === 'true' || n.read === 1,
+                archived: n.archived === true || n.archived === 'true' || n.archived === 1
+              }])
+            );
+          }
+        } catch (e) {
+          // Ignore cache errors
+        }
+
         let totalUnread = 0;
         let hasUrgent = false;
 
@@ -54,10 +76,25 @@ export default function NotificationBadge() {
             fetchVaccinationSessionNotifications(userId, barangayId, false).catch(() => ({ data: [] })),
           ]);
 
-          // Count unread notifications
-          const residentUnread = residentNotifs.data?.filter(n => !n.read).length || 0;
-          const vaccineUnread = vaccineNotifs.data?.filter(n => !n.read).length || 0;
-          const sessionUnread = sessionNotifs.data?.filter(n => !n.read && n.isUpcoming).length || 0;
+          // Count ONLY unread notifications from cache (source of truth)
+          // DO NOT count notifications not in cache
+          const residentUnread = (residentNotifs.data || []).filter(n => {
+            const cached = cachedMap[String(n.id)];
+            // Only count if in cache AND explicitly unread
+            return cached ? (!cached.read && !cached.archived) : false;
+          }).length;
+
+          const vaccineUnread = (vaccineNotifs.data || []).filter(n => {
+            const cached = cachedMap[String(n.id)];
+            // Only count if in cache AND explicitly unread
+            return cached ? (!cached.read && !cached.archived) : false;
+          }).length;
+
+          const sessionUnread = (sessionNotifs.data || []).filter(n => {
+            const cached = cachedMap[String(n.id)];
+            // Only count if in cache AND explicitly unread AND upcoming
+            return cached ? (!cached.read && !cached.archived && n.isUpcoming) : false;
+          }).length;
 
           totalUnread = residentUnread + vaccineUnread + sessionUnread;
 
@@ -70,8 +107,17 @@ export default function NotificationBadge() {
             fetchVaccinationSessionNotifications(userId, null, true).catch(() => ({ data: [] })),
           ]);
 
-          const vaccineUnread = vaccineNotifs.data?.filter(n => !n.read && n.status === 'pending').length || 0;
-          const sessionUnread = sessionNotifs.data?.filter(n => !n.read && n.isUpcoming).length || 0;
+          const vaccineUnread = (vaccineNotifs.data || []).filter(n => {
+            const cached = cachedMap[String(n.id)];
+            // Only count if in cache AND explicitly unread AND pending
+            return cached ? (!cached.read && !cached.archived && n.status === 'pending') : false;
+          }).length;
+
+          const sessionUnread = (sessionNotifs.data || []).filter(n => {
+            const cached = cachedMap[String(n.id)];
+            // Only count if in cache AND explicitly unread AND upcoming
+            return cached ? (!cached.read && !cached.archived && n.isUpcoming) : false;
+          }).length;
 
           totalUnread = vaccineUnread + sessionUnread;
           hasUrgent = vaccineUnread > 0 || sessionUnread > 0;
@@ -89,11 +135,30 @@ export default function NotificationBadge() {
 
     fetchNotifications();
 
+    // Listen for notification updates
+    const handleNotificationUpdate = () => {
+      setTimeout(() => {
+        fetchNotifications();
+      }, 100);
+    };
+
+    window.addEventListener('notificationUpdate', handleNotificationUpdate);
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
+        fetchNotifications();
+      }
+    });
+
     // Poll for new notifications every 30 seconds (only when online)
+    let interval;
     if (isOnline) {
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
+      interval = setInterval(fetchNotifications, 30000);
     }
+
+    return () => {
+      window.removeEventListener('notificationUpdate', handleNotificationUpdate);
+      if (interval) clearInterval(interval);
+    };
   }, [userId, userRole, barangayId, isOnline]);
 
   // Don't show badge if no unread notifications

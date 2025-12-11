@@ -60,17 +60,20 @@ export default function InventoryHeader({ title, subtitle }) {
     const handleStorageChange = (e) => {
       if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
         console.log("🔔 localStorage change detected, updating notification count");
-        fetchNotificationCount();
+        // Force immediate refresh
+        setTimeout(() => {
+          fetchNotificationCount();
+        }, 50);
       }
     };
 
     // Also listen for custom event when notifications are updated within the same tab
     const handleNotificationUpdate = () => {
       console.log("🔔 Custom notification update event received - forcing fresh count");
-      // Defer to avoid setState during render
+      // Use a delay to ensure localStorage has been updated, then force refresh
       setTimeout(() => {
         fetchNotificationCount();
-      }, 0);
+      }, 150);
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -137,28 +140,7 @@ const isSupervisor =
       // Support both spaced and underscored role names
       const cacheKey = isSupervisor ? "headNurseNotifications" : "healthWorkerNotifications";
 
-      // Get cached read/archived status from localStorage
-      let cachedMap = {};
-      let cachedNotifications = [];
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          cachedNotifications = JSON.parse(cached);
-          cachedMap = Object.fromEntries(
-            cachedNotifications.map((n) => [n.id, { read: n.read, archived: n.archived }])
-          );
-        }
-      } catch (e) {
-        // Ignore cache errors
-      }
-
-      // Count unread from cached notifications (faster, more reliable)
-      // but don't set state from cache; always compute final count from fresh fetch.
-      const cachedUnreadCount = cachedNotifications.filter(
-        (n) => !n.read && !n.archived
-      ).length;
-
-      // Fetch fresh data every time to avoid stale badge
+      // Fetch fresh data first
       const residentPromise = fetchResidentApprovalNotifications(userId).catch(
         () => ({ data: [] })
       );
@@ -187,37 +169,77 @@ const isSupervisor =
         lowStockPromise,
       ]);
 
-      // Count unread notifications: those NOT marked as read AND NOT archived
-      const residentUnread = (residentNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
+      // Get cached notifications from localStorage - this is the source of truth for read status
+      let cachedNotifications = [];
+      let cachedMap = {};
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          cachedNotifications = JSON.parse(cached);
+          // Create a map for quick lookup - normalize IDs to strings for consistent comparison
+          cachedMap = Object.fromEntries(
+            cachedNotifications.map((n) => [String(n.id), { read: Boolean(n.read), archived: Boolean(n.archived) }])
+          );
+        }
+      } catch (e) {
+        console.error('Error reading cache:', e);
+      }
 
-      const vaccineUnread = (vaccineNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
+      // Collect all fetched notification IDs to check for new notifications (normalize to strings)
+      const fetchedIds = new Set([
+        ...(residentNotifs.data || []).map(n => String(n.id)),
+        ...(vaccineNotifs.data || []).map(n => String(n.id)),
+        ...(sessionNotifs.data || []).map(n => String(n.id)),
+        ...(lowStockNotifs.data || []).map(n => String(n.id)),
+      ]);
 
-      const sessionUnread = (sessionNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
+      // Count ONLY unread notifications from cache (source of truth)
+      // DO NOT count notifications not in cache - only count what's explicitly marked as unread
+      // Only count notifications that:
+      // 1. Exist in cache (has read status)
+      // 2. Are marked as unread in cache (read !== true and archived !== true)
+      // 3. Still exist in fetched data (to filter out old/deleted notifications)
+      
+      unreadCount = 0;
+      
+      // Count ONLY unread notifications from cache
+      for (const cachedNotif of cachedNotifications) {
+        const id = String(cachedNotif.id);
+        // Only count if notification still exists in fetched data
+        if (fetchedIds.has(id)) {
+          // Check read status from cache - cache is source of truth
+          const isRead = cachedNotif.read === true || cachedNotif.read === 'true' || cachedNotif.read === 1;
+          const isArchived = cachedNotif.archived === true || cachedNotif.archived === 'true' || cachedNotif.archived === 1;
+          // Only count if explicitly unread and not archived
+          if (!isRead && !isArchived) {
+            unreadCount++;
+          }
+        }
+      }
 
-      const lowStockUnread = (lowStockNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
-
-      unreadCount = residentUnread + vaccineUnread + sessionUnread + lowStockUnread;
+      // Debug: Log sample cache entries to verify read status
+      const sampleCacheEntries = cachedNotifications.slice(0, 5).map(n => ({
+        id: n.id,
+        read: n.read,
+        archived: n.archived,
+        readType: typeof n.read
+      }));
 
       console.log('🔔 Notification count calculated:', {
-        residentUnread,
-        vaccineUnread,
-        sessionUnread,
-        lowStockUnread,
-        total: unreadCount,
-        cachedCount: cachedUnreadCount
+        unreadCount,
+        cacheSize: cachedNotifications.length,
+        fetchedCount: fetchedIds.size,
+        cachedUnreadCount: cachedNotifications.filter(n => {
+          const isRead = n.read === true || n.read === 'true' || n.read === 1;
+          const isArchived = n.archived === true || n.archived === 'true' || n.archived === 1;
+          return !isRead && !isArchived;
+        }).length
       });
 
       setNotificationCount(unreadCount);
     } catch (err) {
       // On error, just hide the badge
+      console.error('Error fetching notification count:', err);
       setNotificationCount(0);
     }
   };
@@ -286,14 +308,14 @@ const isSupervisor =
         <OfflineIndicator />
 
         <div
-          className="relative cursor-pointer"
+          className="relative cursor-pointer p-2 -m-2"
           onClick={handleNotificationClick}
           title={`Unread notifications: ${notificationCount}`}
         >
-          <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
+          <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors pointer-events-none" />
           {notificationCount > 0 && (
             <span 
-              className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-white shadow-lg z-10 flex items-center justify-center"
+              className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-white shadow-lg z-10 flex items-center justify-center pointer-events-none"
               aria-label={`${notificationCount} unread notifications`}
             >
               {notificationCount > 9 ? (
