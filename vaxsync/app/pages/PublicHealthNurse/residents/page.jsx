@@ -38,6 +38,7 @@ import AddResidentWizard from "../../../../components/add-resident-wizard/AddRes
 import Pagination from "../../../../components/shared/Pagination";
 import { useOfflineResidents } from "@/hooks/useOfflineResidents";
 import { useOffline } from "@/components/OfflineProvider";
+import { supabase } from "@/lib/supabase";
 
 export default function ResidentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -50,6 +51,7 @@ export default function ResidentsPage() {
   const [userProfile, setUserProfile] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [barangayOptions, setBarangayOptions] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     birthday: "",
@@ -110,10 +112,45 @@ export default function ResidentsPage() {
     "tt1", "tt2"
   ];
 
+  // Fetch barangays from database
+  const fetchBarangaysFromDB = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("barangays")
+        .select("id, name")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error('Error fetching barangays:', error);
+        return [];
+      }
+
+      // Normalize barangay names: deduplicate and convert to uppercase
+      const barangayMap = new Map();
+      (data || []).forEach(barangay => {
+        const normalizedName = barangay.name.toUpperCase().trim();
+        if (!barangayMap.has(normalizedName)) {
+          barangayMap.set(normalizedName, normalizedName);
+        }
+      });
+
+      // Convert to array and sort alphabetically
+      return Array.from(barangayMap.values()).sort();
+    } catch (err) {
+      console.error('Error fetching barangays:', err);
+      return [];
+    }
+  };
+
   // Initialize data with auth check
   const initializeData = async () => {
     try {
       setIsAuthLoading(true);
+      
+      // Fetch barangays from database
+      const barangays = await fetchBarangaysFromDB();
+      setBarangayOptions(barangays);
+      
       const profile = await loadUserProfile();
       if (profile) {
         setUserProfile(profile);
@@ -823,7 +860,7 @@ export default function ResidentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Barangays</SelectItem>
-                {BARANGAYS.map((b) => (
+                {barangayOptions.map((b) => (
                   <SelectItem key={b} value={b}>{b}</SelectItem>
                 ))}
               </SelectContent>
@@ -999,7 +1036,7 @@ export default function ResidentsPage() {
                       <SelectValue placeholder="Select barangay" />
                     </SelectTrigger>
                     <SelectContent>
-                      {BARANGAYS.map((b) => (
+                      {barangayOptions.map((b) => (
                         <SelectItem key={b} value={b}>{b}</SelectItem>
                       ))}
                     </SelectContent>
