@@ -362,7 +362,7 @@ export default function BarangayManagement({
                 }
               }}>
                   <DialogTrigger asChild>
-                    <Button className="flex items-center space-x-2 text-sm sm:text-base py-2 px-4 whitespace-nowrap" onClick={() => {
+                    <Button className="flex items-center space-x-2 text-sm sm:text-base py-2 px-4 whitespace-nowrap bg-[#3E5F44] hover:bg-[#3E5F44]/90 text-white" onClick={() => {
                       setFormData({ name: "", municipality: "Daet", population: 0 });
                       setEditMode(false);
                       setSelectedBarangay(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, LogOut, User, Settings } from "lucide-react";
+import { Bell, LogOut, User, Settings, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -275,11 +275,26 @@ const isSupervisor =
     }
   };
 
+  const toggleSidebar = () => {
+    // Dispatch a custom event to toggle the sidebar
+    window.dispatchEvent(new CustomEvent('toggleSidebar'));
+  };
+
   return (
     <div className="flex items-center justify-between p-9 border-b border-gray-200 bg-white">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        <p className="text-gray-600 text-sm mt-2">{subtitle}</p>
+      <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleSidebar}
+          className="lg:hidden p-0 h-6 w-6"
+        >
+          <Menu className="h-5 w-5 text-gray-700" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <p className="text-gray-600 text-sm mt-2">{subtitle}</p>
+        </div>
       </div>
       <div className="flex items-center space-x-8">
         {/* Offline status indicator */}

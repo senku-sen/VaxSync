@@ -20,12 +20,13 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const sidebarRef = useRef(null);
 
   // Load user role from localStorage on mount
   useEffect(() => {
@@ -38,6 +39,34 @@ export default function Sidebar() {
       console.error('Error loading user role:', err);
     }
   }, []);
+
+  // Handle toggle from header button
+  useEffect(() => {
+    const handleToggleSidebar = () => {
+      setIsOpen(prev => !prev);
+    };
+
+    window.addEventListener('toggleSidebar', handleToggleSidebar);
+    return () => window.removeEventListener('toggleSidebar', handleToggleSidebar);
+  }, []);
+
+  // Handle click outside to close sidebar
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        // Check if click is on the header menu button
+        const headerButton = document.querySelector('button[class*="lg:hidden"]');
+        if (!headerButton || !headerButton.contains(event.target)) {
+          setIsOpen(false);
+        }
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
 
   const isSettingsStandalone = pathname === "/pages/settings-privacy";
 
@@ -78,20 +107,13 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Toggle */}
-      <Button
-        variant="ghost"
-        className="lg:hidden fixed top-4 left-4 z-50 bg-white shadow-md rounded-full p-2"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-      </Button>
-
       {/* Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 w-72 bg-[#F2F2F2] text-gray-800 flex flex-col border-r border-gray-300 transform transition-transform duration-300 z-40
-          ${isOpen ? "translate-x-0" : "-translate-x-full"} 
-          lg:translate-x-0`}
+        ref={sidebarRef}
+        data-sidebar
+        className={`fixed inset-y-0 left-0 w-72 bg-[#F2F2F2] text-gray-800 flex flex-col border-r border-gray-300 z-40 transition-transform duration-300 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0 lg:block`}
       >
         {/* Header */}
         <div className="flex items-center justify-between h-20 px-4 border-b border-gray-300">
@@ -100,8 +122,9 @@ export default function Sidebar() {
           </div>
           <Button
             variant="ghost"
-            className="lg:hidden text-gray-700 p-1"
+            size="sm"
             onClick={() => setIsOpen(false)}
+            className="lg:hidden text-gray-700 p-1 h-6 w-6"
           >
             <X className="h-5 w-5" />
           </Button>
