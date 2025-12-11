@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { loadUserProfile } from '@/lib/vaccineRequest';
 import { getNotificationStatus } from "@/lib/notificationStatus";
+import {
+  fetchVaccineRequestNotifications,
+  fetchResidentApprovalNotifications,
+  fetchVaccinationSessionNotifications,
+  fetchLowStockNotifications,
+} from "@/lib/notification";
 
 /**
  * FEATURE 2: Notification Badge Component
@@ -44,9 +50,33 @@ export default function NotificationBadge() {
     const fetchNotifications = async () => {
       try {
         const statusMap = await getNotificationStatus(userId).catch(() => ({}));
-        const anyUnread = Object.values(statusMap).some(
-          (s) => s && s.read === false && s.archived === false
-        );
+
+        const [
+          residentNotifs,
+          vaccineNotifs,
+          sessionNotifs,
+          lowStockNotifs,
+        ] = await Promise.all([
+          fetchResidentApprovalNotifications(userId).catch(() => ({ data: [] })),
+          fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] })),
+          fetchVaccinationSessionNotifications(userId, barangayId, true).catch(() => ({ data: [] })),
+          fetchLowStockNotifications(100).catch(() => ({ data: [] })),
+        ]);
+
+        const allNotifs = [
+          ...(residentNotifs.data || []),
+          ...(vaccineNotifs.data || []),
+          ...(sessionNotifs.data || []),
+          ...(lowStockNotifs.data || []),
+        ];
+
+        const anyUnread = allNotifs.some((n) => {
+          const status = statusMap[String(n.id)] || {};
+          const isRead = status.read === true;
+          const isArchived = status.archived === true;
+          return !isRead && !isArchived;
+        });
+
         setHasUnread(anyUnread);
         setBadgeColor(anyUnread ? 'bg-red-500' : 'bg-gray-400');
       } catch (err) {
