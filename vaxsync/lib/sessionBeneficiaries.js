@@ -130,7 +130,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
 /**
  * Update beneficiary vaccination status
  * @param {string} beneficiaryId - Beneficiary record ID
- * @param {Object} updateData - { attended, vaccinated, notes, vaccine_name }
+ * @param {Object} updateData - { attended, vaccinated, notes, vaccine_name, sessionId, vaccineDoseId }
  * @returns {Promise<Object>} - { success: boolean, data: Object, error: string }
  */
 export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
@@ -166,6 +166,33 @@ export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
         data: null,
         error: error.message || 'Failed to update beneficiary'
       };
+    }
+
+    // If beneficiary is being vaccinated, increment vaccine_doses.quantity_used
+    if (updateData.vaccinated === true && updateData.vaccineDoseId) {
+      console.log('📊 Incrementing vaccine_doses.quantity_used for:', updateData.vaccineDoseId);
+      
+      const { data: doseData, error: doseError } = await supabase
+        .from('vaccine_doses')
+        .select('quantity_used')
+        .eq('id', updateData.vaccineDoseId)
+        .single();
+
+      if (!doseError && doseData) {
+        const currentUsed = doseData.quantity_used || 0;
+        const newUsed = currentUsed + 1; // Increment by 1 dose per beneficiary
+
+        const { error: updateError } = await supabase
+          .from('vaccine_doses')
+          .update({ quantity_used: newUsed })
+          .eq('id', updateData.vaccineDoseId);
+
+        if (updateError) {
+          console.warn('⚠️ Warning: Could not update vaccine_doses.quantity_used:', updateError);
+        } else {
+          console.log('✅ vaccine_doses.quantity_used updated:', { from: currentUsed, to: newUsed });
+        }
+      }
     }
 
     console.log('Beneficiary updated successfully:', data);

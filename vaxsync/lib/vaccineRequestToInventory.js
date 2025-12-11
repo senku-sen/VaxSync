@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { supabaseAdmin } from "./supabaseAdmin";
 import { addBarangayVaccineInventory, updateBarangayVaccineInventory, deductMainVaccineInventory } from "./barangayVaccineInventory";
 import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
 
@@ -46,19 +47,47 @@ export async function addApprovedRequestToInventory(
       return { success: false, inventoryId: null, error: 'Could not fetch vaccine details', deductedFromExisting: false };
     }
 
-    // Fetch the vaccine_doses record for this vaccine
-    // barangay_vaccine_inventory.vaccine_id now references vaccine_doses.id
-    const { data: vaccineDose, error: dosesError } = await supabase
+    // vaccineId could be either:
+    // 1. vaccine_doses.id (from barangay_vaccine_inventory.vaccine_id)
+    // 2. vaccines.id (from form submission)
+    // Try to fetch as vaccine_doses first, if that fails, treat it as vaccines.id
+    
+    let vaccineDoseId = vaccineId;
+    let actualVaccineId = vaccineId;
+    
+    console.log('🔍 Checking if vaccineId is vaccine_doses.id or vaccines.id:', vaccineId);
+    const { data: vaccineDose, error: doseError } = await supabase
       .from('vaccine_doses')
-      .select('id')
-      .eq('vaccine_id', vaccineId)
-      .limit(1)
+      .select('id, vaccine_id')
+      .eq('id', vaccineId)
       .single();
 
-    if (dosesError || !vaccineDose) {
-      console.error('Error fetching vaccine dose:', dosesError);
-      return { success: false, inventoryId: null, error: 'No vaccine dose found. Please create vaccine doses first.', deductedFromExisting: false };
+    if (!doseError && vaccineDose) {
+      // It was a vaccine_doses.id, extract the actual vaccine ID
+      vaccineDoseId = vaccineDose.id;
+      actualVaccineId = vaccineDose.vaccine_id;
+      console.log('✅ vaccineId is vaccine_doses.id, extracted vaccine_id:', actualVaccineId);
+    } else {
+      // It's likely already a vaccines.id, need to find the vaccine_doses record
+      console.log('ℹ️ vaccineId is vaccines.id, finding vaccine_doses record...');
+      const { data: dose, error: dosesError } = await supabase
+        .from('vaccine_doses')
+        .select('id, vaccine_id')
+        .eq('vaccine_id', vaccineId)
+        .limit(1)
+        .single();
+
+      if (dosesError || !dose) {
+        console.error('Error fetching vaccine dose:', dosesError);
+        return { success: false, inventoryId: null, error: 'No vaccine dose found. Please create vaccine doses first.', deductedFromExisting: false };
+      }
+      
+      vaccineDoseId = dose.id;
+      actualVaccineId = dose.vaccine_id;
+      console.log('✅ Found vaccine_doses record:', { vaccineDoseId, actualVaccineId });
     }
+
+    console.log(`📌 Resolved vaccine IDs: vaccineId=${vaccineId}, vaccineDoseId=${vaccineDoseId}, actualVaccineId=${actualVaccineId}`);
 
     // ✅ Step 1: DEDUCT from SOURCE barangay (Public Health Nurse's central inventory)
     console.log('📊 Step 1: Deducting from source barangay:', sourceBarangayId);
@@ -67,7 +96,7 @@ export async function addApprovedRequestToInventory(
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose')
       .eq('barangay_id', sourceBarangayId)
-      .eq('vaccine_id', vaccineDose.id)
+      .eq('vaccine_id', vaccineDoseId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -112,7 +141,7 @@ export async function addApprovedRequestToInventory(
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose')
       .eq('barangay_id', destinationBarangayId)
-      .eq('vaccine_id', vaccineDose.id)
+      .eq('vaccine_id', vaccineDoseId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -153,7 +182,7 @@ export async function addApprovedRequestToInventory(
       
       const { data: inventoryData, error: inventoryError } = await addBarangayVaccineInventory({
         barangay_id: destinationBarangayId,
-        vaccine_id: vaccineDose.id,  // Use vaccine_doses.id, not vaccines.id
+        vaccine_id: vaccineDoseId,  // Use vaccine_doses.id, not vaccines.id
         quantity_vial: quantityVial,
         quantity_dose: quantityDose,
         batch_number: vaccine?.batch_number || null,
@@ -215,29 +244,43 @@ export async function addApprovedRequestToInventory(
           console.warn(`⚠️ Warning: Dose ${doseCode} not found for vaccine ${vaccineId}`);
         }
 
-        // Also deduct from main vaccines table
+        // Also deduct from main vaccines table using actualVaccineId from vaccine_doses
+        console.log(`🔍 Fetching vaccines record with actualVaccineId: ${actualVaccineId}`);
+        
         const { data: vaccine, error: vaccineError } = await supabase
           .from('vaccines')
           .select('id, quantity_available')
-          .eq('id', vaccineId)
+          .eq('id', actualVaccineId)
           .single();
 
+        if (vaccineError) {
+          console.error(`❌ Error fetching vaccines record:`, vaccineError);
+        }
+
         if (!vaccineError && vaccine) {
+          console.log(`📊 Current vaccines quantity: ${vaccine.quantity_available}`);
           const newVaccineQuantity = Math.max(0, vaccine.quantity_available - dosesToDeduct);
           
-          const { error: updateError } = await supabase
+          // Use admin client to bypass RLS
+          const client = supabaseAdmin || supabase;
+          console.log(`🔑 Using ${supabaseAdmin ? 'ADMIN' : 'REGULAR'} client to update vaccines table`);
+          
+          const { error: updateError } = await client
             .from('vaccines')
             .update({
-              quantity_available: newVaccineQuantity,
-              updated_at: new Date().toISOString()
+              quantity_available: newVaccineQuantity
             })
-            .eq('id', vaccineId);
+            .eq('id', actualVaccineId)
+            .select();
 
           if (!updateError) {
             console.log(`✅ Successfully deducted ${dosesToDeduct} doses from vaccines table. ${vaccine.quantity_available} → ${newVaccineQuantity}`);
           } else {
+            console.error(`❌ Error updating vaccines table:`, updateError);
             console.warn(`⚠️ Warning: Failed to deduct from vaccines table:`, updateError);
           }
+        } else {
+          console.warn(`⚠️ Warning: Vaccine record not found for ID: ${actualVaccineId}`);
         }
       } else {
         // No specific dose code - use the old logic (deduct from all doses)

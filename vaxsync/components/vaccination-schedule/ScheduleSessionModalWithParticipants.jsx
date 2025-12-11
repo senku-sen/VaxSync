@@ -279,6 +279,30 @@ export default function ScheduleSessionModalWithParticipants({
 
   const hasDuplicates = getDuplicateVaccines();
 
+  // Check if all vaccines have valid targets (not exceeding available vials)
+  const isAllVaccinesValid = () => {
+    return formData.vaccines.every(vaccine => {
+      // Must have vaccine_id and target
+      if (!vaccine.vaccine_id || !vaccine.target) return false;
+      
+      // Find vaccine in inventory - try both by id and by vaccine_id
+      const vaccineInfo = vaccinesWithInventory.find(v => 
+        v.id === vaccine.vaccine_id || v.vaccine_id === vaccine.vaccine_id
+      );
+      
+      const target = parseInt(vaccine.target) || 0;
+      const availableVials = vaccineInfo?.availableQuantity || 0;
+      
+      // If we found vaccine info, check target doesn't exceed available
+      // If we didn't find it, allow it (might be loading)
+      if (vaccineInfo) {
+        return target <= availableVials;
+      }
+      
+      return true; // Allow if vaccine info not yet loaded
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[95vh] overflow-y-auto">
@@ -576,8 +600,9 @@ export default function ScheduleSessionModalWithParticipants({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || hasDuplicates}
+                disabled={isSubmitting || hasDuplicates || !isAllVaccinesValid()}
                 className="flex-1 px-4 py-2.5 bg-[#4A7C59] hover:bg-[#3E6B4D] text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                title={!isAllVaccinesValid() ? "Target exceeds available vials for one or more vaccines" : ""}
               >
                 Next: Select Participants
               </button>

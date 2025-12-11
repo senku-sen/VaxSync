@@ -165,15 +165,36 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     console.log('🔴 FIFO Deducting vaccine from inventory:', { barangayId, vaccineId, quantityToDeduct });
 
     // Get vaccine name to look up doses per vial
-    const { data: vaccineData } = await supabase
+    const { data: vaccineData, error: vaccineError } = await supabase
       .from('vaccines')
       .select('name')
       .eq('id', vaccineId)
       .single();
 
+    if (vaccineError) {
+      console.error('❌ Error fetching vaccine name:', vaccineError);
+    }
+
     const vaccineName = vaccineData?.name || '';
-    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
-    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+    let dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName];
+    
+    // If not found, try case-insensitive match
+    if (!dosesPerVial) {
+      const lowerName = vaccineName.toLowerCase();
+      const matchedKey = Object.keys(VACCINE_VIAL_MAPPING).find(key => key.toLowerCase() === lowerName);
+      dosesPerVial = matchedKey ? VACCINE_VIAL_MAPPING[matchedKey] : 1;
+      
+      if (matchedKey) {
+        console.log(`📊 Case-insensitive match found: "${vaccineName}" → "${matchedKey}"`);
+      }
+    }
+    
+    console.log(`📊 Vaccine: "${vaccineName}", Doses per vial: ${dosesPerVial}`);
+    console.log(`📊 Available mappings:`, Object.keys(VACCINE_VIAL_MAPPING));
+    
+    if (!VACCINE_VIAL_MAPPING[vaccineName] && dosesPerVial === 1) {
+      console.warn(`⚠️ WARNING: Vaccine name "${vaccineName}" not found in mapping. Using default 1 dose/vial`);
+    }
 
     // Find all vaccine_doses for this vaccine
     // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
@@ -193,24 +214,32 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
     // Use admin client if available to bypass RLS
     const fetchClient = supabaseAdmin || supabase;
-    const { data: inventory, error: fetchError } = await fetchClient
-      .from('barangay_vaccine_inventory')
-      .select('id, quantity_vial, quantity_dose, batch_number, created_at')
-      .eq('barangay_id', barangayId)
-      .in('vaccine_id', vaccineDoseIds)
-      .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
-      .order('id', { ascending: true });  // Secondary sort by ID for consistency
+    
+    // Try to fetch inventory for each vaccine_dose separately to handle multi-dose vaccines like MMR
+    let inventory = [];
+    for (const dosId of vaccineDoseIds) {
+      const { data: doseInventory, error: doseError } = await fetchClient
+        .from('barangay_vaccine_inventory')
+        .select('id, quantity_vial, quantity_dose, batch_number, created_at')
+        .eq('barangay_id', barangayId)
+        .eq('vaccine_id', dosId)
+        .order('created_at', { ascending: true });  // ✅ FIFO - oldest first
 
-    if (fetchError) {
-      console.error('❌ Error fetching inventory:', fetchError);
-      console.error('   Error details:', JSON.stringify(fetchError, null, 2));
-      return { success: false, error: fetchError, deductedRecords: [] };
+      if (!doseError && doseInventory && doseInventory.length > 0) {
+        inventory = inventory.concat(doseInventory);
+        console.log(`  Found ${doseInventory.length} inventory record(s) for vaccine_dose ${dosId}`);
+      } else if (doseError) {
+        console.warn(`  ⚠️ No inventory found for vaccine_dose ${dosId}:`, doseError?.message);
+      }
     }
 
     if (!inventory || inventory.length === 0) {
       console.error('❌ No inventory records found for:', { barangayId, vaccineId, vaccineDoseIds });
       return { success: false, error: 'Inventory not found', deductedRecords: [] };
     }
+
+    // Sort all inventory records by created_at for FIFO
+    inventory.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     console.log(`Found ${inventory.length} inventory record(s) for FIFO deduction:`, 
       inventory.map(i => ({ id: i.id, quantity_vial: i.quantity_vial, batch: i.batch_number }))
@@ -327,20 +356,36 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
     }
 
     const vaccineName = dosesData.vaccine?.name || '';
-    const dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName] || 1;
-    console.log(`📊 Vaccine: ${vaccineName}, Doses per vial: ${dosesPerVial}`);
+    let dosesPerVial = VACCINE_VIAL_MAPPING[vaccineName];
+    
+    // If not found, try case-insensitive match
+    if (!dosesPerVial) {
+      const lowerName = vaccineName.toLowerCase();
+      const matchedKey = Object.keys(VACCINE_VIAL_MAPPING).find(key => key.toLowerCase() === lowerName);
+      dosesPerVial = matchedKey ? VACCINE_VIAL_MAPPING[matchedKey] : 1;
+      
+      if (matchedKey) {
+        console.log(`📊 Case-insensitive match found: "${vaccineName}" → "${matchedKey}"`);
+      }
+    }
+    
+    console.log(`📊 Vaccine: "${vaccineName}", Doses per vial: ${dosesPerVial}`);
+    
+    if (!VACCINE_VIAL_MAPPING[vaccineName] && dosesPerVial === 1) {
+      console.warn(`⚠️ WARNING: Vaccine name "${vaccineName}" not found in mapping. Using default 1 dose/vial`);
+    }
 
     // vaccineId is already vaccine_doses.id, so we can use it directly
     // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
     const vaccineDoseIds = [vaccineId];  // Already have the vaccine_doses.id
     console.log('Vaccine dose IDs:', vaccineDoseIds);
 
-    // Get ALL inventory records for any of these vaccine_doses in this barangay - FIFO (oldest first)
+    // Get ALL inventory records for this vaccine_dose in this barangay - FIFO (oldest first)
     const { data: inventory, error: fetchError } = await supabase
       .from('barangay_vaccine_inventory')
       .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
-      .in('vaccine_id', vaccineDoseIds)
+      .eq('vaccine_id', vaccineId)  // Use single vaccine_dose ID directly
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
       .order('id', { ascending: true });  // Secondary sort by ID for consistency
 
@@ -796,8 +841,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
     const { error: updateVaccineError } = await client
       .from('vaccines')
       .update({
-        quantity_available: newVaccineQuantity,
-        updated_at: new Date().toISOString()
+        quantity_available: newVaccineQuantity
       })
       .eq('id', vaccineId)
       .select();

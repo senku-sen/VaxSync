@@ -161,8 +161,11 @@ export const createVaccinationSession = async (sessionData) => {
         error: apiResult.error,
         deductedRecords: apiResult.deductedRecords || []
       };
+      
+      console.log('✅ API deduction result:', deductResult);
     } catch (apiError) {
       console.error('❌ Error calling deduction API:', apiError);
+      console.error('   Falling back to direct deduction...');
       // Fallback to direct call (may fail due to RLS)
       deductResult = await deductBarangayVaccineInventory(
         sessionData.barangay_id,
@@ -733,9 +736,13 @@ export const updateSessionStatus = async (sessionId, status) => {
       }
     }
 
+    // Only return session data if there are unused vials/doses
+    // If all doses were administered (no remaining), don't return the data
+    const hasRemaining = session.target > (session.administered || 0);
+    
     return {
       success: true,
-      data: data?.[0] || null,
+      data: hasRemaining ? (data?.[0] || null) : null,
       error: null
     };
   } catch (err) {
