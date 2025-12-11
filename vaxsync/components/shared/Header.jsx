@@ -14,20 +14,17 @@ import { supabase } from "@/lib/supabase";
 import { OfflineIndicator } from "@/components/OfflineStatusBanner";
 import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
-  fetchVaccineRequestNotifications,
-  fetchResidentApprovalNotifications,
-  fetchVaccinationSessionNotifications,
-  fetchLowStockNotifications,
   subscribeToVaccineRequestUpdates,
   subscribeToResidentUpdates,
   subscribeToVaccinationSessionUpdates,
   subscribeToInventoryUpdates,
 } from "@/lib/notification";
+import { getNotificationStatus } from "@/lib/notificationStatus";
 
 export default function InventoryHeader({ title, subtitle }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [notificationCount, setNotificationCount] = useState(0);
+  const [hasUnread, setHasUnread] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);
   const [barangayId, setBarangayId] = useState(null);
@@ -56,24 +53,11 @@ export default function InventoryHeader({ title, subtitle }) {
     // Initial fetch
     fetchNotificationCount();
 
-    // Listen for localStorage changes from notification pages
-    const handleStorageChange = (e) => {
-      if (e.key === 'headNurseNotifications' || e.key === 'healthWorkerNotifications') {
-        console.log("🔔 localStorage change detected, updating notification count");
-        fetchNotificationCount();
-      }
-    };
-
-    // Also listen for custom event when notifications are updated within the same tab
+    // Listen for custom event when notifications are updated within the same tab
     const handleNotificationUpdate = () => {
-      console.log("🔔 Custom notification update event received - forcing fresh count");
-      // Defer to avoid setState during render
-      setTimeout(() => {
-        fetchNotificationCount();
-      }, 0);
+      fetchNotificationCount();
     };
 
-    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('notificationUpdate', handleNotificationUpdate);
 
     // Subscribe to real-time Supabase updates for instant notifications
@@ -111,7 +95,6 @@ const isSupervisor =
     });
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('notificationUpdate', handleNotificationUpdate);
       if (unsubscribeVaccine) unsubscribeVaccine();
       if (unsubscribeSessions) unsubscribeSessions();
@@ -121,104 +104,14 @@ const isSupervisor =
 
   const fetchNotificationCount = async () => {
     try {
-      let unreadCount = 0;
-
-      // Normalize role (support both spaced and underscored variants)
-      const rawRole = userRole || "";
-      const normalizedRole = rawRole.replace(/\s+/g, "_");
-
-      const isSupervisor =
-        normalizedRole === "Head_Nurse" ||
-        normalizedRole === "Rural_Health_Midwife" ||
-        normalizedRole === "Rural_Health_Midwife_(RHM)" ||
-        rawRole === "Rural Health Midwife (RHM)";
-
-      // Determine cache key based on role
-      // Support both spaced and underscored role names
-      const cacheKey = isSupervisor ? "headNurseNotifications" : "healthWorkerNotifications";
-
-      // Get cached read/archived status from localStorage
-      let cachedMap = {};
-      let cachedNotifications = [];
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          cachedNotifications = JSON.parse(cached);
-          cachedMap = Object.fromEntries(
-            cachedNotifications.map((n) => [n.id, { read: n.read, archived: n.archived }])
-          );
-        }
-      } catch (e) {
-        // Ignore cache errors
-      }
-
-      // Count unread from cached notifications (faster, more reliable)
-      // but don't set state from cache; always compute final count from fresh fetch.
-      const cachedUnreadCount = cachedNotifications.filter(
-        (n) => !n.read && !n.archived
-      ).length;
-
-      // Fetch fresh data every time to avoid stale badge
-      const residentPromise = fetchResidentApprovalNotifications(userId).catch(
-        () => ({ data: [] })
+      const statusMap = await getNotificationStatus(userId).catch(() => ({}));
+      const anyUnread = Object.values(statusMap).some(
+        (s) => s && s.read === false && s.archived === false
       );
-
-      // For supervisors, see ALL vaccine requests + ALL sessions.
-      // For front-line users, see only their own requests/sessions.
-      const vaccinePromise = isSupervisor
-        ? fetchVaccineRequestNotifications(null).catch(() => ({ data: [] }))
-        : fetchVaccineRequestNotifications(userId).catch(() => ({ data: [] }));
-
-      const sessionPromise = isSupervisor
-        ? fetchVaccinationSessionNotifications(userId, null, true).catch(
-            () => ({ data: [] })
-          )
-        : fetchVaccinationSessionNotifications(userId, barangayId, false).catch(
-            () => ({ data: [] })
-          );
-
-      // Also fetch low stock notifications (UNDERSTOCK < 100% or STOCKOUT = 0%)
-      const lowStockPromise = fetchLowStockNotifications(100).catch(() => ({ data: [] }));
-
-      const [residentNotifs, vaccineNotifs, sessionNotifs, lowStockNotifs] = await Promise.all([
-        residentPromise,
-        vaccinePromise,
-        sessionPromise,
-        lowStockPromise,
-      ]);
-
-      // Count unread notifications: those NOT marked as read AND NOT archived
-      const residentUnread = (residentNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
-
-      const vaccineUnread = (vaccineNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
-
-      const sessionUnread = (sessionNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
-
-      const lowStockUnread = (lowStockNotifs.data || []).filter(
-        (n) => !cachedMap[n.id]?.read && !cachedMap[n.id]?.archived
-      ).length;
-
-      unreadCount = residentUnread + vaccineUnread + sessionUnread + lowStockUnread;
-
-      console.log('🔔 Notification count calculated:', {
-        residentUnread,
-        vaccineUnread,
-        sessionUnread,
-        lowStockUnread,
-        total: unreadCount,
-        cachedCount: cachedUnreadCount
-      });
-
-      setNotificationCount(unreadCount);
+      setHasUnread(anyUnread);
     } catch (err) {
-      // On error, just hide the badge
-      setNotificationCount(0);
+      // On error, hide the badge
+      setHasUnread(false);
     }
   };
 
@@ -303,22 +196,14 @@ const isSupervisor =
         <div
           className="relative cursor-pointer"
           onClick={handleNotificationClick}
-          title={`Unread notifications: ${notificationCount}`}
+          title="Notifications"
         >
           <Bell className="h-5 w-5 text-gray-700 hover:text-gray-900 transition-colors" />
-          {notificationCount > 0 && (
-            <span 
-              className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 border-2 border-white shadow-lg z-10 flex items-center justify-center"
-              aria-label={`${notificationCount} unread notifications`}
-            >
-              {notificationCount > 9 ? (
-                <span className="text-[9px] font-bold text-white leading-none">9+</span>
-              ) : (
-                <span className="text-[9px] font-bold text-white leading-none">
-                  {notificationCount}
-                </span>
-              )}
-            </span>
+          {hasUnread && (
+            <div
+              className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-white shadow-lg z-10"
+              aria-label="Unread notifications"
+            />
           )}
         </div>
         <DropdownMenu>
