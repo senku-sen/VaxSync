@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { supabaseAdmin } from "./supabaseAdmin";
 import { addBarangayVaccineInventory, updateBarangayVaccineInventory, deductMainVaccineInventory } from "./BarangayVaccineInventory";
-import { VACCINE_VIAL_MAPPING } from "./VaccineVialMapping";
+import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
 
 /**
  * When a vaccine request is approved, transfer vaccines from source to destination barangay

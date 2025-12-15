@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";

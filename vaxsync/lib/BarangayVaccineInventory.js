@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { supabaseAdmin } from "./supabaseAdmin";
-import { VACCINE_VIAL_MAPPING } from "./VaccineVialMapping";
+import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
 
 /**
  * Fetch barangay vaccine inventory

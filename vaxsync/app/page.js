@@ -1,11 +1,11 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import Hero from "@/components/landing/Hero"
-import Features from "@/components/landing/Features"
-import Tutorial from "@/components/landing/Tutorial"
-import CTA from "@/components/landing/Cta"
-import Navigation from "@/components/landing/Navigation"
+import Hero from "@/components/landing/hero"
+import Features from "@/components/landing/features"
+import Tutorial from "@/components/landing/tutorial"
+import CTA from "@/components/landing/cta"
+import Navigation from "@/components/landing/navigation"
 
 export default function Home() {
   const router = useRouter()

@@ -21,7 +21,7 @@ import {
   loadVaccinesData,
   deleteVaccineRequestData,
   createVaccineRequestData,
-} from "@/lib/VaccineRequest";
+} from "@/lib/vaccineRequest";
 
 export default function VaccinationRequest() {
   const title = "Vaccine Requisition Requests";

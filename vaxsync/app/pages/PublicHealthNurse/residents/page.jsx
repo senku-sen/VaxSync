@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest"; 
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import ResidentsTableView from "../../../../components/ResidentsTableView";
@@ -36,7 +36,7 @@ import UploadMasterListModal from "../../../../components/UploadMasterListModal"
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
 import AddResidentWizard from "../../../../components/AddResidentWizard/AddResidentWizard";
 import Pagination from "../../../../components/shared/Pagination";
-import { useOfflineResidents } from "@/hooks/UseOfflineResidents";
+import { useOfflineResidents } from "@/hooks/useOfflineResidents";
 import { useOffline } from "@/components/OfflineProvider";
 import { supabase } from "@/lib/supabase";
 

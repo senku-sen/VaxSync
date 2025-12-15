@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DeleteConfirm from "@/components/inventory/DeleteConfirm";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 import { useOffline } from "@/components/OfflineProvider";
 import { cacheData, getCachedData } from "@/lib/offlineStorage";
 import { queueOperation } from "@/lib/syncManager";

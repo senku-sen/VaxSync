@@ -7,7 +7,7 @@
 
 import { supabase } from "./supabase";
 import { deductBarangayVaccineInventory } from "./BarangayVaccineInventory";
-import { getDosesPerVial } from "./VaccineVialMapping";
+import { getDosesPerVial } from "./vaccineVialMapping";
 import { createInventoryChangeNotification } from "./notification";
 
 /**
@@ -617,7 +617,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       });
       console.log('🟢 Processing inventory for', status, 'session...');
       
-      const { releaseBarangayVaccineReservation, addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./barangayVaccineInventory.js');
+      const { releaseBarangayVaccineReservation, addBackBarangayVaccineInventory, addMainVaccineInventory } = await import('./BarangayVaccineInventory.js');
       const { getDosesPerVial } = await import('./vaccineVialMapping.js');
       
       // Calculate unused vials (target - administered)
@@ -725,7 +725,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       console.log('🟢 Releasing reserved vaccine vials...');
       const releaseResult = await releaseBarangayVaccineReservation(
         session.barangay_id,
-        session.vaccine_id,  // ✅ FIXED: Pass barangay_vaccine_inventory.id (not vaccine_doses.id)
+        session.vaccine_id,  // Pass barangay_vaccine_inventory.id (not vaccine_doses.id)
         unusedVials  // Pass vials, not doses
       );
 
@@ -877,12 +877,12 @@ export const deleteVaccinationSession = async (sessionId) => {
         console.log('🟢 Restoring ALL vials to inventory:', totalVialsToRestore);
         
         // Import functions dynamically to avoid circular dependencies
-        const { addBackBarangayVaccineInventory, addMainVaccineInventory, releaseBarangayVaccineReservation } = await import('./barangayVaccineInventory.js');
+        const { addBackBarangayVaccineInventory, addMainVaccineInventory, releaseBarangayVaccineReservation } = await import('./BarangayVaccineInventory.js');
         
         // Add back to barangay inventory (using vaccine_doses.id)
         const addBackResult = await addBackBarangayVaccineInventory(
           session.barangay_id,
-          vaccineDoseId,  // ✅ FIXED: Pass vaccine_doses.id, not vaccines.id
+          vaccineDoseId,  // Pass vaccine_doses.id, not vaccines.id
           totalVialsToRestore  // Pass vials, not doses
         );
 

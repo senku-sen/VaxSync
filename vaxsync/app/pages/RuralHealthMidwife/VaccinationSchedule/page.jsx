@@ -19,11 +19,11 @@ import SearchBar from "../../../../components/shared/SearchBar";
 import SessionsContainer from "../../../../components/VaccinationSchedule/SessionsContainer";
 import SessionPerformanceCards from "../../../../components/VaccinationSchedule/SessionPerformanceCards";
 import SessionParticipantsMonitor from "../../../../components/VaccinationSchedule/SessionParticipantsMonitor";
-import { addBeneficiariesToSession } from "@/lib/SessionBeneficiaries";
+import { addBeneficiariesToSession } from "@/lib/sessionBeneficiaries";
 import { Plus, Calendar, Filter, X } from "lucide-react";
 import { useState, useEffect } from "react";
-import { loadUserProfile } from "@/lib/VaccineRequest";
-import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/VaccineVialMapping";
+import { loadUserProfile } from "@/lib/vaccineRequest";
+import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/vaccineVialMapping";
 import {
   createVaccinationSession,
   fetchVaccinationSessions,
@@ -33,8 +33,15 @@ import {
   updateVaccinationSession,
   updateSessionAdministered,
   updateSessionStatus
-} from "@/lib/VaccinationSession";
-import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, addMainVaccineInventory, deductMainVaccineInventory, reserveBarangayVaccineInventory, releaseBarangayVaccineReservation } from "@/lib/BarangayVaccineInventory";
+} from "@/lib/vaccinationSession";
+import {
+  deductBarangayVaccineInventory,
+  addBackBarangayVaccineInventory,
+  addMainVaccineInventory,
+  deductMainVaccineInventory,
+  reserveBarangayVaccineInventory,
+  releaseBarangayVaccineReservation
+} from "@/lib/BarangayVaccineInventory";
 
 export default function VaccinationSchedule() {
   // Modal visibility state

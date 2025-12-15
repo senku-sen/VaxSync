@@ -17,10 +17,15 @@ import {
   updateResidentVaccineStatus,
   removeVaccineFromResident,
   addMissedVaccineToResident
-} from "@/lib/SessionBeneficiaries";
-import { updateSessionAdministered } from "@/lib/VaccinationSession";
-import { deductBarangayVaccineInventory, addBackBarangayVaccineInventory, deductMainVaccineInventory, addMainVaccineInventory } from "@/lib/BarangayVaccineInventory";
-import { updateMonthlyReportOutCount } from "@/lib/VaccineMonthlyReport";
+} from "@/lib/sessionBeneficiaries";
+import { updateSessionAdministered } from "@/lib/vaccinationSession";
+import {
+  deductBarangayVaccineInventory,
+  addBackBarangayVaccineInventory,
+  deductMainVaccineInventory,
+  addMainVaccineInventory
+} from "@/lib/BarangayVaccineInventory";
+import { updateMonthlyReportOutCount } from "@/lib/vaccineMonthlyReport";
 import AddParticipantsModal from "./AddParticipantsModal";
 
 export default function SessionParticipantsMonitor({

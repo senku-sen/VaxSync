@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { useOfflineApi } from './UseOfflineApi';
+import { useOfflineApi } from './useOfflineApi';
 import { useOffline } from '@/components/OfflineProvider';
 import { cacheData, getCachedData } from '@/lib/offlineStorage';
 

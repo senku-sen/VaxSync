@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { useOnlineStatus } from '@/hooks/UseOnlineStatus';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { 
   subscribeSyncStatus, 
   getSyncStatus, 

@@ -14,8 +14,8 @@ import Header from "../../../../components/shared/Header";
 import BarangayCard from "@/components/BarangayManagement/BarangayCard";
 import BarangayForm from "@/components/BarangayManagement/BarangayForm";
 import DeleteConfirmDialog from "@/components/BarangayManagement/DeleteConfirmDialog";
-import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '@/lib/Barangay';
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { fetchBarangays, insertBarangay, updateBarangay, deleteBarangay } from '@/lib/barangay';
+import { loadUserProfile } from "@/lib/vaccineRequest";
 import { useOffline } from "@/components/OfflineProvider";
 import { queueOperation } from "@/lib/syncManager";
 import { generateTempId, cacheData, getCachedData } from "@/lib/offlineStorage";
@@ -24,10 +24,10 @@ import { toast } from "sonner";
 const BARANGAYS_CACHE_KEY = 'barangays_list';
 
 // PAGE COMPONENT: Handles UI rendering and state management
-export default function BarangayManagement({
-  title = "Barangay Management",
-  subtitle = "Register and manage barangays for health worker assignment",
-}) {
+export default function BarangayManagement() {
+  const title = "Barangay Management";
+  const subtitle = "Register and manage barangays for health worker assignment";
+
   // ========== STATE MANAGEMENT ==========
   const [barangays, setBarangays] = useState([]);
   const [isLoading, setIsLoading] = useState(false);

@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Plus, Check, AlertCircle } from "lucide-react";
-import { getAvailableResidentsForSession, addBeneficiariesToSession } from "@/lib/SessionBeneficiaries";
+import { getAvailableResidentsForSession, addBeneficiariesToSession } from "@/lib/sessionBeneficiaries";
 
 export default function AddParticipantsModal({
   isOpen,

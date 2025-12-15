@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle, Plus, Trash2, Users, Search } from "lucide-react";
-import { validateVaccineForSchedule } from "@/lib/VaccineRequestValidation";
+import { validateVaccineForSchedule } from "@/lib/vaccineRequestValidation";
 import { fetchBarangayVaccineInventory } from "@/lib/BarangayVaccineInventory";
 import { supabase } from "@/lib/supabase";
 

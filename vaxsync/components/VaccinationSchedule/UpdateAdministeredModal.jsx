@@ -12,9 +12,9 @@ import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle, Camera, Users } from "lucide-react";
 import PhotoUploadModal from "./PhotoUploadModal";
 import PhotoGallery from "./PhotoGallery";
-import { fetchSessionPhotos } from "@/lib/SessionPhotos";
-import { loadUserProfile } from "@/lib/VaccineRequest";
-import { fetchSessionBeneficiaries, updateMultipleBeneficiaries } from "@/lib/SessionBeneficiaries";
+import { fetchSessionPhotos } from "@/lib/sessionPhotos";
+import { loadUserProfile } from "@/lib/vaccineRequest";
+import { fetchSessionBeneficiaries, updateMultipleBeneficiaries } from "@/lib/sessionBeneficiaries";
 
 export default function UpdateAdministeredModal({
   isOpen,

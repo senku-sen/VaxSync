@@ -18,14 +18,14 @@ import SessionsContainer from "../../../../components/VaccinationSchedule/Sessio
 import SessionPerformanceCards from "../../../../components/VaccinationSchedule/SessionPerformanceCards";
 import { Plus, Calendar, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
   createVaccinationSession,
   fetchAllVaccinationSessions,
   fetchVaccinesForSession,
   getVaccineName,
   updateSessionAdministered
-} from "@/lib/VaccinationSession";
+} from "@/lib/vaccinationSession";
 import { deductBarangayVaccineInventory } from "@/lib/BarangayVaccineInventory";
 import { supabase } from "@/lib/supabase";
 import SessionParticipantsMonitor from "../../../../components/VaccinationSchedule/SessionParticipantsMonitor";

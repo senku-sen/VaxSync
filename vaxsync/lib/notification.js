@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { getMaxAllocation, calculateStockPercentage } from "./VaccineMonthlyReport";
+import { getMaxAllocation, calculateStockPercentage } from "./vaccineMonthlyReport";
 
 /**
  * Fetch vaccine request notifications for health worker

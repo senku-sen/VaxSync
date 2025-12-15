@@ -4,6 +4,7 @@ import { Bell, LogOut, User, Settings, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabase";
 import { OfflineIndicator } from "@/components/OfflineStatusBanner";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 import {
   fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,
@@ -23,11 +24,12 @@ import {
   subscribeToVaccinationSessionUpdates,
   subscribeToInventoryUpdates,
 } from "@/lib/notification";
-import { getNotificationStatus } from "@/lib/NotificationStatus";
+import { getNotificationStatus } from "@/lib/notificationStatus";
 
 export default function InventoryHeader({ title, subtitle }) {
   const router = useRouter();
   const pathname = usePathname();
+
   const [hasUnread, setHasUnread] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [userId, setUserId] = useState(null);

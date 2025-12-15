@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
-import { useAuth, AuthLoading } from '@/hooks/UseAuth';
+import { useAuth, AuthLoading } from '@/hooks/useAuth';
 
 export default function Page() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();

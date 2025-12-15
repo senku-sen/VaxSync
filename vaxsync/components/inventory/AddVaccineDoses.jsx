@@ -13,7 +13,7 @@ import { useState, useEffect } from "react";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { createVaccine, updateVaccine } from "@/lib/vaccine";
 import { createVaccineDoses } from "@/lib/VaccineDosingFunctions";
-import { createMonthlyReportEntryForVaccine } from "@/lib/VaccineMonthlyReport";
+import { createMonthlyReportEntryForVaccine } from "@/lib/vaccineMonthlyReport";
 import { VACCINE_DOSING_SCHEDULE } from "@/lib/VaccineDosingSchedule";
 import { useOffline } from "@/components/OfflineProvider";
 import { queueOperation } from "@/lib/syncManager";

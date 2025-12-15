@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
-import { getUserProfile } from "./AccAuth";
+import { getUserProfile } from "./accAuth";
 import { fetchVaccines } from "./vaccine";
-import { addApprovedRequestToInventory } from "./VaccineRequestToInventory";
+import { addApprovedRequestToInventory } from "./vaccineRequestToInventory";
 
 /**
  * Fetch and validate user profile from localStorage and Supabase

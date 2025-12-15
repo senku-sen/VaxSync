@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle } from "lucide-react";
-import { validateVaccineForRequest } from "@/lib/VaccineRequestValidation";
+import { validateVaccineForRequest } from "@/lib/vaccineRequestValidation";
 import { getBarangayVaccineTotal } from "@/lib/BarangayVaccineInventory";
 
 export default function VaccineRequestModal({ 

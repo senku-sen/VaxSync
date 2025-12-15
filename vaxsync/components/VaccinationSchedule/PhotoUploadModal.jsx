@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Upload, X, AlertCircle, CheckCircle } from "lucide-react";
-import { uploadSessionPhoto } from "@/lib/SessionPhotos";
+import { uploadSessionPhoto } from "@/lib/sessionPhotos";
 
 const PHOTO_TYPES = [
   { value: "setup", label: "Setup & Preparation" },

@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { getDosesPerVial } from "./VaccineVialMapping";
+import { getDosesPerVial } from "./vaccineVialMapping";
 
 /**
  * Cache for monthly reports to avoid recalculation

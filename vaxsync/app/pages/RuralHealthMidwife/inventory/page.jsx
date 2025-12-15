@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { fetchBarangayVaccineInventory } from "@/lib/BarangayVaccineInventory";
-import { loadUserProfile } from "@/lib/VaccineRequest";
+import { loadUserProfile } from "@/lib/vaccineRequest";
 
 export default function Inventory() {
   const title = "Inventory Management";

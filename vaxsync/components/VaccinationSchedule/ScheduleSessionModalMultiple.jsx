@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle, Plus, Trash2 } from "lucide-react";
-import { validateVaccineForSchedule } from "@/lib/VaccineRequestValidation";
+import { validateVaccineForSchedule } from "@/lib/vaccineRequestValidation";
 import { fetchBarangayVaccineInventory } from "@/lib/BarangayVaccineInventory";
 
 export default function ScheduleSessionModal({

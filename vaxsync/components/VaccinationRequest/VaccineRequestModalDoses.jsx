@@ -13,8 +13,8 @@ import { useState, useEffect } from "react";
 import { X, AlertCircle, CheckCircle, Plus, Trash2 } from "lucide-react";
 import { getAllAvailableDoses, getDoseInfo } from "@/lib/VaccineDosingSchedule";
 import { getDoseByCode } from "@/lib/VaccineDosingFunctions";
-import { createVaccineRequest } from "@/lib/VaccineRequest";
-import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/VaccineVialMapping";
+import { createVaccineRequest } from "@/lib/vaccineRequest";
+import { calculateVialsNeeded, VACCINE_VIAL_MAPPING } from "@/lib/vaccineVialMapping";
 import { supabase } from "@/lib/supabase";
 
 export default function VaccineRequestModalDoses({

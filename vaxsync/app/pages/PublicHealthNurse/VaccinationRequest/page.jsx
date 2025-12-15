@@ -20,7 +20,7 @@ import {
   loadVaccinesData,
   deleteVaccineRequestData,
   updateVaccineRequestStatus,
-} from "@/lib/VaccineRequest";
+} from "@/lib/vaccineRequest";
 import VaccineSummaryCards from "../../../../components/VaccinationRequest/VaccineSummaryCards";
 
 export default function VaccinationRequest() {

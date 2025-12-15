@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { deleteSessionPhoto } from "@/lib/SessionPhotos";
+import { deleteSessionPhoto } from "@/lib/sessionPhotos";
 
 const PHOTO_TYPE_LABELS = {
   setup: "Setup & Preparation",
