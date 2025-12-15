@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
-import { getUserProfile } from "./accAuth";
+import { getUserProfile } from "./AccAuth";
 import { fetchVaccines } from "./vaccine";
-import { addApprovedRequestToInventory } from "./vaccineRequestToInventory";
+import { addApprovedRequestToInventory } from "./VaccineRequestToInventory";
 
 /**
  * Fetch and validate user profile from localStorage and Supabase
@@ -66,7 +66,7 @@ export async function fetchVaccineRequests(options = {}) {
   console.log('fetchVaccineRequests called with options:', options);
 
   let query = supabase
-    .from("vaccine_requests")
+    .from("VaccineRequests")
     .select("*, barangays(id, name, municipality)")
     .order("created_at", { ascending: false });
 
@@ -93,7 +93,7 @@ export async function fetchVaccineRequests(options = {}) {
     console.warn('requested_by column not found, trying alternative query...');
     // Return all requests for now - they'll be filtered client-side if needed
     const { data: allData, error: altError } = await supabase
-      .from("vaccine_requests")
+      .from("VaccineRequests")
       .select("*, barangays(id, name, municipality)")
       .order("created_at", { ascending: false });
     return { data: allData || [], error: altError };
@@ -187,7 +187,7 @@ export async function createVaccineRequest(request) {
   console.log('Final request data to insert:', requestData);
 
   const { data, error } = await supabase
-    .from("vaccine_requests")
+    .from("VaccineRequests")
     .insert([requestData])
     .select();
 
@@ -208,7 +208,7 @@ export async function createVaccineRequest(request) {
  */
 export async function updateVaccineRequest(id, updates) {
   const { data, error } = await supabase
-    .from("vaccine_requests")
+    .from("VaccineRequests")
     .update(updates)
     .eq("id", id)
     .select()
@@ -277,7 +277,7 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
       // For now, we'll use the barangay from the request as source (where vaccines are stored)
       // In a real system, you might have a "central" barangay designated
       const { data: sourceBarangay, error: sourceError } = await supabase
-        .from('barangays')
+        .from('Barangays')
         .select('id')
         .order('created_at', { ascending: true })
         .limit(1)
@@ -349,7 +349,7 @@ export const updateVaccineRequestData = async (requestId, updates) => {
  */
 export async function deleteVaccineRequest(id) {
   const { data, error } = await supabase
-    .from("vaccine_requests")
+    .from("VaccineRequests")
     .delete()
     .eq("id", id);
 

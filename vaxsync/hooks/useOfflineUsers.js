@@ -35,7 +35,7 @@ export function useOfflineUsers() {
         const { supabase } = await import('@/lib/supabase');
         
         const { data: userData, error: fetchError } = await supabase
-          .from("user_profiles")
+          .from("UserProfiles")
           .select(
             "id, first_name, last_name, email, user_role, address, assigned_barangay_id, date_of_birth, sex, created_at"
           )

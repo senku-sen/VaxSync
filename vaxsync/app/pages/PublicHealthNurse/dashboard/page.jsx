@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
-import { useAuth, AuthLoading } from '@/hooks/useAuth';
+import { useAuth, AuthLoading } from '@/hooks/UseAuth';
 
 export default function Page() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -25,13 +25,13 @@ export default function Page() {
         setError(null);
 
         // Get ALL vaccination sessions (Health Worker sees all barangays)
-        const { data: sessions } = await supabase.from('vaccination_sessions').select('*');
+        const { data: sessions } = await supabase.from('VaccinationSessions').select('*');
 
-        const { data: barangays } = await supabase.from('barangays').select('*');
-        const { data: vaccineList } = await supabase.from('vaccines').select('id, name');
+        const { data: barangays } = await supabase.from('Barangays').select('*');
+        const { data: vaccineList } = await supabase.from('Vaccines').select('id, name');
 
         // Get ALL residents (Health Worker sees all)
-        const { data: residents } = await supabase.from('residents').select('*');
+        const { data: residents } = await supabase.from('Residents').select('*');
 
         // Calculate weekly data (last 7 days)
         const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

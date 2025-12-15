@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabase";
 import { OfflineIndicator } from "@/components/OfflineStatusBanner";
-import { loadUserProfile } from "@/lib/vaccineRequest";
+import { loadUserProfile } from "@/lib/VaccineRequest";
 import {
   fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,
@@ -23,7 +23,7 @@ import {
   subscribeToVaccinationSessionUpdates,
   subscribeToInventoryUpdates,
 } from "@/lib/notification";
-import { getNotificationStatus } from "@/lib/notificationStatus";
+import { getNotificationStatus } from "@/lib/NotificationStatus";
 
 export default function InventoryHeader({ title, subtitle }) {
   const router = useRouter();
@@ -247,8 +247,8 @@ const isSupervisor =
               className="flex items-center cursor-pointer"
               onClick={() => {
                 const settingsPath = userRole === "Public Health Nurse" 
-                  ? "/pages/PublicHealthNurse/settings-privacy" 
-                  : "/pages/RuralHealthMidwife/settings-privacy";
+                  ? "/pages/PublicHealthNurse/SettingsPrivacy" 
+                  : "/pages/RuralHealthMidwife/SettingsPrivacy";
                 router.push(settingsPath);
               }}
             >

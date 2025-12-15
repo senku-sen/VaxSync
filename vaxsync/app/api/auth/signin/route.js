@@ -36,7 +36,7 @@ export async function POST(req) {
 
     // Get user profile to retrieve role
     let { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
+      .from('UserProfiles')
       .select('first_name, last_name, user_role, address')
       .eq('id', authData.user.id)
       .single();
@@ -66,7 +66,7 @@ export async function POST(req) {
 
         // Create the missing profile
         const { error: createError } = await supabase
-          .from('user_profiles')
+          .from('UserProfiles')
           .insert({
             id: authData.user.id,
             first_name: profileData.first_name,

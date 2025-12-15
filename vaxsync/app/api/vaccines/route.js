@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { createVaccineDoses } from '@/lib/vaccineDosingFunctions';
+import { createVaccineDoses } from '@/lib/VaccineDosingFunctions';
 
 // GET - Fetch all vaccines
 export async function GET() {
   try {
     const { data, error } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('*')
       .order('name', { ascending: true });
 
@@ -47,7 +47,7 @@ export async function POST(request) {
 
     // Create vaccine
     const { data: vaccine, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .insert([{
         name: name.trim(),
         quantity_available: parseInt(quantity_available),
@@ -128,7 +128,7 @@ export async function PUT(request) {
     if (status !== undefined) updateData.status = status;
 
     const { data: vaccine, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -169,7 +169,7 @@ export async function DELETE(request) {
     }
 
     const { data, error } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .delete()
       .eq('id', id)
       .select()

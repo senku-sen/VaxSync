@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadUserProfile } from '@/lib/vaccineRequest';
-import { getNotificationStatus } from "@/lib/notificationStatus";
+import { loadUserProfile } from '@/lib/VaccineRequest';
+import { getNotificationStatus } from "@/lib/NotificationStatus";
 import {
   fetchVaccineRequestNotifications,
   fetchResidentApprovalNotifications,

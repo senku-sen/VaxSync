@@ -43,7 +43,7 @@ export async function GET(request) {
     // If searching by name, return just that barangay
     if (nameParam) {
       const { data, error } = await supabase
-        .from("barangays")
+        .from("Barangays")
         .select("id, name")
         .ilike("name", nameParam.trim())
 
@@ -60,7 +60,7 @@ export async function GET(request) {
 
     // Otherwise return all barangays
     const { data, error } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .select("id, name")
       .order("name", { ascending: true })
 
@@ -83,7 +83,7 @@ export async function GET(request) {
 
     if (missingNames.length > 0) {
       const { data: insertedBarangays, error: insertError } = await supabase
-        .from("barangays")
+        .from("Barangays")
         .insert(
           missingNames.map((name) => ({
             name,
@@ -146,7 +146,7 @@ export async function POST(request) {
     }
 
     const { data, error } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .insert([{
         name: name.trim(),
         municipality: municipality.trim(),
@@ -203,7 +203,7 @@ export async function PUT(request) {
     if (population !== undefined) updateData.population = population
 
     const { data, error } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .update(updateData)
       .eq("id", id)
       .select()
@@ -252,7 +252,7 @@ export async function DELETE(request) {
     }
 
     const { data, error } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .delete()
       .eq("id", id)
       .select()

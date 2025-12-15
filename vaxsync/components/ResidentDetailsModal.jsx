@@ -2,7 +2,7 @@
 // RESIDENT DETAILS MODAL
 // ============================================
 // Modal for viewing complete resident information
-// Includes vaccines given, missed vaccines, and session dates
+// Includes Vaccines given, missed Vaccines, and session dates
 // ============================================
 
 "use client";
@@ -31,7 +31,7 @@ export default function ResidentDetailsModal({
     try {
       // Fetch session beneficiaries for this resident
       const { data: beneficiaries, error: beneficiariesError } = await supabase
-        .from('session_beneficiaries')
+        .from('SessionBeneficiaries')
         .select(`
           id,
           session_id,
@@ -39,7 +39,7 @@ export default function ResidentDetailsModal({
           attended,
           vaccinated,
           created_at,
-          vaccination_sessions (
+          VaccinationSessions (
             id,
             session_date,
             session_time,
@@ -47,11 +47,11 @@ export default function ResidentDetailsModal({
             target,
             administered,
             status,
-            barangay_vaccine_inventory (
+            BarangayVaccineInventory (
               vaccine_id,
-              vaccine_doses (
+              VaccineDoses (
                 vaccine_id,
-                vaccines (
+                Vaccines (
                   id,
                   name
                 )
@@ -68,7 +68,7 @@ export default function ResidentDetailsModal({
         return;
       }
 
-      // For custom vaccines (session_id = null), determine if it's a missed vaccine or already received
+      // For custom Vaccines (session_id = null), determine if it's a missed vaccine or already received
       const enrichedBeneficiaries = (beneficiaries || []).map((record) => {
         if (!record.session_id) {
           // This is a custom vaccine record
@@ -96,8 +96,8 @@ export default function ResidentDetailsModal({
     return null;
   }
 
-  // Parse vaccines given and missed vaccines
-  const vaccinesGiven = Array.isArray(resident.vaccines_given) ? resident.vaccines_given : [];
+  // Parse Vaccines given and missed Vaccines
+  const VaccinesGiven = Array.isArray(resident.Vaccines_given) ? resident.Vaccines_given : [];
   const missedVaccines = Array.isArray(resident.missed_schedule_of_vaccine) ? resident.missed_schedule_of_vaccine : [];
 
   // Get the most recent vaccination date from history
@@ -110,7 +110,7 @@ export default function ResidentDetailsModal({
     
     // Get the first one (since history is ordered by created_at descending)
     const mostRecent = vaccinatedRecords[0];
-    const sessionDate = mostRecent.vaccination_sessions?.session_date || mostRecent.created_at;
+    const sessionDate = mostRecent.VaccinationSessions?.session_date || mostRecent.created_at;
     return sessionDate;
   };
 
@@ -174,8 +174,8 @@ export default function ResidentDetailsModal({
                 {vaccineHistory
                   .filter(v => v.attended === true && v.vaccinated === true)
                   .map((record, index) => {
-                    const vaccineName = record.vaccination_sessions?.barangay_vaccine_inventory?.vaccine_doses?.vaccines?.name || record.vaccine_name || "Unknown Vaccine";
-                    const sessionDate = record.vaccination_sessions?.session_date || record.created_at;
+                    const vaccineName = record.VaccinationSessions?.BarangayVaccineInventory?.VaccineDoses?.Vaccines?.name || record.vaccine_name || "Unknown Vaccine";
+                    const sessionDate = record.VaccinationSessions?.session_date || record.created_at;
                     
                     return (
                       <div
@@ -197,11 +197,11 @@ export default function ResidentDetailsModal({
                     );
                   })}
               </div>
-            ) : vaccinesGiven.length > 0 ? (
+            ) : VaccinesGiven.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm text-gray-600 mb-3">Recorded vaccines:</p>
+                <p className="text-sm text-gray-600 mb-3">Recorded Vaccines:</p>
                 <div className="flex flex-wrap gap-2">
-                  {vaccinesGiven.map((vaccine, index) => (
+                  {VaccinesGiven.map((vaccine, index) => (
                     <span
                       key={index}
                       className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800"
@@ -212,7 +212,7 @@ export default function ResidentDetailsModal({
                 </div>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No vaccines received yet</p>
+              <p className="text-gray-500 text-sm">No Vaccines received yet</p>
             )}
           </div>
 
@@ -259,7 +259,7 @@ export default function ResidentDetailsModal({
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No missed vaccines</p>
+              <p className="text-gray-500 text-sm">No missed Vaccines</p>
             )}
           </div>
 
@@ -277,12 +277,12 @@ export default function ResidentDetailsModal({
             ) : vaccineHistory.length > 0 ? (
               <div className="space-y-3">
                 {vaccineHistory.map((record) => {
-                  // For custom vaccines (no session), show the date from beneficiary creation
+                  // For custom Vaccines (no session), show the date from beneficiary creation
                   const isCustom = record.isCustom || !record.session_id;
-                  const vaccineName = record.vaccination_sessions?.barangay_vaccine_inventory?.vaccine_doses?.vaccines?.name || record.vaccine_name || (isCustom ? "Custom Vaccine" : "Unknown Vaccine");
-                  const sessionDate = record.vaccination_sessions?.session_date || record.created_at;
-                  const sessionTime = record.vaccination_sessions?.session_time;
-                  const sessionStatus = record.vaccination_sessions?.status || (isCustom ? "Custom" : "Unknown");
+                  const vaccineName = record.VaccinationSessions?.BarangayVaccineInventory?.VaccineDoses?.Vaccines?.name || record.vaccine_name || (isCustom ? "Custom Vaccine" : "Unknown Vaccine");
+                  const sessionDate = record.VaccinationSessions?.session_date || record.created_at;
+                  const sessionTime = record.VaccinationSessions?.session_time;
+                  const sessionStatus = record.VaccinationSessions?.status || (isCustom ? "Custom" : "Unknown");
 
                   return (
                     <div

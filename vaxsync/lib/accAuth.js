@@ -35,7 +35,7 @@ export const getUserProfile = async (userId) => {
     
     // Fetch user profile first
     const { data: profile, error } = await supabase
-      .from('user_profiles')
+      .from('UserProfiles')
       .select('*')
       .eq('id', userId)
       .single();
@@ -54,7 +54,7 @@ export const getUserProfile = async (userId) => {
     if (profile.assigned_barangay_id) {
       console.log('Fetching barangay for ID:', profile.assigned_barangay_id);
       const { data: barangay, error: barangayError } = await supabase
-        .from('barangays')
+        .from('Barangays')
         .select('id, name, municipality, population')
         .eq('id', profile.assigned_barangay_id)
         .single();

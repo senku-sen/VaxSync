@@ -11,8 +11,8 @@ const protectedRoutes = [
 const publicRoutes = [
   '/pages/signin',
   '/pages/signup',
-  '/pages/forgot-password',
-  '/pages/registration-success',
+  '/pages/ForgotPassword',
+  '/pages/RegistrationSuccess',
   '/api/auth',
   '/api/signup',
 ];

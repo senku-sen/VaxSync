@@ -116,7 +116,7 @@ export const uploadSessionPhoto = async (
 
     // Save to database
     const { data: dbData, error: dbError } = await supabase
-      .from("vaccination_session_photos")
+      .from("VaccinationSessionPhotos")
       .insert({
         session_id: sessionId,
         photo_url: photoUrl,
@@ -165,7 +165,7 @@ export const fetchSessionPhotos = async (sessionId) => {
     console.log("Fetching photos for session:", sessionId);
 
     const { data, error } = await supabase
-      .from("vaccination_session_photos")
+      .from("VaccinationSessionPhotos")
       .select(
         `
         id,
@@ -175,7 +175,7 @@ export const fetchSessionPhotos = async (sessionId) => {
         photo_type,
         uploaded_by,
         created_at,
-        user_profiles:uploaded_by(first_name, last_name, user_role)
+        UserProfiles:uploaded_by(first_name, last_name, user_role)
       `
       )
       .eq("session_id", sessionId)
@@ -266,7 +266,7 @@ export const deleteSessionPhoto = async (photoId, fileName) => {
 
     // Delete from database
     const { error: dbError } = await supabase
-      .from("vaccination_session_photos")
+      .from("VaccinationSessionPhotos")
       .delete()
       .eq("id", photoId);
 
@@ -304,7 +304,7 @@ export const updateSessionPhoto = async (photoId, updates) => {
     console.log("Updating photo:", photoId, updates);
 
     const { data, error } = await supabase
-      .from("vaccination_session_photos")
+      .from("VaccinationSessionPhotos")
       .update({
         ...updates,
         updated_at: new Date().toISOString(),

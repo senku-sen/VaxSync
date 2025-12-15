@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, hasSupabaseAdmin } from '@/lib/supabaseAdmin';
-import { deductBarangayVaccineInventory } from '@/lib/barangayVaccineInventory';
+import { deductBarangayVaccineInventory } from '@/lib/BarangayVaccineInventory';
 
 if (!hasSupabaseAdmin) {
   console.warn('⚠️ SUPABASE_SERVICE_ROLE_KEY not set - inventory updates may fail due to RLS');

@@ -105,7 +105,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
 
       if (initialVaccine && initialVaccine.id) {
         ({ data, error } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .update({
             name: formData.name,
             quantity_available: qty,
@@ -117,7 +117,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
           .select());
       } else {
         ({ data, error } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .insert({
             name: formData.name,
             quantity_available: qty,
@@ -155,7 +155,7 @@ const AddVaccine = ({ onSuccess, vaccine: initialVaccine, onClose }) => {
     setShowDeleteConfirm(false);
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('vaccines').delete().eq('id', initialVaccine.id);
+      const { error } = await supabase.from('Vaccines').delete().eq('id', initialVaccine.id);
       if (error) {
         console.error('Error deleting vaccine:', error);
         showAlert('error', `Failed to delete: ${error.message || 'Unknown error'}`);

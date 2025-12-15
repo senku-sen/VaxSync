@@ -7,7 +7,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const token_hash = searchParams.get('token_hash');
     const type = searchParams.get('type');
-    const redirect = searchParams.get('redirect') || '/pages/registration-success';
+    const redirect = searchParams.get('redirect') || '/pages/RegistrationSuccess';
 
     // Create Supabase client for server-side operations with service role key
     // We need service role key to verify email confirmation status
@@ -65,7 +65,7 @@ export async function GET(request) {
 
         // Create profile if it doesn't exist
         const { data: existingProfile } = await supabase
-          .from('user_profiles')
+          .from('UserProfiles')
           .select('id')
           .eq('id', userId)
           .maybeSingle();
@@ -92,7 +92,7 @@ export async function GET(request) {
             }
 
             const { error: profileError } = await supabase
-              .from('user_profiles')
+              .from('UserProfiles')
               .insert({
                 id: userId,
                 first_name: profileData.first_name,
@@ -190,7 +190,7 @@ export async function GET(request) {
 
       // Check if profile already exists
       const { data: existingProfile } = await supabase
-        .from('user_profiles')
+        .from('UserProfiles')
         .select('id')
         .eq('id', userId)
         .maybeSingle();
@@ -219,7 +219,7 @@ export async function GET(request) {
           }
 
           const { error: profileError } = await supabase
-            .from('user_profiles')
+            .from('UserProfiles')
             .insert({
               id: userId,
               first_name: profileData.first_name,

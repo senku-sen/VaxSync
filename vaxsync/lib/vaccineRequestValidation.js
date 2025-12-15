@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { getVaccineById } from "./vaccine";
-import { getBarangayVaccineTotal } from "./barangayVaccineInventory";
+import { getBarangayVaccineTotal } from "./BarangayVaccineInventory";
 
 /**
  * Calculate total vials reserved by scheduled sessions
@@ -14,7 +14,7 @@ export async function getReservedVialsByScheduledSessions(vaccineId, barangayId)
 
     // Get all scheduled sessions (not completed/cancelled) for this vaccine and barangay
     const { data: sessions, error } = await supabase
-      .from('vaccination_sessions')
+      .from('VaccinationSessions')
       .select('target, administered, status')
       .eq('vaccine_id', vaccineId)
       .eq('barangay_id', barangayId)
@@ -56,7 +56,7 @@ export async function checkApprovedVaccineRequests(vaccineId, barangayId = null)
     console.log('Checking approved vaccine requests for:', vaccineId, barangayId);
 
     let query = supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .select('id', { count: 'exact' })
       .eq('vaccine_id', vaccineId)
       .eq('status', 'approved');
@@ -91,7 +91,7 @@ export async function getMaxApprovedVaccineQuantity(vaccineId, barangayId = null
     console.log('Getting max approved vaccine quantity for:', vaccineId);
 
     let query = supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .select('quantity_vial')
       .eq('vaccine_id', vaccineId)
       .eq('status', 'approved');
@@ -205,7 +205,7 @@ export async function validateVaccineForSchedule(vaccineId, barangayId) {
     
     console.log('Checking if vaccineId is vaccine_doses.id:', vaccineId);
     const { data: vaccineDose, error: doseError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('vaccine_id')
       .eq('id', vaccineId)
       .single();
@@ -245,7 +245,7 @@ export async function validateVaccineForSchedule(vaccineId, barangayId) {
     console.log('Checking inventory for vaccine:', { actualVaccineId, barangayId });
     
     const { data: vaccineDoses, error: dosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id')
       .eq('vaccine_id', actualVaccineId);
 
@@ -309,7 +309,7 @@ export async function getApprovedVaccineRequestDetails(vaccineId, barangayId) {
 
     // Get the approved request for this vaccine and barangay
     const { data, error } = await supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .select('*')
       .eq('vaccine_id', vaccineId)
       .eq('barangay_id', barangayId)

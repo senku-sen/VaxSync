@@ -33,7 +33,7 @@ export async function PUT(request, { params }) {
 
   try {
   const { data, error } = await supabaseAdmin
-      .from("user_profiles")
+      .from("UserProfiles")
       .update(updateData)
     .eq("id", id)
     .select(

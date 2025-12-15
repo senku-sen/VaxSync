@@ -11,7 +11,7 @@ import { supabase } from "./supabase";
 // Deduplicates to keep only UPPERCASE versions with valid municipality
 export async function fetchBarangays() {
   const { data, error } = await supabase
-    .from("barangays")
+    .from("Barangays")
     .select(`
       *,
       assigned_health_worker(id, first_name, last_name)
@@ -61,7 +61,7 @@ export async function fetchBarangays() {
 export async function insertBarangay(payload) {
   try {
     const { data, error, status, statusText } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .insert(payload)
       .select();
     if (error) {
@@ -80,7 +80,7 @@ export async function insertBarangay(payload) {
 export async function updateBarangay(id, payload) {
   try {
     const { data, error, status, statusText } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .update(payload)
       .eq("id", id)
       .select();
@@ -102,7 +102,7 @@ export async function updateBarangay(id, payload) {
 export async function deleteBarangay(id) {
   try {
     const { data, error, status, statusText } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .delete()
       .eq("id", id)
       .select();

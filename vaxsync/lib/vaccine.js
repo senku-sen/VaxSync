@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 
 export async function fetchVaccines() {
   const { data, error } = await supabase
-    .from("vaccines")
+    .from("Vaccines")
     .select("*")
     .order("name");
   return { data, error };
@@ -10,7 +10,7 @@ export async function fetchVaccines() {
 
 export async function getVaccineById(id) {
   const { data, error } = await supabase
-    .from("vaccines")
+    .from("Vaccines")
     .select("*")
     .eq("id", id)
     .single();
@@ -19,7 +19,7 @@ export async function getVaccineById(id) {
 
 export async function createVaccine(vaccineData) {
   const { data, error } = await supabase
-    .from("vaccines")
+    .from("Vaccines")
     .insert([vaccineData])
     .select()
     .single();
@@ -28,7 +28,7 @@ export async function createVaccine(vaccineData) {
 
 export async function updateVaccine(id, vaccineData) {
   const { data, error } = await supabase
-    .from("vaccines")
+    .from("Vaccines")
     .update(vaccineData)
     .eq("id", id)
     .select()
@@ -38,7 +38,7 @@ export async function updateVaccine(id, vaccineData) {
 
 export async function deleteVaccine(id) {
   const { data, error } = await supabase
-    .from("vaccines")
+    .from("Vaccines")
     .delete()
     .eq("id", id);
   return { data, error };

@@ -12,7 +12,7 @@ import {
   getDoseDistribution,
   getDoseLabel,
   getMainVaccineFromDose 
-} from "./vaccineDosingSchedule";
+} from "./VaccineDosingSchedule";
 
 /**
  * Create vaccine doses when a vaccine is added
@@ -53,7 +53,7 @@ export async function createVaccineDoses(vaccineId, vaccineName, totalQuantity) 
     console.log('Inserting doses:', dosesData);
     
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .insert(dosesData)
       .select();
     
@@ -87,7 +87,7 @@ export async function createVaccineDoses(vaccineId, vaccineName, totalQuantity) 
 export async function getVaccineDozes(vaccineId) {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('*')
       .eq('vaccine_id', vaccineId)
       .order('dose_number', { ascending: true });
@@ -112,7 +112,7 @@ export async function getVaccineDozes(vaccineId) {
 export async function getDoseByCode(doseCode) {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('*')
       .eq('dose_code', doseCode)
       .single();
@@ -138,7 +138,7 @@ export async function getDoseByCode(doseCode) {
 export async function updateDoseQuantity(doseId, quantityUsed) {
   try {
     const { error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .update({
         quantity_used: quantityUsed,
         updated_at: new Date().toISOString()
@@ -169,7 +169,7 @@ export async function deductDoseQuantity(doseCode, quantityToDeduct) {
     
     // Get current dose
     const { data: dose, error: fetchError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('*')
       .eq('dose_code', doseCode)
       .single();
@@ -185,7 +185,7 @@ export async function deductDoseQuantity(doseCode, quantityToDeduct) {
     
     // Update dose
     const { error: updateError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .update({
         quantity_available: newQuantityAvailable,
         quantity_used: newQuantityUsed,
@@ -219,7 +219,7 @@ export async function deductDoseQuantity(doseCode, quantityToDeduct) {
 export async function getAvailableDosesForBarangay(barangayId) {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select(`
         *,
         vaccine:vaccine_id (
@@ -251,7 +251,7 @@ export async function getAvailableDosesForBarangay(barangayId) {
 export async function getDoseAvailabilitySummary() {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select(`
         dose_code,
         quantity_available,
@@ -295,7 +295,7 @@ export async function getDoseAvailabilitySummary() {
 export async function getLowStockDoses(threshold = 10) {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select(`
         *,
         vaccine:vaccine_id (
@@ -328,7 +328,7 @@ export async function getLowStockDoses(threshold = 10) {
 export async function getOutOfStockDoses() {
   try {
     const { data, error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select(`
         *,
         vaccine:vaccine_id (
@@ -361,7 +361,7 @@ export async function getOutOfStockDoses() {
 export async function deleteVaccineDoses(vaccineId) {
   try {
     const { error } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .delete()
       .eq('vaccine_id', vaccineId);
     

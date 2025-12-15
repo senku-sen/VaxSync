@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from 'react';
-import { useOfflineApi } from './useOfflineApi';
+import { useOfflineApi } from './UseOfflineApi';
 import { useOffline } from '@/components/OfflineProvider';
 import { cacheData, getCachedData } from '@/lib/offlineStorage';
 
@@ -39,7 +39,7 @@ export function useOfflineInventory(options = {}) {
         );
 
         let query = supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('*')
           .order('name', { ascending: true });
 
@@ -105,7 +105,7 @@ export function useOfflineInventory(options = {}) {
 
         // Get current vaccine data
         const { data: vaccine, error: fetchError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('quantity_doses, quantity_vials')
           .eq('id', vaccineId)
           .single();
@@ -114,7 +114,7 @@ export function useOfflineInventory(options = {}) {
 
         // Update with new quantities
         const { error: updateError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .update({
             quantity_doses: (vaccine.quantity_doses || 0) + dosesToAdd,
             quantity_vials: (vaccine.quantity_vials || 0) + vialsToAdd
@@ -179,7 +179,7 @@ export function useOfflineInventory(options = {}) {
         );
 
         const { error: deleteError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .delete()
           .eq('id', vaccineId);
 

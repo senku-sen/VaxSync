@@ -37,7 +37,7 @@ export const addBeneficiariesToSession = async (sessionId, residentIds, vaccineN
 
     // Insert beneficiaries
     const { data, error } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .insert(beneficiaries)
       .select('id, session_id, resident_id, vaccine_name, attended, vaccinated, created_at');
 
@@ -77,7 +77,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
 
     // Fetch beneficiaries with resident data using a simpler approach
     const { data, error } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .select('id, session_id, resident_id, vaccine_name, attended, vaccinated, created_at')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: false });
@@ -95,7 +95,7 @@ export const fetchSessionBeneficiaries = async (sessionId) => {
     if (data && data.length > 0) {
       const residentIds = data.map(b => b.resident_id);
       const { data: residents, error: residentsError } = await supabase
-        .from('residents')
+        .from('Residents')
         .select('id, name, birthday, sex, status')
         .in('id', residentIds);
 
@@ -154,7 +154,7 @@ export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
     }
 
     const { data, error } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .update(updateObject)
       .eq('id', beneficiaryId)
       .select();
@@ -173,7 +173,7 @@ export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
       console.log('📊 Incrementing vaccine_doses.quantity_used for:', updateData.vaccineDoseId);
       
       const { data: doseData, error: doseError } = await supabase
-        .from('vaccine_doses')
+        .from('VaccineDoses')
         .select('quantity_used')
         .eq('id', updateData.vaccineDoseId)
         .single();
@@ -183,7 +183,7 @@ export const updateBeneficiaryStatus = async (beneficiaryId, updateData) => {
         const newUsed = currentUsed + 1; // Increment by 1 dose per beneficiary
 
         const { error: updateError } = await supabase
-          .from('vaccine_doses')
+          .from('VaccineDoses')
           .update({ quantity_used: newUsed })
           .eq('id', updateData.vaccineDoseId);
 
@@ -231,7 +231,7 @@ export const updateMultipleBeneficiaries = async (beneficiaries) => {
     // Update each beneficiary
     const updatePromises = beneficiaries.map(b =>
       supabase
-        .from('session_beneficiaries')
+        .from('SessionBeneficiaries')
         .update({
           attended: b.attended || false,
           vaccinated: b.vaccinated || false,
@@ -280,7 +280,7 @@ export const removeBeneficiaryFromSession = async (beneficiaryId) => {
     console.log('Removing beneficiary from session:', beneficiaryId);
 
     const { error } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .delete()
       .eq('id', beneficiaryId);
 
@@ -316,7 +316,7 @@ export const getSessionStatistics = async (sessionId) => {
     console.log('Fetching session statistics:', sessionId);
 
     const { data, error } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .select('id, attended, vaccinated')
       .eq('session_id', sessionId);
 
@@ -372,7 +372,7 @@ export const getAvailableResidentsForSession = async (sessionId, barangayName) =
 
     // Get all residents in the barangay
     let query = supabase
-      .from('residents')
+      .from('Residents')
       .select('id, name, birthday, sex, status, vaccines_given')
       .eq('status', 'approved');
 
@@ -393,7 +393,7 @@ export const getAvailableResidentsForSession = async (sessionId, barangayName) =
 
     // Get already added beneficiaries
     const { data: addedBeneficiaries, error: beneficiariesError } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .select('resident_id')
       .eq('session_id', sessionId);
 
@@ -440,7 +440,7 @@ export const updateResidentVaccineStatus = async (residentId, vaccineName) => {
 
     // Fetch current resident data
     const { data: resident, error: fetchError } = await supabase
-      .from('residents')
+      .from('Residents')
       .select('id, vaccines_given, vaccine_status')
       .eq('id', residentId)
       .single();
@@ -463,7 +463,7 @@ export const updateResidentVaccineStatus = async (residentId, vaccineName) => {
 
     // Update resident with new vaccines_given and set status to partially_vaccinated
     const { error: updateError } = await supabase
-      .from('residents')
+      .from('Residents')
       .update({
         vaccines_given: updatedVaccines,
         vaccine_status: 'partially_vaccinated',
@@ -505,7 +505,7 @@ export const removeVaccineFromResident = async (residentId, vaccineName) => {
 
     // Fetch current resident data
     const { data: resident, error: fetchError } = await supabase
-      .from('residents')
+      .from('Residents')
       .select('id, vaccines_given, vaccine_status')
       .eq('id', residentId)
       .single();
@@ -532,7 +532,7 @@ export const removeVaccineFromResident = async (residentId, vaccineName) => {
 
     // Update resident with new vaccines_given and updated status
     const { error: updateError } = await supabase
-      .from('residents')
+      .from('Residents')
       .update({
         vaccines_given: updatedVaccines,
         vaccine_status: newStatus,
@@ -574,7 +574,7 @@ export const addMissedVaccineToResident = async (residentId, vaccineName) => {
 
     // Fetch current resident data
     const { data: resident, error: fetchError } = await supabase
-      .from('residents')
+      .from('Residents')
       .select('id, missed_schedule_of_vaccine')
       .eq('id', residentId)
       .single();
@@ -597,7 +597,7 @@ export const addMissedVaccineToResident = async (residentId, vaccineName) => {
 
     // Update resident with new missed_schedule_of_vaccine
     const { error: updateError } = await supabase
-      .from('residents')
+      .from('Residents')
       .update({
         missed_schedule_of_vaccine: updatedMissed,
         updated_at: new Date().toISOString()
@@ -637,7 +637,7 @@ export const resetSessionResidentVaccineData = async (sessionId) => {
 
     // Get all beneficiaries for this session that were vaccinated
     const { data: beneficiaries, error: fetchError } = await supabase
-      .from('session_beneficiaries')
+      .from('SessionBeneficiaries')
       .select('id, resident_id, vaccinated')
       .eq('session_id', sessionId)
       .eq('vaccinated', true);
@@ -662,7 +662,7 @@ export const resetSessionResidentVaccineData = async (sessionId) => {
       if (beneficiary.resident_id) {
         // Fetch current resident data
         const { data: resident, error: residentFetchError } = await supabase
-          .from('residents')
+          .from('Residents')
           .select('id, vaccines_given')
           .eq('id', beneficiary.resident_id)
           .single();
@@ -674,7 +674,7 @@ export const resetSessionResidentVaccineData = async (sessionId) => {
 
         // Reset vaccines_given to empty array and vaccine_status to not_vaccinated
         const { error: updateError } = await supabase
-          .from('residents')
+          .from('Residents')
           .update({
             vaccines_given: [],
             vaccine_status: 'not_vaccinated',

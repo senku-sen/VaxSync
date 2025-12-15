@@ -28,15 +28,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
-import { loadUserProfile } from "@/lib/vaccineRequest";
+import { loadUserProfile } from "@/lib/VaccineRequest";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import ResidentsTableView from "../../../../components/ResidentsTableView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
-import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
+import AddResidentWizard from "../../../../components/AddResidentWizard/AddResidentWizard";
 import Pagination from "../../../../components/shared/Pagination";
-import { useOfflineResidents } from "@/hooks/useOfflineResidents";
+import { useOfflineResidents } from "@/hooks/UseOfflineResidents";
 import { useOffline } from "@/components/OfflineProvider";
 import { supabase } from "@/lib/supabase";
 
@@ -116,7 +116,7 @@ export default function ResidentsPage() {
   const fetchBarangaysFromDB = async () => {
     try {
       const { data, error } = await supabase
-        .from("barangays")
+        .from("Barangays")
         .select("id, name")
         .order("name", { ascending: true });
 

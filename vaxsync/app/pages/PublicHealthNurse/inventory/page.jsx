@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import DeleteConfirm from "@/components/inventory/DeleteConfirm";
-import { loadUserProfile } from "@/lib/vaccineRequest";
+import { loadUserProfile } from "@/lib/VaccineRequest";
 import { useOffline } from "@/components/OfflineProvider";
 import { cacheData, getCachedData } from "@/lib/offlineStorage";
 import { queueOperation } from "@/lib/syncManager";
@@ -134,7 +134,7 @@ export default function Inventory() {
       
       // Fetch all barangays for Head Nurse
       const { data: barangayData, error: barangayError } = await supabase
-        .from('barangays')
+        .from('Barangays')
         .select('id, name')
         .order('name', { ascending: true });
       
@@ -182,7 +182,7 @@ export default function Inventory() {
         
         // Fallback to Supabase direct call
         const { data, error } = await supabase
-          .from("vaccines")
+          .from("Vaccines")
           .select("*")
           .order("created_at", { ascending: false });
         

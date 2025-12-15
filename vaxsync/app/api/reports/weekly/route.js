@@ -29,7 +29,7 @@ export async function GET(request) {
 
     // Get all sessions for this week
     const { data: sessions, error: sessionsError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("id, session_date, vaccine_id, administered")
       .gte("session_date", startDateStr)
       .lte("session_date", endDateStr)
@@ -71,7 +71,7 @@ export async function GET(request) {
     const inventoryIds = [...new Set(sessions.map((s) => s.vaccine_id))];
     
     const { data: inventoryData, error: inventoryError } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
       .in("id", inventoryIds);
 

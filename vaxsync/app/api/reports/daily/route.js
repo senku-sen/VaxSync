@@ -21,7 +21,7 @@ export async function GET(request) {
 
     // Get all sessions for this date
     const { data: sessions, error: sessionsError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("id, session_time, vaccine_id, barangay_id, target, administered, status")
       .eq("session_date", date)
       .order("session_time", { ascending: true });
@@ -48,12 +48,12 @@ export async function GET(request) {
 
     // Get vaccine details through the chain: barangay_vaccine_inventory -> vaccine_doses -> vaccines
     const { data: inventoryData } = await supabase
-      .from("barangay_vaccine_inventory")
-      .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+      .from("BarangayVaccineInventory")
+      .select("id, VaccineDoses(vaccine_id, Vaccines(id, name))")
       .in("id", vaccineIds);
 
     const { data: barangaysData } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .select("id, name")
       .in("id", barangayIds);
 

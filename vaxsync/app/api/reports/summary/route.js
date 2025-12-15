@@ -32,7 +32,7 @@ export async function GET(request) {
 
     // Get all sessions in this period (not just completed)
     const { data: sessions, error: sessionsError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("id, administered, status")
       .gte("session_date", startDateStr)
       .lte("session_date", endDateStr);
@@ -57,7 +57,7 @@ export async function GET(request) {
 
     // Get all residents and calculate vaccination rate
     const { data: residents, error: residentsError } = await supabase
-      .from("residents")
+      .from("Residents")
       .select("id, vaccine_status");
 
     if (residentsError) {

@@ -26,14 +26,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BARANGAYS } from "@/lib/utils";
-import { loadUserProfile } from "@/lib/vaccineRequest";
+import { loadUserProfile } from "@/lib/VaccineRequest";
 import { supabase } from "@/lib/supabase";
 import PendingResidentsTable from "../../../../components/PendingResidentsTable";
 import ApprovedResidentsTable from "../../../../components/ApprovedResidentsTable";
 import ResidentsTableView from "../../../../components/ResidentsTableView";
 import UploadMasterListModal from "../../../../components/UploadMasterListModal";
 import ResidentDetailsModal from "../../../../components/ResidentDetailsModal";
-import AddResidentWizard from "../../../../components/add-resident-wizard/AddResidentWizard";
+import AddResidentWizard from "../../../../components/AddResidentWizard/AddResidentWizard";
 import Pagination from "../../../../components/shared/Pagination";
 import { useOffline } from "@/components/OfflineProvider";
 import { cacheData, getCachedData, generateTempId } from "@/lib/offlineStorage";
@@ -126,7 +126,7 @@ export default function ResidentsPage() {
           } else {
             // Fetch barangay info by ID
             const { data: barangay, error: barangayError } = await supabase
-              .from('barangays')
+              .from('Barangays')
               .select('id, name')
               .eq('id', assignedBarangayId)
               .maybeSingle();
@@ -760,7 +760,7 @@ export default function ResidentsPage() {
           vaccinated: vaccineType === "given" ? true : false,
         };
 
-        const response = await fetch("/api/session-beneficiaries", {
+        const response = await fetch("/api/SessionBeneficiaries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(beneficiaryRecord),

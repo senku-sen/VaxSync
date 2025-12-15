@@ -16,7 +16,7 @@ export default function AutoGenerateMonthlyReports() {
         console.log('Checking for monthly reports:', currentMonth);
 
         // Check if records already exist for this month
-        const checkResponse = await fetch(`/api/monthly-reports?month=${currentMonth}`);
+        const checkResponse = await fetch(`/api/MonthlyReports?month=${currentMonth}`);
         
         if (!checkResponse.ok) {
           console.error('Failed to check monthly reports. Status:', checkResponse.status);
@@ -35,7 +35,7 @@ export default function AutoGenerateMonthlyReports() {
         console.log(`⏳ No monthly reports found for ${currentMonth}. Creating...`);
 
         // Generate records for current month
-        const generateResponse = await fetch('/api/monthly-reports', {
+        const generateResponse = await fetch('/api/MonthlyReports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ month: currentMonth })

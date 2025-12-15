@@ -31,7 +31,7 @@ export async function GET(request) {
 
     // Get all sessions for this month first
     const { data: allSessions, error: allSessionsError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("id, vaccine_id, target, administered, status")
       .gte("session_date", startDateStr)
       .lte("session_date", endDateStr);
@@ -68,7 +68,7 @@ export async function GET(request) {
     const inventoryIds = [...new Set(allSessions.map((s) => s.vaccine_id))];
     
     const { data: inventoryData, error: inventoryError } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
       .in("id", inventoryIds);
 
@@ -135,7 +135,7 @@ export async function GET(request) {
 
         // Get beneficiary statistics
         const { data: beneficiaries, error: beneficiariesError } = await supabase
-          .from("session_beneficiaries")
+          .from("SessionBeneficiaries")
           .select("id, attended, vaccinated")
           .in("session_id", sessionIds);
 

@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { supabaseAdmin } from "./supabaseAdmin";
-import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
+import { VACCINE_VIAL_MAPPING } from "./VaccineVialMapping";
 
 /**
  * Fetch barangay vaccine inventory
@@ -12,7 +12,7 @@ export async function fetchBarangayVaccineInventory(barangayId) {
     console.log('Fetching vaccine inventory for barangay:', barangayId);
     
     const { data, error } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select(`
         id,
         barangay_id,
@@ -64,7 +64,7 @@ export async function fetchBarangayVaccineInventory(barangayId) {
 export async function getBarangayVaccineTotal(barangayId, vaccineId) {
   try {
     const { data, error } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('quantity_vial, quantity_dose')
       .eq('barangay_id', barangayId)
       .eq('vaccine_id', vaccineId);
@@ -92,7 +92,7 @@ export async function addBarangayVaccineInventory(inventoryData) {
     console.log('Adding vaccine to inventory:', inventoryData);
 
     const { data, error } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .insert([{
         barangay_id: inventoryData.barangay_id,
         vaccine_id: inventoryData.vaccine_id,
@@ -130,7 +130,7 @@ export async function updateBarangayVaccineInventory(inventoryId, quantityVial, 
     console.log('Updating inventory:', inventoryId, { quantityVial, quantityDose });
 
     const { data, error } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .update({
         quantity_vial: quantityVial,
         quantity_dose: quantityDose,
@@ -166,7 +166,7 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
 
     // Get vaccine name to look up doses per vial
     const { data: vaccineData, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('name')
       .eq('id', vaccineId)
       .single();
@@ -199,7 +199,7 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     // Find all vaccine_doses for this vaccine
     // barangay_vaccine_inventory.vaccine_id references vaccine_doses.id
     const { data: vaccineDoses, error: dosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id')
       .eq('vaccine_id', vaccineId);
 
@@ -219,7 +219,7 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
     let inventory = [];
     for (const dosId of vaccineDoseIds) {
       const { data: doseInventory, error: doseError } = await fetchClient
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .select('id, quantity_vial, quantity_dose, batch_number, created_at')
         .eq('barangay_id', barangayId)
         .eq('vaccine_id', dosId)
@@ -303,7 +303,7 @@ export async function deductBarangayVaccineInventory(barangayId, vaccineId, quan
       console.log(`    quantity_vial = ${update.newQuantity}, quantity_dose = ${update.newDoseQuantity}`);
       
       const { data: updatedData, error: updateError } = await client
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .update({
           quantity_vial: update.newQuantity,
           quantity_dose: update.newDoseQuantity,
@@ -345,7 +345,7 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
     // Get vaccine name to look up doses per vial
     // vaccineId is vaccine_doses.id, so we need to query vaccine_doses first
     const { data: dosesData, error: dosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id, vaccine:vaccine_id(id, name)')
       .eq('id', vaccineId)
       .single();
@@ -382,7 +382,7 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
 
     // Get ALL inventory records for this vaccine_dose in this barangay - FIFO (oldest first)
     const { data: inventory, error: fetchError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('id, quantity_vial, quantity_dose, batch_number, created_at')
       .eq('barangay_id', barangayId)
       .eq('vaccine_id', vaccineId)  // Use single vaccine_dose ID directly
@@ -446,7 +446,7 @@ export async function addBackBarangayVaccineInventory(barangayId, vaccineId, qua
       console.log(`    quantity_vial = ${update.newQuantity}, quantity_dose = ${update.newDoseQuantity}`);
       
       const { error: updateError } = await supabase
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .update({
           quantity_vial: update.newQuantity,
           quantity_dose: update.newDoseQuantity,
@@ -483,7 +483,7 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
 
     // Get current inventory
     const { data: inventory, error: fetchError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('id, quantity_vial, quantity_dose, reserved_vial')
       .eq('barangay_id', barangayId)
       .eq('vaccine_id', vaccineId)
@@ -520,7 +520,7 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
         console.log('Recalculated reserved vials, re-checking availability...');
 
         const { data: inventoryAfter, error: fetchAfterError } = await supabase
-          .from('barangay_vaccine_inventory')
+          .from('BarangayVaccineInventory')
           .select('id, quantity_vial, quantity_dose, reserved_vial')
           .eq('barangay_id', barangayId)
           .eq('vaccine_id', vaccineId)
@@ -542,7 +542,7 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
             const newReservedQuantityAfter = currentReserved2 + quantityToReserve;
 
             const { error: updateAfterError } = await supabase
-              .from('barangay_vaccine_inventory')
+              .from('BarangayVaccineInventory')
               .update({
                 reserved_vial: newReservedQuantityAfter,
                 updated_at: new Date().toISOString()
@@ -579,7 +579,7 @@ export async function reserveBarangayVaccineInventory(barangayId, vaccineId, qua
 
     // Update inventory with reserved quantity
     const { error: updateError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .update({
         reserved_vial: newReservedQuantity,
         updated_at: new Date().toISOString()
@@ -617,7 +617,7 @@ export async function releaseBarangayVaccineReservation(barangayId, inventoryId,
 
     // Get current inventory directly using the inventory ID
     const { data: inventory, error: fetchError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('id, reserved_vial')
       .eq('id', inventoryId)
       .single();
@@ -632,7 +632,7 @@ export async function releaseBarangayVaccineReservation(barangayId, inventoryId,
 
     // Update inventory
     const { error: updateError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .update({
         reserved_vial: newReservedQuantity,
         updated_at: new Date().toISOString()
@@ -661,7 +661,7 @@ export async function releaseBarangayVaccineReservation(barangayId, inventoryId,
 export async function getLowStockVaccines(barangayId, threshold = 5) {
   try {
     const { data, error } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select(`
         *,
         vaccine:vaccine_id (
@@ -702,7 +702,7 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
 
     // Add back to vaccines table
     const { data: vaccineData, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('id, quantity_available, name')
       .eq('id', vaccineId);
 
@@ -725,7 +725,7 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
     const newVaccineQuantity = vaccine.quantity_available + dosesToAddToVaccines;
 
     const { error: updateVaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .update({
         quantity_available: newVaccineQuantity
       })
@@ -744,7 +744,7 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
     console.log(`📊 Using same mapping: Doses per vial: ${dosesPerVial}, Total doses to add: ${dosesToAddToVaccines}`);
     
     const { data: doses, error: fetchDosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id, quantity_available, dose_code, created_at')
       .eq('vaccine_id', vaccineId)
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
@@ -774,7 +774,7 @@ export async function addMainVaccineInventory(vaccineId, quantityToAdd) {
         console.log(`  💉 Dose ${dose.dose_code} (${dose.id}): ${dose.quantity_available} → ${newDoseQuantity} (adding ${addToThisDose} doses)`);
 
         const { error: updateDoseError } = await supabase
-          .from('vaccine_doses')
+          .from('VaccineDoses')
           .update({
             quantity_available: newDoseQuantity,
             updated_at: new Date().toISOString()
@@ -815,7 +815,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
 
     // Deduct from vaccines table
     const { data: vaccine, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('id, quantity_available, name')
       .eq('id', vaccineId)
       .single();
@@ -839,7 +839,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
     console.log(`🔑 Using ${supabaseAdmin ? 'ADMIN' : 'REGULAR'} client for vaccines table update`);
 
     const { error: updateVaccineError } = await client
-      .from('vaccines')
+      .from('Vaccines')
       .update({
         quantity_available: newVaccineQuantity
       })
@@ -859,7 +859,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
     console.log(`📊 Total doses to deduct: ${quantityToDeduct}`);
     
     const { data: doses, error: fetchDosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id, quantity_available, dose_code, created_at')
       .eq('vaccine_id', vaccineId)
       .order('created_at', { ascending: true })  // ✅ FIFO - oldest first
@@ -889,7 +889,7 @@ export async function deductMainVaccineInventory(vaccineId, quantityToDeduct) {
         console.log(`  💉 Dose ${dose.dose_code} (${dose.id}): ${dose.quantity_available} → ${newDoseQuantity} (deducting ${deductFromThisDose} doses)`);
 
         const { error: updateDoseError } = await supabase
-          .from('vaccine_doses')
+          .from('VaccineDoses')
           .update({
             quantity_available: newDoseQuantity,
             updated_at: new Date().toISOString()
@@ -928,7 +928,7 @@ export async function recalculateReservedVials(barangayId, vaccineId) {
 
     // Get all scheduled/in-progress sessions for this vaccine and barangay
     const { data: sessions, error: sessionsError } = await supabase
-      .from('vaccination_sessions')
+      .from('VaccinationSessions')
       .select('target, administered, status')
       .eq('vaccine_id', vaccineId)
       .eq('barangay_id', barangayId)
@@ -949,7 +949,7 @@ export async function recalculateReservedVials(barangayId, vaccineId) {
 
     // Update the inventory with correct reserved vials
     const { error: updateError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .update({
         reserved_vial: correctReserved,
         updated_at: new Date().toISOString()

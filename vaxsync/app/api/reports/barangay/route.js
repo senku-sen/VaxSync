@@ -29,7 +29,7 @@ export async function GET(request) {
 
     // Get all barangays
     const { data: barangays, error: barangayError } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .select("id, name")
       .order("name", { ascending: true });
 
@@ -43,7 +43,7 @@ export async function GET(request) {
 
     // Get all vaccines
     const { data: vaccines, error: vaccineError } = await supabase
-      .from("vaccines")
+      .from("Vaccines")
       .select("id, name")
       .order("name", { ascending: true });
 
@@ -59,7 +59,7 @@ export async function GET(request) {
 
     // Get all sessions for this month with inventory data
     const { data: allSessions, error: sessionsError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("id, barangay_id, vaccine_id, administered")
       .gte("session_date", startDateStr)
       .lte("session_date", endDateStr);
@@ -75,7 +75,7 @@ export async function GET(request) {
     // Get inventory data to map vaccine_id to vaccine names
     const inventoryIds = [...new Set(allSessions.map((s) => s.vaccine_id))];
     const { data: inventoryData } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
       .in("id", inventoryIds);
 

@@ -343,7 +343,7 @@ export async function POST(request) {
     let barangayId = null;
     
     const { data: foundBarangay, error: findBarangayError } = await supabase
-      .from('barangays')
+      .from('Barangays')
       .select('id')
       .eq('name', effectiveBarangayName)
       .maybeSingle();
@@ -370,7 +370,7 @@ export async function POST(request) {
     } else {
       // Create new barangay if not found
       const { data: newBarangay, error: insertBarangayError } = await supabase
-        .from('barangays')
+        .from('Barangays')
         .insert([{ name: effectiveBarangayName, municipality: 'Unknown' }])
         .select('id')
         .single();
@@ -499,7 +499,7 @@ export async function POST(request) {
       const batch = residents.slice(i, i + batchSize);
       
       const { data, error } = await supabase
-        .from('residents')
+        .from('Residents')
         .insert(batch)
         .select('id');
 
@@ -561,7 +561,7 @@ export async function GET(request) {
 
     // Build the query
     let query = supabase
-      .from('residents')
+      .from('Residents')
       .select('*')
       .eq('status', status);
 
@@ -636,7 +636,7 @@ export async function PUT(request) {
     let resolvedBarangayId = barangay_id || null;
     if (!resolvedBarangayId && barangay) {
       const { data: foundBarangay, error: findBarangayError } = await supabase
-        .from('barangays')
+        .from('Barangays')
         .select('id')
         .eq('name', barangay)
         .maybeSingle();
@@ -648,7 +648,7 @@ export async function PUT(request) {
         resolvedBarangayId = foundBarangay.id;
       } else {
         const { data: newBarangay, error: insertBarangayError } = await supabase
-          .from('barangays')
+          .from('Barangays')
           .insert([{ name: barangay, municipality: municipality || barangay_municipality || 'Unknown' }])
           .select('id')
           .single();
@@ -682,7 +682,7 @@ export async function PUT(request) {
     }
 
     const { data: updatedResident, error } = await supabase
-      .from('residents')
+      .from('Residents')
       .update(updateData)
       .eq('id', id)
       .select()
@@ -743,7 +743,7 @@ export async function PATCH(request) {
 
     // Update status in Supabase
     const { data: updatedResident, error } = await supabase
-      .from('residents')
+      .from('Residents')
       .update({
         status: action === 'approve' ? 'approved' : 'rejected',
         updated_at: new Date().toISOString()
@@ -799,7 +799,7 @@ export async function DELETE(request) {
 
     // Delete resident from Supabase
     const { error } = await supabase
-      .from('residents')
+      .from('Residents')
       .delete()
       .eq('id', id);
 

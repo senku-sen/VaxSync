@@ -26,7 +26,7 @@ export default function ProfileMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 border border-[#3E5F44] rounded-md shadow-sm">
         <DropdownMenuItem asChild className="flex items-center cursor-pointer">
-          <a href="/pages/settings-privacy" className="flex items-center">
+          <a href="/pages/SettingsPrivacy" className="flex items-center">
             <Settings className="mr-2 h-4 w-4" />
             Settings & Privacy
           </a>

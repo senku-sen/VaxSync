@@ -7,7 +7,7 @@
 // ============================================
 
 import { useState, useEffect, useMemo, memo } from "react";
-import { fetchMonthlyVaccineReport, getAvailableMonths } from "@/lib/vaccineMonthlyReport";
+import { fetchMonthlyVaccineReport, getAvailableMonths } from "@/lib/VaccineMonthlyReport";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 // Memoized row component to prevent unnecessary re-renders

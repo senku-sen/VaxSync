@@ -68,7 +68,7 @@ export default function Sidebar() {
     }
   }, [isOpen]);
 
-  const isSettingsStandalone = pathname === "/pages/settings-privacy";
+  const isSettingsStandalone = pathname === "/pages/SettingsPrivacy";
 
   // If we don't have a role yet, don't render (prevents flicker/incorrect base on settings)
   if (!userRole) return null;
@@ -86,15 +86,15 @@ export default function Sidebar() {
   const allMenuItems = [
     { name: "Dashboard", icon: Home, path: `${basePath}/dashboard` },
     { name: "Inventory", icon: Package, path: `${basePath}/inventory` },
-    { name: "Barangay Management", icon: MapPin, path: `${basePath}/barangay-management`, adminOnly: true },
+    { name: "Barangay Management", icon: MapPin, path: `${basePath}/BarangayManagement`, adminOnly: true },
     
-    { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/vaccination_schedule` },
+    { name: "Vaccination Schedule", icon: Calendar, path: `${basePath}/VaccinationSchedule` },
     { name: "NIP Tracking", icon: Users, path: `${basePath}/residents` },
 
-    { name: "Vaccine Requests", icon: FileText, path: `${basePath}/vaccination_request` },
+    { name: "Vaccine Requests", icon: FileText, path: `${basePath}/VaccinationRequest` },
    
     { name: "Reports", icon: BarChart3, path: `${basePath}/reports`, adminOnly: true },
-    { name: "User Management", icon: UserCog, path: `${basePath}/usermanagement`, adminOnly: true },
+    { name: "User Management", icon: UserCog, path: `${basePath}/UserManagement`, adminOnly: true },
   ];
 
   // Filter: Public Health Nurse = all | Rural Health Midwife = no admin items

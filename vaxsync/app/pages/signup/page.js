@@ -282,7 +282,7 @@ export default function SignUp() {
       
       // Redirect to registration success page
       setTimeout(() => {
-        window.location.href = '/pages/registration-success';
+        window.location.href = '/pages/RegistrationSuccess';
       }, 1500);
     } catch (err) {
       console.error('Signup fetch error:', err);

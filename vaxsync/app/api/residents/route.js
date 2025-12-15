@@ -226,7 +226,7 @@ export async function POST(request) {
       if (!barangay_id && barangay) {
         try {
           const { data: foundBarangay, error: findError } = await supabase
-            .from('barangays')
+            .from('Barangays')
             .select('id')
             .ilike('name', barangay)
             .maybeSingle();
@@ -237,7 +237,7 @@ export async function POST(request) {
           } else {
             // Try to create the barangay if it doesn't exist
             const { data: newBarangay, error: createError } = await supabase
-              .from('barangays')
+              .from('Barangays')
               .insert([{ name: barangay, municipality: 'Unknown' }])
               .select('id')
               .single();
@@ -290,7 +290,7 @@ export async function POST(request) {
       };
 
       const { data, error } = await supabase
-        .from('residents')
+        .from('Residents')
         .insert([resident])
         .select('*');
 
@@ -439,7 +439,7 @@ export async function POST(request) {
       if (effectiveBarangay) {
         try {
           const { data: foundBarangay, error: findError } = await supabase
-            .from('barangays')
+            .from('Barangays')
             .select('id')
             .ilike('name', effectiveBarangay)
             .maybeSingle();
@@ -450,7 +450,7 @@ export async function POST(request) {
           } else {
             // Try to create the barangay if it doesn't exist
             const { data: newBarangay, error: createError } = await supabase
-              .from('barangays')
+              .from('Barangays')
               .insert([{ name: effectiveBarangay, municipality: 'Unknown' }])
               .select('id')
               .single();
@@ -542,7 +542,7 @@ export async function POST(request) {
         const batch = residents.slice(i, i + batchSize);
         
         const { data, error } = await supabase
-          .from('residents')
+          .from('Residents')
           .insert(batch)
           .select('id');
 
@@ -600,7 +600,7 @@ export async function GET(request) {
     console.log('GET /api/residents - Fetching with params:', { status, search, barangay });
 
     let query = supabase
-      .from('residents')
+      .from('Residents')
       .select('*');
 
     // Filter by status only if provided
@@ -659,7 +659,7 @@ export async function PUT(request) {
     }
 
     const { data, error } = await supabase
-      .from('residents')
+      .from('Residents')
       .update(updateData)
       .eq('id', id)
       .select();
@@ -698,7 +698,7 @@ export async function PATCH(request) {
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
 
     const { data, error } = await supabase
-      .from('residents')
+      .from('Residents')
       .update({ status: newStatus })
       .eq('id', id)
       .select();
@@ -735,7 +735,7 @@ export async function DELETE(request) {
     }
 
     const { error } = await supabase
-      .from('residents')
+      .from('Residents')
       .delete()
       .eq('id', id);
 

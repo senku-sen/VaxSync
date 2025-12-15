@@ -14,7 +14,7 @@ export async function GET(request) {
 
     // Build query for vaccination sessions
     let sessionsQuery = supabase
-      .from('vaccination_sessions')
+      .from('VaccinationSessions')
       .select('id, vaccine_id, administered, session_date, barangay_id');
 
     // Filter by barangay if it's a health worker
@@ -34,7 +34,7 @@ export async function GET(request) {
 
     // Get all vaccines
     const { data: vaccines, error: vaccinesError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('id, name');
 
     if (vaccinesError) {

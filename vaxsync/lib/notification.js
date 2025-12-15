@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { getMaxAllocation, calculateStockPercentage } from "./vaccineMonthlyReport";
+import { getMaxAllocation, calculateStockPercentage } from "./VaccineMonthlyReport";
 
 /**
  * Fetch vaccine request notifications for health worker
@@ -10,7 +10,7 @@ export async function fetchVaccineRequestNotifications(userId) {
   try {
     // Fetch all vaccine requests for this user
     let query = supabase
-      .from("vaccine_requests")
+      .from("VaccineRequests")
       .select(`
         id,
         vaccine_id,
@@ -37,7 +37,7 @@ export async function fetchVaccineRequestNotifications(userId) {
     if (requestError && requestError.message && requestError.message.includes('requested_by')) {
       console.warn("requested_by column not found, fetching all requests...");
       const { data: allRequests, error: altError } = await supabase
-        .from("vaccine_requests")
+        .from("VaccineRequests")
         .select(`
           id,
           vaccine_id,
@@ -259,7 +259,7 @@ export async function fetchResidentApprovalNotifications(userId) {
   try {
     // If no userId provided (PHN/admin), fetch all; otherwise filter by submitted_by
     let query = supabase
-      .from("residents")
+      .from("Residents")
       .select(`
         id,
         name,
@@ -346,7 +346,7 @@ export async function fetchResidentApprovalNotifications(userId) {
 export async function fetchVaccinationSessionNotifications(userId, barangayId = null, isAdmin = false) {
   try {
     let query = supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select(`
         id,
         vaccine_id,
@@ -388,7 +388,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
     let vaccineMap = {};
     if (vaccineIds.length > 0) {
       const { data: vaccines, error: vaccineError } = await supabase
-        .from("vaccines")
+        .from("Vaccines")
         .select("id, name, doses")
         .in("id", vaccineIds);
 
@@ -566,7 +566,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
   try {
     // Fetch ALL inventory (not just low quantity) to calculate stock percentage
     const { data: inventory, error: inventoryError } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select(`
         id,
         vaccine_id,
@@ -580,7 +580,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
 
     // Also fetch out of stock items (quantity_vial = 0)
     const { data: outOfStock, error: outOfStockError } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select(`
         id,
         vaccine_id,
@@ -613,7 +613,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
     // Fetch vaccine names separately - try vaccine_doses first, then vaccines
     let vaccineMap = {};
     const { data: vaccineDoses } = await supabase
-      .from("vaccine_doses")
+      .from("VaccineDoses")
       .select("id, name, vaccine(name)")
       .in("id", vaccineIds);
     
@@ -627,7 +627,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
     } else {
       // Fallback to vaccines table
       const { data: vaccines } = await supabase
-        .from("vaccines")
+        .from("Vaccines")
         .select("id, name")
         .in("id", vaccineIds);
       if (vaccines) {
@@ -638,7 +638,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
     // Fetch barangay names separately
     let barangayMap = {};
     const { data: barangays } = await supabase
-      .from("barangays")
+      .from("Barangays")
       .select("id, name")
       .in("id", barangayIds);
     if (barangays) {
@@ -733,7 +733,7 @@ export async function fetchLowStockNotifications(stockPercentageThreshold = 100)
 export async function checkVaccineLowStock(vaccineId, barangayId, vaccineName = null, stockPercentageThreshold = 100) {
   try {
     const { data, error } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select("quantity, quantity_vial")
       .eq("vaccine_id", vaccineId)
       .eq("barangay_id", barangayId)

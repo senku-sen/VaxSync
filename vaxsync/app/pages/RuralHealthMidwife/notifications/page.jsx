@@ -17,7 +17,7 @@ import {
   subscribeToVaccinationSessionUpdates,
   subscribeToInventoryUpdates,
 } from "@/lib/notification";
-import { loadUserProfile } from "@/lib/vaccineRequest";
+import { loadUserProfile } from "@/lib/VaccineRequest";
 
 export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState("all");

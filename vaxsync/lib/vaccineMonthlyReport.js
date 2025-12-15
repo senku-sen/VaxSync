@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { getDosesPerVial } from "./vaccineVialMapping";
+import { getDosesPerVial } from "./VaccineVialMapping";
 
 /**
  * Cache for monthly reports to avoid recalculation
@@ -132,7 +132,7 @@ export async function updateMonthlyReportOutCount(vaccineId, administeredDiffere
 
     // Get current report entry
     const { data: report, error: fetchError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .select('id, quantity_used, ending_inventory, max_allocation')
       .eq('vaccine_id', vaccineId)
       .eq('month', month)
@@ -165,7 +165,7 @@ export async function updateMonthlyReportOutCount(vaccineId, administeredDiffere
 
     // Update the report
     const { error: updateError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .update({
         quantity_used: newQuantityUsed,
         ending_inventory: newEndingInventory,
@@ -213,7 +213,7 @@ export async function createMonthlyReportEntryForVaccine(vaccineId, vaccineName,
 
     // Check if entry already exists for this vaccine this month
     const { data: existingReport, error: checkError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .select('id, quantity_supplied, ending_inventory')
       .eq('vaccine_id', vaccineId)
       .eq('month', month)
@@ -239,7 +239,7 @@ export async function createMonthlyReportEntryForVaccine(vaccineId, vaccineName,
         : 0;
 
       const { error: updateError } = await supabase
-        .from('vaccine_monthly_report')
+        .from('VaccineMonthlyReport')
         .update({
           quantity_supplied: newQuantitySupplied,
           ending_inventory: newEndingInventory,
@@ -267,7 +267,7 @@ export async function createMonthlyReportEntryForVaccine(vaccineId, vaccineName,
         : 0;
 
       const { error: insertError } = await supabase
-        .from('vaccine_monthly_report')
+        .from('VaccineMonthlyReport')
         .insert([{
           vaccine_id: vaccineId,
           month: month,
@@ -360,7 +360,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
     
     // Step 1: Get all vaccine_doses with their vaccine_id
     const { data: allVaccineDoses, error: dosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('*');
     
     console.log(`📋 Loaded vaccine_doses: ${allVaccineDoses?.length || 0} records`);
@@ -378,14 +378,14 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
     
     // Step 2: Get sessions this month and map to vaccines
     const { data: sessionVaccines, error: sessionVaccineError } = await supabase
-      .from('vaccination_sessions')
+      .from('VaccinationSessions')
       .select('vaccine_id')
       .gte('session_date', startDateStr)
       .lte('session_date', endDateStr);
 
     // Step 3: Get vaccines with requests this month
     const { data: requestVaccines, error: requestVaccineError } = await supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .select('vaccine_id')
       .gte('created_at', startDateStr)
       .lte('created_at', endDateStr);
@@ -404,7 +404,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 
     // Step 5: Get vaccine details for all these IDs
     const { data: vaccines, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('id, name, batch_number, created_at')
       .in('id', Array.from(vaccineIds));
 
@@ -423,7 +423,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 
       // Get ALL vaccination sessions for this month
       const { data: allSessions, error: allSessionsError } = await supabase
-        .from('vaccination_sessions')
+        .from('VaccinationSessions')
         .select('id, vaccine_id, administered, target, session_date')
         .gte('session_date', startDateStr)
         .lte('session_date', endDateStr);
@@ -443,7 +443,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
           // session.vaccine_id is barangay_vaccine_inventory.id
           // Get the vaccine_doses.id from barangay_vaccine_inventory
           const { data: inventoryData, error: invError } = await supabase
-            .from('barangay_vaccine_inventory')
+            .from('BarangayVaccineInventory')
             .select('vaccine_id')
             .eq('id', session.vaccine_id)
             .single();
@@ -456,7 +456,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
           // inventoryData.vaccine_id is vaccine_doses.id
           // Get the actual vaccines.id from vaccine_doses
           const { data: dosesData, error: dosesError } = await supabase
-            .from('vaccine_doses')
+            .from('VaccineDoses')
             .select('vaccine_id')
             .eq('id', inventoryData.vaccine_id)
             .single();
@@ -468,7 +468,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 
           // Now get the vaccine record using the actual vaccine_id
           const { data: sessionVaccine, error: vaccineError } = await supabase
-            .from('vaccines')
+            .from('Vaccines')
             .select('id, batch_number, name')
             .eq('id', dosesData.vaccine_id)
             .single();
@@ -518,7 +518,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
           // Query for previous month's report
           console.log(`  🔍 Looking for previous month (${previousMonthStr}) in database...`);
           const { data: prevMonthReport, error: prevMonthError } = await supabase
-            .from('vaccine_monthly_report')
+            .from('VaccineMonthlyReport')
             .select('ending_inventory, vaccine_id, month')
             .eq('vaccine_id', vaccine.id)
             .eq('month', previousMonthStr)
@@ -537,7 +537,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
             console.log(`  ⚠️ No previous month data found for ${vaccine.name} in ${previousMonthStr}`);
             // Fallback: Sum all inventory added BEFORE this month from barangay_vaccine_inventory
             const { data: inventoryBeforeMonth, error: beforeError } = await supabase
-              .from('barangay_vaccine_inventory')
+              .from('BarangayVaccineInventory')
               .select('quantity_dose, received_date')
               .eq('vaccine_id', vaccine.id)
               .lt('received_date', startDateStr);
@@ -556,7 +556,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       // Step 3: Also consider current barangay_vaccine_inventory quantity for this month start
       // Get inventory that existed at the START of this month (received before or on first day)
       const { data: inventoryAtMonthStart, error: monthStartError } = await supabase
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .select('quantity_dose, received_date')
         .eq('vaccine_id', vaccine.id)
         .lt('received_date', startDateStr);
@@ -572,7 +572,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       
       // Get current month's sessions to calculate how much was administered this month
       const { data: currentSessions, error: currentSessionError } = await supabase
-        .from('vaccination_sessions')
+        .from('VaccinationSessions')
         .select('administered')
         .eq('vaccine_id', vaccine.id)
         .gte('session_date', startDateStr)
@@ -589,7 +589,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       // + Sum of doses transferred via approved vaccine requests DURING this month
       // This represents actual stock that arrived/was added/transferred during the month
       const { data: inventoryAdditions, error: inventoryAddError } = await supabase
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .select('quantity_dose, received_date')
         .eq('vaccine_id', vaccine.id)
         .gte('received_date', startDateStr)
@@ -606,7 +606,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
       // Get all approved vaccine requests for this vaccine that were created during the month
       // Use the actual vaccine quantity_available from the vaccines table
       const { data: approvedRequests, error: requestError } = await supabase
-        .from('vaccine_requests')
+        .from('VaccineRequests')
         .select('quantity_dose, created_at')
         .eq('vaccine_id', vaccine.id)
         .eq('status', 'approved')
@@ -620,7 +620,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
         
         // Get current vaccine quantity_available from vaccines table
         const { data: vaccineData, error: vaccineDataError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('quantity_available')
           .eq('id', vaccine.id)
           .single();
@@ -637,7 +637,7 @@ export async function fetchMonthlyVaccineReport(barangayId, month) {
 
       // Get total current inventory for this vaccine across all barangays
       const { data: inventory, error: inventoryError } = await supabase
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .select('quantity_vial, quantity_dose')
         .eq('vaccine_id', vaccine.id);
 
@@ -792,7 +792,7 @@ async function saveMonthlyReportsToSupabase(reports, month) {
 
     // Strategy 1: Batch UPSERT (single call, most efficient)
     const { data, error } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .upsert(reportsToSave, { onConflict: 'vaccine_id,month' })
       .select();
 
@@ -820,7 +820,7 @@ async function saveMonthlyReportsAlternative(reportsToSave, month) {
     
     // Delete existing records for this month
     const { error: deleteError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .delete()
       .eq('month', month);
 
@@ -833,7 +833,7 @@ async function saveMonthlyReportsAlternative(reportsToSave, month) {
     // Insert new records
     console.log('📝 Inserting new records...');
     const { data, error: insertError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .insert(reportsToSave)
       .select();
 
@@ -862,7 +862,7 @@ export async function getOrCreateMonthlyReport(vaccineId, barangayId, month) {
   try {
     // Try to fetch existing report
     const { data: existing, error: fetchError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .select('*')
       .eq('vaccine_id', vaccineId)
       .eq('barangay_id', barangayId)
@@ -877,7 +877,7 @@ export async function getOrCreateMonthlyReport(vaccineId, barangayId, month) {
     if (fetchError?.code === 'PGRST116') {
       // Record not found, create it
       const { data: newReport, error: createError } = await supabase
-        .from('vaccine_monthly_report')
+        .from('VaccineMonthlyReport')
         .insert([{
           vaccine_id: vaccineId,
           barangay_id: barangayId,
@@ -940,7 +940,7 @@ export async function updateMonthlyReportIN(vaccineId, barangayId, month, quanti
     const statusInfo = determineStockStatus(stockPercent);
 
     const { error: updateError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .update({
         quantity_supplied: newSupplied,
         ending_inventory: endingInventory,
@@ -993,7 +993,7 @@ export async function updateMonthlyReportOUT(vaccineId, barangayId, month, quant
     const statusInfo = determineStockStatus(stockPercent);
 
     const { error: updateError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .update({
         quantity_used: newUsed,
         ending_inventory: endingInventory,
@@ -1046,7 +1046,7 @@ export async function updateMonthlyReportWastage(vaccineId, barangayId, month, q
     const statusInfo = determineStockStatus(stockPercent);
 
     const { error: updateError } = await supabase
-      .from('vaccine_monthly_report')
+      .from('VaccineMonthlyReport')
       .update({
         quantity_wastage: newWastage,
         ending_inventory: endingInventory,
@@ -1080,7 +1080,7 @@ export async function getAvailableMonths(barangayId) {
     
     // Get all vaccination sessions to determine available months
     let query = supabase
-      .from('vaccination_sessions')
+      .from('VaccinationSessions')
       .select('session_date');
     
     // Filter by barangay if provided

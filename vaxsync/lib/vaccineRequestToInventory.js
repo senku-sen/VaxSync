@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { supabaseAdmin } from "./supabaseAdmin";
-import { addBarangayVaccineInventory, updateBarangayVaccineInventory, deductMainVaccineInventory } from "./barangayVaccineInventory";
-import { VACCINE_VIAL_MAPPING } from "./vaccineVialMapping";
+import { addBarangayVaccineInventory, updateBarangayVaccineInventory, deductMainVaccineInventory } from "./BarangayVaccineInventory";
+import { VACCINE_VIAL_MAPPING } from "./VaccineVialMapping";
 
 /**
  * When a vaccine request is approved, transfer vaccines from source to destination barangay
@@ -37,7 +37,7 @@ export async function addApprovedRequestToInventory(
 
     // Fetch vaccine details to get batch number, expiry date, and quantity_available
     const { data: vaccine, error: vaccineError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('batch_number, expiry_date, name, quantity_available')
       .eq('id', vaccineId)
       .single();
@@ -57,7 +57,7 @@ export async function addApprovedRequestToInventory(
     
     console.log('🔍 Checking if vaccineId is vaccine_doses.id or vaccines.id:', vaccineId);
     const { data: vaccineDose, error: doseError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id, vaccine_id')
       .eq('id', vaccineId)
       .single();
@@ -71,7 +71,7 @@ export async function addApprovedRequestToInventory(
       // It's likely already a vaccines.id, need to find the vaccine_doses record
       console.log('ℹ️ vaccineId is vaccines.id, finding vaccine_doses record...');
       const { data: dose, error: dosesError } = await supabase
-        .from('vaccine_doses')
+        .from('VaccineDoses')
         .select('id, vaccine_id')
         .eq('vaccine_id', vaccineId)
         .limit(1)
@@ -93,7 +93,7 @@ export async function addApprovedRequestToInventory(
     console.log('📊 Step 1: Deducting from source barangay:', sourceBarangayId);
     
     const { data: sourceInventory, error: sourceError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('id, quantity_vial, quantity_dose')
       .eq('barangay_id', sourceBarangayId)
       .eq('vaccine_id', vaccineDoseId)
@@ -138,7 +138,7 @@ export async function addApprovedRequestToInventory(
     console.log('📦 Step 2: Adding to destination barangay:', destinationBarangayId);
     
     const { data: destInventory, error: destError } = await supabase
-      .from('barangay_vaccine_inventory')
+      .from('BarangayVaccineInventory')
       .select('id, quantity_vial, quantity_dose')
       .eq('barangay_id', destinationBarangayId)
       .eq('vaccine_id', vaccineDoseId)
@@ -218,7 +218,7 @@ export async function addApprovedRequestToInventory(
         
         // Deduct from specific vaccine_dose only
         const { data: dose, error: doseError } = await supabase
-          .from('vaccine_doses')
+          .from('VaccineDoses')
           .select('id, quantity_available')
           .eq('dose_code', doseCode)
           .eq('vaccine_id', vaccineId)
@@ -228,7 +228,7 @@ export async function addApprovedRequestToInventory(
           const newDoseQuantity = Math.max(0, dose.quantity_available - dosesToDeduct);
           
           const { error: updateError } = await supabase
-            .from('vaccine_doses')
+            .from('VaccineDoses')
             .update({
               quantity_available: newDoseQuantity,
               updated_at: new Date().toISOString()
@@ -248,7 +248,7 @@ export async function addApprovedRequestToInventory(
         console.log(`🔍 Fetching vaccines record with actualVaccineId: ${actualVaccineId}`);
         
         const { data: vaccine, error: vaccineError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('id, quantity_available')
           .eq('id', actualVaccineId)
           .single();
@@ -266,7 +266,7 @@ export async function addApprovedRequestToInventory(
           console.log(`🔑 Using ${supabaseAdmin ? 'ADMIN' : 'REGULAR'} client to update vaccines table`);
           
           const { error: updateError } = await client
-            .from('vaccines')
+            .from('Vaccines')
             .update({
               quantity_available: newVaccineQuantity
             })
@@ -315,7 +315,7 @@ export async function approveVaccineRequestAndAddToInventory(requestId) {
 
     // Get request details
     const { data: request, error: fetchError } = await supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .select('*')
       .eq('id', requestId)
       .single();
@@ -327,7 +327,7 @@ export async function approveVaccineRequestAndAddToInventory(requestId) {
 
     // Update request status to approved
     const { error: updateError } = await supabase
-      .from('vaccine_requests')
+      .from('VaccineRequests')
       .update({ status: 'approved' })
       .eq('id', requestId);
 

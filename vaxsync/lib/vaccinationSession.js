@@ -6,8 +6,8 @@
 // ============================================
 
 import { supabase } from "./supabase";
-import { deductBarangayVaccineInventory } from "./barangayVaccineInventory";
-import { getDosesPerVial } from "./vaccineVialMapping";
+import { deductBarangayVaccineInventory } from "./BarangayVaccineInventory";
+import { getDosesPerVial } from "./VaccineVialMapping";
 import { createInventoryChangeNotification } from "./notification";
 
 /**
@@ -32,7 +32,7 @@ export const createVaccinationSession = async (sessionData) => {
     // Step 1: Find vaccine_doses for this vaccine and get vaccine name
     // First get the vaccine name to look up doses per vial
     const { data: vaccineInfo, error: vaccineInfoError } = await supabase
-      .from('vaccines')
+      .from('Vaccines')
       .select('id, name')
       .eq('id', sessionData.vaccine_id)
       .single();
@@ -51,7 +51,7 @@ export const createVaccinationSession = async (sessionData) => {
 
     // Now find vaccine_doses for this vaccine
     const { data: vaccineDoses, error: dosesError } = await supabase
-      .from('vaccine_doses')
+      .from('VaccineDoses')
       .select('id, vaccine_id')
       .eq('vaccine_id', sessionData.vaccine_id);
 
@@ -76,7 +76,7 @@ export const createVaccinationSession = async (sessionData) => {
     // Step 2: Find barangay_vaccine_inventory for any of these vaccine_doses
     const vaccineDoseIds = vaccineDoses.map(d => d.id);
     const { data: inventoryData, error: inventoryError } = await supabase
-      .from("barangay_vaccine_inventory")
+      .from("BarangayVaccineInventory")
       .select("id, vaccine_id")
       .eq("barangay_id", sessionData.barangay_id)
       .in("vaccine_id", vaccineDoseIds)
@@ -223,7 +223,7 @@ export const createVaccinationSession = async (sessionData) => {
 
     // Now create the session with the barangay_vaccine_inventory ID
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .insert({
         barangay_id: sessionData.barangay_id,
         vaccine_id: inventoryData.id,  // Use barangay_vaccine_inventory ID
@@ -274,7 +274,7 @@ export const fetchVaccinationSessions = async (userId) => {
     console.log('Fetching vaccination sessions for user:', userId);
 
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("*")
       .eq("created_by", userId)
       .order("session_date", { ascending: false });
@@ -300,13 +300,13 @@ export const fetchVaccinationSessions = async (userId) => {
       // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
       const { data: inventoryData } = inventoryIds.length > 0 
         ? await supabase
-            .from("barangay_vaccine_inventory")
-            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .from("BarangayVaccineInventory")
+            .select("id, VaccineDoses(vaccine_id, Vaccines(id, name))")
             .in("id", inventoryIds)
         : { data: [] };
 
       const [barangaysData] = await Promise.all([
-        barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
+        barangayIds.length > 0 ? supabase.from("Barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
       const vaccinesMap = {};
@@ -366,7 +366,7 @@ export const fetchAllVaccinationSessions = async () => {
     console.log('Fetching all vaccination sessions');
 
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select("*")
       .order("session_date", { ascending: false });
 
@@ -391,13 +391,13 @@ export const fetchAllVaccinationSessions = async () => {
       // Fetch barangay_vaccine_inventory with nested vaccine_doses and vaccines
       const { data: inventoryData } = inventoryIds.length > 0 
         ? await supabase
-            .from("barangay_vaccine_inventory")
-            .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+            .from("BarangayVaccineInventory")
+            .select("id, VaccineDoses(vaccine_id, Vaccines(id, name))")
             .in("id", inventoryIds)
         : { data: [] };
 
       const [barangaysData] = await Promise.all([
-        barangayIds.length > 0 ? supabase.from("barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
+        barangayIds.length > 0 ? supabase.from("Barangays").select("id, name, municipality").in("id", barangayIds) : { data: [] }
       ]);
 
       const vaccinesMap = {};
@@ -459,7 +459,7 @@ export const updateVaccinationSession = async (sessionId, updateData) => {
     console.log('Updating vaccination session:', { sessionId, updateData });
 
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .update({
         session_date: updateData.session_date,
         session_time: updateData.session_time,
@@ -517,7 +517,7 @@ export const updateSessionAdministered = async (sessionId, administered, status 
     }
 
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .update(updateData)
       .eq("id", sessionId)
       .select();
@@ -559,7 +559,7 @@ export const updateSessionStatus = async (sessionId, status) => {
 
     // Fetch session to get current data BEFORE updating
     const { data: session, error: fetchError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select('id, vaccine_id, barangay_id, target, administered, status')
       .eq("id", sessionId)
       .single();
@@ -583,7 +583,7 @@ export const updateSessionStatus = async (sessionId, status) => {
     console.log('📊 Should process inventory restoration:', shouldProcessInventory);
 
     const { data, error } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .update({
         status: status,
         updated_at: new Date().toISOString()
@@ -649,7 +649,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       
       // Now get the actual vaccines.id from vaccine_doses
       const { data: doseRecord, error: doseError } = await supabase
-        .from('vaccine_doses')
+        .from('VaccineDoses')
         .select('vaccine_id')
         .eq('id', vaccineDoseId)
         .single();
@@ -668,7 +668,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       
       // Get vaccine name to determine doses per vial
       const { data: vaccineData, error: vaccineError } = await supabase
-        .from('vaccines')
+        .from('Vaccines')
         .select('name')
         .eq('id', actualVaccineId)
         .single();
@@ -766,7 +766,7 @@ export const deleteVaccinationSession = async (sessionId) => {
 
     // First, fetch the session to get vaccine and administered info
     const { data: session, error: fetchError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .select('id, vaccine_id, barangay_id, target, administered')
       .eq("id", sessionId)
       .single();
@@ -795,7 +795,7 @@ export const deleteVaccinationSession = async (sessionId) => {
 
     // Delete the session
     const { error: deleteError } = await supabase
-      .from("vaccination_sessions")
+      .from("VaccinationSessions")
       .delete()
       .eq("id", sessionId);
 
@@ -838,7 +838,7 @@ export const deleteVaccinationSession = async (sessionId) => {
       
       // Now get the actual vaccines.id from vaccine_doses
       const { data: doseRecord, error: doseError } = await supabase
-        .from('vaccine_doses')
+        .from('VaccineDoses')
         .select('vaccine_id')
         .eq('id', vaccineDoseId);
       
@@ -855,7 +855,7 @@ export const deleteVaccinationSession = async (sessionId) => {
         
         // Get vaccine name to determine doses per vial
         const { data: vaccineData, error: vaccineError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('name')
           .eq('id', actualVaccineId)
           .single();

@@ -16,7 +16,7 @@ export async function GET(request) {
 
     // Only check user_profiles table - simpler and faster
     const { data: existingProfile, error: profileError } = await supabase
-      .from('user_profiles')
+      .from('UserProfiles')
       .select('id')
       .eq('email', normalizedEmail)
       .maybeSingle();
@@ -50,7 +50,7 @@ export async function POST(request) {
     // Pre-check: if profile exists, consider it already registered
     try {
       const { data: existingProfile } = await supabase
-        .from('user_profiles')
+        .from('UserProfiles')
         .select('id')
         .eq('email', email.toLowerCase().trim())
         .maybeSingle();
@@ -146,7 +146,7 @@ export async function POST(request) {
 
         // Delete any auto-created profile (from trigger)
         await supabaseService
-          .from('user_profiles')
+          .from('UserProfiles')
           .delete()
           .eq('id', authData.user.id);
         console.log('Cleaned up any auto-created profile for:', authData.user.id);

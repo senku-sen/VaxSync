@@ -4,17 +4,17 @@
  */
 
 // Core offline hooks
-export { useOfflineApi } from './useOfflineApi';
-export { useOfflineData } from './useOfflineData';
-export { useOnlineStatus } from './useOnlineStatus';
+export { useOfflineApi } from './UseOfflineApi';
+export { useOfflineData } from './UseOfflineData';
+export { useOnlineStatus } from './UseOnlineStatus';
 
 // Feature-specific offline hooks
-export { useOfflineResidents } from './useOfflineResidents';
-export { useOfflineUsers } from './useOfflineUsers';
-export { useOfflineInventory } from './useOfflineInventory';
-export { useOfflineVaccineRequests } from './useOfflineVaccineRequests';
+export { useOfflineResidents } from './UseOfflineResidents';
+export { useOfflineUsers } from './UseOfflineUsers';
+export { useOfflineInventory } from './UseOfflineInventory';
+export { useOfflineVaccineRequests } from './UseOfflineVaccineRequests';
 
 // Re-export existing hooks
-export { default as useMobile } from './use-mobile';
+export { default as useMobile } from './UseMobile';
 
 

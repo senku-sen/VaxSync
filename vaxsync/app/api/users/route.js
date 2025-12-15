@@ -65,7 +65,7 @@ export async function DELETE(request) {
 
     // First, verify the user exists
     const { data: existingUser, error: checkError } = await supabase
-      .from("user_profiles")
+      .from("UserProfiles")
       .select("id, email, first_name, last_name")
       .eq("id", id)
       .single()
@@ -92,7 +92,7 @@ export async function DELETE(request) {
       // Try to update barangays to remove the reference (set to null)
       // Using service role key should bypass RLS
       const { error: barangayUpdateError } = await supabase
-        .from("barangays")
+        .from("Barangays")
         .update({ assigned_health_worker_id: null })
         .eq("assigned_health_worker_id", id)
 
@@ -125,7 +125,7 @@ export async function DELETE(request) {
     // Using service role key should bypass RLS
     console.log("Deleting user from user_profiles table...")
     const { data, error } = await supabase
-      .from("user_profiles")
+      .from("UserProfiles")
       .delete()
       .eq("id", id)
       .select()
@@ -234,7 +234,7 @@ export async function PATCH(request) {
 
     const supabase = createSupabaseAdminClient()
     const { data: updatedUser, error } = await supabase
-      .from("user_profiles")
+      .from("UserProfiles")
       .update(updatePayload)
       .eq("id", id)
       .select("id, first_name, last_name, email, user_role, address, assigned_barangay_id")

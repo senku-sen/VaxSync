@@ -7,7 +7,7 @@ import Header from "../../../../components/shared/Header";
 import { Button } from "@/components/ui/button";
 import { Search, Pencil, Trash2, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import DeleteUserModal from "@/components/modals/delete-user-modals";
+import DeleteUserModal from "@/components/modals/DeleteUserModals";
 import { useOffline } from "@/components/OfflineProvider";
 import { cacheData, getCachedData } from "@/lib/offlineStorage";
 import { queueOperation } from "@/lib/syncManager";
@@ -95,7 +95,7 @@ export default function HeadNurseUserManagement() {
 
       if (isOnline) {
         const { data, error: fetchError } = await supabase
-          .from("user_profiles")
+          .from("UserProfiles")
           .select(
             "id, first_name, last_name, email, user_role, address, assigned_barangay_id, date_of_birth, sex, created_at"
           )
@@ -184,7 +184,7 @@ export default function HeadNurseUserManagement() {
       try {
         // First, try to find existing RHU barangay
         const { data: existingRHU, error: fetchError } = await supabase
-          .from("barangays")
+          .from("Barangays")
           .select("id, name")
           .eq("name", "RHU")
           .maybeSingle();
@@ -202,7 +202,7 @@ export default function HeadNurseUserManagement() {
 
         // If RHU doesn't exist, create it
         const { data: newRHU, error: insertError } = await supabase
-          .from("barangays")
+          .from("Barangays")
           .insert({
             name: "RHU",
             municipality: "DAET"

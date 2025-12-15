@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Sidebar from '@/components/shared/Sidebar';
 import Header from '@/components/shared/Header';
-import { useAuth, AuthLoading } from '@/hooks/useAuth';
+import { useAuth, AuthLoading } from '@/hooks/UseAuth';
 
 export default function Page() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
@@ -29,7 +29,7 @@ export default function Page() {
         // Get user profile to find assigned barangay
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const { data: userProfile } = await supabase
-          .from('user_profiles')
+          .from('UserProfiles')
           .select('assigned_barangay_id')
           .eq('id', authUser.id)
           .single();
@@ -37,7 +37,7 @@ export default function Page() {
         const barangayId = userProfile?.assigned_barangay_id;
 
         // Get sessions for this barangay only (Head Nurse sees only their assigned barangay)
-        let sessionsQuery = supabase.from('vaccination_sessions').select('*');
+        let sessionsQuery = supabase.from('VaccinationSessions').select('*');
         if (barangayId) {
           sessionsQuery = sessionsQuery.eq('barangay_id', barangayId);
         }
@@ -48,7 +48,7 @@ export default function Page() {
         }
 
         const { data: vaccineList, error: vaccineError } = await supabase
-          .from('vaccines')
+          .from('Vaccines')
           .select('id, name');
         
         if (vaccineError) {
@@ -56,11 +56,11 @@ export default function Page() {
         }
 
         // Get residents for this barangay only
-        let residentsQuery = supabase.from('residents').select('*');
+        let residentsQuery = supabase.from('Residents').select('*');
         if (barangayId) {
           // Get barangay name first
           const { data: barangayData } = await supabase
-            .from('barangays')
+            .from('Barangays')
             .select('name')
             .eq('id', barangayId)
             .single();
@@ -82,7 +82,7 @@ export default function Page() {
         const nextWeekStr = nextWeek.toISOString().split('T')[0];
         
         let upcomingQuery = supabase
-          .from('vaccination_sessions')
+          .from('VaccinationSessions')
           .select('*, vaccines(name)')
           .gte('session_date', today)
           .lte('session_date', nextWeekStr);
@@ -98,7 +98,7 @@ export default function Page() {
         
         // Get vaccine requests for this barangay only
         let requestsQuery = supabase
-          .from('vaccine_requests')
+          .from('VaccineRequests')
           .select('*, vaccines(name)');
         
         if (barangayId) {
