@@ -52,6 +52,7 @@ export async function POST(req) {
     // If profile doesn't exist, try to create it from user metadata
     if (profileError || !profile) {
       console.log('Profile not found, attempting to create from user metadata...');
+      console.log('Profile error:', profileError?.code, profileError?.message);
       
       const userMetadata = authData.user.user_metadata || {};
       let profileData;
@@ -75,7 +76,9 @@ export async function POST(req) {
         // Create the missing profile
         // Use admin client to bypass RLS if available, otherwise use regular client
         const clientToUse = (hasSupabaseAdmin && supabaseAdmin) ? supabaseAdmin : supabase;
-        const { error: createError } = await clientToUse
+        console.log('Using client:', hasSupabaseAdmin && supabaseAdmin ? 'admin' : 'regular');
+        
+        const { data: createdProfile, error: createError } = await clientToUse
           .from('UserProfiles')
           .insert({
             id: authData.user.id,
@@ -89,7 +92,9 @@ export async function POST(req) {
             auth_code: profileData.auth_code,
             assigned_barangay_id: null,
             created_at: new Date().toISOString()
-          });
+          })
+          .select('first_name, last_name, user_role, address')
+          .single();
 
         if (createError) {
           console.error('Failed to create profile during signin:', createError);
@@ -99,27 +104,41 @@ export async function POST(req) {
             details: createError.details,
             hint: createError.hint,
             code: createError.code,
-            usingAdmin: hasSupabaseAdmin && !!supabaseAdmin
+            usingAdmin: hasSupabaseAdmin && !!supabaseAdmin,
+            hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
           });
           
-          // Return more detailed error for debugging (remove details in production if needed)
-          return NextResponse.json({ 
-            error: "Failed to create user profile. Please contact support.",
-            details: createError.message || 'Unknown error',
-            code: createError.code,
-            hint: createError.hint
-          }, { status: 500 });
+          // If profile creation fails, try to fetch again (maybe it was created by a trigger)
+          const { data: retryProfile } = await profileClient
+            .from('UserProfiles')
+            .select('first_name, last_name, user_role, address')
+            .eq('id', authData.user.id)
+            .single();
+          
+          if (retryProfile) {
+            console.log('Profile found on retry, using it');
+            profile = retryProfile;
+          } else {
+            // If we can't create or find profile, allow login with minimal data from metadata
+            // This prevents blocking legitimate users
+            console.warn('Profile creation failed, allowing login with minimal profile data');
+            profile = {
+              first_name: profileData.first_name || email.split('@')[0],
+              last_name: profileData.last_name || '',
+              user_role: profileData.user_role || 'Rural Health Midwife (RHM)',
+              address: profileData.address || ''
+            };
+            // Log the error but don't block login
+            console.error('Profile creation error (login allowed with minimal data):', {
+              message: createError.message,
+              code: createError.code,
+              hint: createError.hint
+            });
+          }
+        } else {
+          console.log('Profile created successfully during signin for user:', authData.user.id);
+          profile = createdProfile;
         }
-
-        console.log('Profile created successfully during signin for user:', authData.user.id);
-        
-        // Set profile for response
-        profile = {
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          user_role: profileData.user_role,
-          address: profileData.address
-        };
       } catch (parseError) {
         console.error('Error creating profile:', parseError);
         return NextResponse.json({ error: "Failed to fetch user profile" }, { status: 500 });
