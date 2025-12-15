@@ -67,7 +67,7 @@ export async function POST(request) {
       data: data?.[0],
     });
   } catch (error) {
-    console.error("Error in POST /api/session-beneficiaries:", error);
+    console.error("Error in POST /api/SessionBeneficiaries:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -110,7 +110,7 @@ export async function GET(request) {
       data: data || [],
     });
   } catch (error) {
-    console.error("Error in GET /api/session-beneficiaries:", error);
+    console.error("Error in GET /api/SessionBeneficiaries:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -149,7 +149,7 @@ export async function DELETE(request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error in DELETE /api/session-beneficiaries:", error);
+    console.error("Error in DELETE /api/SessionBeneficiaries:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

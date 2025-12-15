@@ -89,8 +89,8 @@ export default function ScheduleSessionModalWithParticipants({
           .filter(item => (item.quantity_vial || 0) > 0)
           .map(item => {
             // Get vaccine info from the nested structure
-            const vaccineDose = item.vaccine_doses;
-            const vaccine = vaccineDose?.vaccine;
+            const vaccineDose = item.VaccineDoses;
+            const vaccine = vaccineDose?.Vaccine;
             const vaccineId = vaccine?.id || vaccineDose?.vaccine_id || item.vaccine_id;
             const vaccineName = vaccine?.name || 'Unknown Vaccine';
             const doseCode = vaccineDose?.dose_code || '';

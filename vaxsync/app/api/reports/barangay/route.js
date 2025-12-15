@@ -76,15 +76,15 @@ export async function GET(request) {
     const inventoryIds = [...new Set(allSessions.map((s) => s.vaccine_id))];
     const { data: inventoryData } = await supabase
       .from("BarangayVaccineInventory")
-      .select("id, vaccine_doses(vaccine_id, vaccines(id, name))")
+      .select("id, VaccineDoses(vaccine_id, Vaccines(id, name))")
       .in("id", inventoryIds);
 
     // Create map of inventory.id to vaccine info
     const vaccinesMap = {};
     if (inventoryData) {
       inventoryData.forEach((inv) => {
-        if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-          vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+        if (inv.VaccineDoses && inv.VaccineDoses.Vaccines) {
+          vaccinesMap[inv.id] = inv.VaccineDoses.Vaccines;
         }
       });
     }

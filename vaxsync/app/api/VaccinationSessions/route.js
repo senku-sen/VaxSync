@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 /**
- * GET /api/vaccination-sessions
+ * GET /api/VaccinationSessions
  * Fetch vaccination sessions filtered by status and barangay
  * Query params:
  *   - status: comma-separated list of statuses (e.g., "Scheduled,In progress")
@@ -85,7 +85,7 @@ export async function GET(request) {
 
     // Transform data to match expected format
     const transformedData = data.map((session) => {
-      const vaccine = session.barangay_vaccine_inventory?.vaccine_doses?.vaccine;
+      const vaccine = session.BarangayVaccineInventory?.VaccineDoses?.Vaccine;
       const vaccineName = vaccine?.name || "Unknown";
       const doses = vaccine?.doses || 10;
       const vaccineDisplay = `${vaccineName} (${doses} doses)`;
@@ -97,7 +97,7 @@ export async function GET(request) {
         time: session.session_time,
         status: session.status,
         vaccine_name: vaccineDisplay,
-        barangay: session.barangays?.name || "Unknown",
+        barangay: session.Barangays?.name || "Unknown",
         target: session.target,
         administered: session.administered,
         sessionId: session.id,
@@ -112,7 +112,7 @@ export async function GET(request) {
       data: transformedData,
     });
   } catch (err) {
-    console.error("Unexpected error in GET /api/vaccination-sessions:", err);
+    console.error("Unexpected error in GET /api/VaccinationSessions:", err);
     return Response.json(
       { error: err.message || "Unexpected error" },
       { status: 500 }

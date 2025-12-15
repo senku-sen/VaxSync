@@ -21,8 +21,8 @@ export async function fetchVaccineRequestNotifications(userId) {
         notes,
         created_at,
         requested_at,
-        vaccines(name),
-        barangays(name)
+        Vaccines(name),
+        Barangays(name)
       `)
       .order("created_at", { ascending: false });
 
@@ -48,8 +48,8 @@ export async function fetchVaccineRequestNotifications(userId) {
           notes,
           created_at,
           requested_at,
-          vaccines(name),
-          barangays(name)
+          Vaccines(name),
+          Barangays(name)
         `)
         .order("created_at", { ascending: false });
       
@@ -75,7 +75,7 @@ export async function fetchVaccineRequestNotifications(userId) {
       const statusMessages = {
         pending: {
           title: "Vaccine Request Pending",
-          description: `Your request for ${request.vaccines?.name || "vaccine"} is awaiting approval`,
+          description: `Your request for ${request.Vaccines?.name || "vaccine"} is awaiting approval`,
           icon: "pending",
           color: "yellow",
         },
@@ -106,8 +106,8 @@ export async function fetchVaccineRequestNotifications(userId) {
         type: "vaccine-request",
         title: statusInfo.title,
         description: statusInfo.description,
-        vaccineName: request.vaccines?.name || "Unknown Vaccine",
-        barangayName: request.barangays?.name || "Unknown Barangay",
+        vaccineName: request.Vaccines?.name || "Unknown Vaccine",
+        barangayName: request.Barangays?.name || "Unknown Barangay",
         quantity: `${request.quantity_dose} doses${request.quantity_vial ? ` / ${request.quantity_vial} vials` : ""}`,
         status: request.status,
         requestId: request.id,
@@ -357,7 +357,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
         administered,
         status,
         created_at,
-        barangays(name)
+        Barangays(name)
       `)
       .order("session_date", { ascending: true });
 
@@ -441,7 +441,7 @@ export async function fetchVaccinationSessionNotifications(userId, barangayId = 
         title: statusInfo.title,
         description: statusInfo.description,
         vaccineName: vaccineDisplay,
-        barangayName: session.barangays?.name || "Unknown Barangay",
+        barangayName: session.Barangays?.name || "Unknown Barangay",
         sessionDate: sessionDate.toLocaleDateString(),
         sessionTime: session.session_time,
         target: session.target,

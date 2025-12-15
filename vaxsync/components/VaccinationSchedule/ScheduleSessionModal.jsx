@@ -83,8 +83,8 @@ export default function ScheduleSessionModal({
         const inventoryByVaccine = inventory.reduce((acc, item) => {
           if ((item.quantity_vial || 0) <= 0) return acc;
           
-          const vaccineDose = item.vaccine_doses || {};
-          const vaccine = vaccineDose.vaccine || {};
+          const vaccineDose = item.VaccineDoses || {};
+          const vaccine = vaccineDose.Vaccine || {};
           const vaccineId = vaccine.id || vaccineDose.vaccine_id || item.vaccine_id;
           
           if (!vaccineId) return acc;

@@ -25,14 +25,14 @@ export async function fetchBarangayVaccineInventory(barangayId) {
         received_date,
         created_at,
         updated_at,
-        vaccine_doses:vaccine_id (
+        VaccineDoses:vaccine_id (
           id,
           vaccine_id,
           dose_code,
           dose_label,
           dose_number,
           quantity_available,
-          vaccine:vaccine_id (
+          Vaccine:vaccine_id (
             id,
             name,
             doses

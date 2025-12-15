@@ -10,7 +10,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 /**
- * POST /api/monthly-reports
+ * POST /api/MonthlyReports
  * Generate monthly report records for all vaccines and barangays
  * Call this endpoint to create initial monthly report records
  */
@@ -100,12 +100,12 @@ export async function POST(request) {
 }
 
 /**
- * GET /api/monthly-reports?month=YYYY-MM-01
+ * GET /api/MonthlyReports?month=YYYY-MM-01
  * Get existing monthly report records for a specific month
  */
 export async function GET(request) {
   try {
-    console.log('GET /api/monthly-reports called');
+    console.log('GET /api/MonthlyReports called');
     
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');
@@ -152,13 +152,13 @@ export async function GET(request) {
 }
 
 /**
- * PUT /api/monthly-reports
+ * PUT /api/MonthlyReports
  * Update/Save a monthly report record
  * Body: { id, vaccine_id, month, initial_inventory, quantity_supplied, quantity_used, quantity_wastage, ending_inventory, vials_needed, max_allocation, stock_level_percentage, status }
  */
 export async function PUT(request) {
   try {
-    console.log('PUT /api/monthly-reports called');
+    console.log('PUT /api/MonthlyReports called');
     
     const body = await request.json();
     const { id, vaccine_id, month, initial_inventory, quantity_supplied, quantity_used, quantity_wastage, ending_inventory, vials_needed, max_allocation, stock_level_percentage, status } = body;

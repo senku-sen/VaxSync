@@ -67,7 +67,7 @@ export async function fetchVaccineRequests(options = {}) {
 
   let query = supabase
     .from("VaccineRequests")
-    .select("*, barangays(id, name, municipality)")
+    .select("*, Barangays(id, name, municipality)")
     .order("created_at", { ascending: false });
 
   // If not admin (Health Worker), filter by user
@@ -94,7 +94,7 @@ export async function fetchVaccineRequests(options = {}) {
     // Return all requests for now - they'll be filtered client-side if needed
     const { data: allData, error: altError } = await supabase
       .from("VaccineRequests")
-      .select("*, barangays(id, name, municipality)")
+      .select("*, Barangays(id, name, municipality)")
       .order("created_at", { ascending: false });
     return { data: allData || [], error: altError };
   }
@@ -232,7 +232,7 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
     let requestDetails = null;
     if (status === 'approved') {
       const { data, error: fetchError } = await supabase
-        .from('vaccine_requests')
+        .from('VaccineRequests')
         .select('*')
         .eq('id', requestId)
         .single();
@@ -259,8 +259,8 @@ export const updateVaccineRequestStatus = async (requestId, status) => {
       
       // Get the health worker's profile to find their assigned barangay
       const { data: requesterProfile, error: requesterError } = await supabase
-        .from('profiles')
-        .select('barangay_id, barangays(id, name)')
+        .from('UserProfiles')
+        .select('barangay_id, Barangays(id, name)')
         .eq('id', requestDetails.requested_by)
         .single();
       

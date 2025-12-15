@@ -116,7 +116,7 @@ export default function VaccineRequestDetailModal({
                 Barangay
               </label>
               <p className="mt-1 text-sm text-gray-900 font-medium">
-                {request.barangays?.name || "Loading..."}
+                {request.Barangays?.name || "Loading..."}
               </p>
             </div>
 

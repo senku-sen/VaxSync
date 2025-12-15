@@ -49,7 +49,7 @@ export default function VaccineRequestModalDoses({
       // Fetch all doses with available inventory from vaccine_doses table
       const { data: doses, error: err } = await supabase
         .from("VaccineDoses")
-        .select("dose_code, dose_label, quantity_available, vaccine_id, vaccines(name)")
+        .select("dose_code, dose_label, quantity_available, vaccine_id, Vaccines(name)")
         .gt("quantity_available", 0)  // Only doses with available inventory
         .order("dose_code");
 
@@ -73,7 +73,7 @@ export default function VaccineRequestModalDoses({
       const formattedDoses = Array.from(doseMap.values()).map(dose => ({
         value: dose.dose_code,
         label: `${dose.dose_code} (${dose.dose_label})`,
-        vaccine_name: dose.vaccines?.name,
+        vaccine_name: dose.Vaccines?.name,
         quantity_available: dose.quantity_available
       }));
 
@@ -92,7 +92,7 @@ export default function VaccineRequestModalDoses({
       // Fetch ALL doses with this dose_code (may have multiple from different batches)
       const { data: doses, error: err } = await supabase
         .from("VaccineDoses")
-        .select("*, vaccines(id, name)")
+        .select("*, Vaccines(id, name)")
         .eq("dose_code", doseCode)
         .order("created_at", { ascending: false });  // Get newest first
 
@@ -120,7 +120,7 @@ export default function VaccineRequestModalDoses({
         [doseCode]: {
           ...primaryDose,
           vaccine_id: primaryDose.vaccine_id,
-          vaccine_name: primaryDose.vaccines?.name || "Unknown Vaccine",
+          vaccine_name: primaryDose.Vaccines?.name || "Unknown Vaccine",
           quantity_available: totalQuantity,  // Sum of all batches
           dose_label: primaryDose.dose_label,
           batch_count: doses.length  // Track how many batches
@@ -130,7 +130,7 @@ export default function VaccineRequestModalDoses({
       console.log("✅ Dose details fetched:", {
         doseCode,
         vaccine_id: primaryDose.vaccine_id,
-        vaccine_name: primaryDose.vaccines?.name,
+        vaccine_name: primaryDose.Vaccines?.name,
         total_quantity_available: totalQuantity,
         batch_count: doses.length
       });

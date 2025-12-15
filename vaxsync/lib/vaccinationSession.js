@@ -189,7 +189,7 @@ export const createVaccinationSession = async (sessionData) => {
 
     // Get barangay name for notification
     const { data: barangayData } = await supabase
-      .from('barangays')
+      .from('Barangays')
       .select('name')
       .eq('id', sessionData.barangay_id)
       .single();
@@ -315,8 +315,8 @@ export const fetchVaccinationSessions = async (userId) => {
       // Build vaccines map from inventory data
       if (inventoryData) {
         inventoryData.forEach(inv => {
-          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+          if (inv.VaccineDoses && inv.VaccineDoses.Vaccines) {
+            vaccinesMap[inv.id] = inv.VaccineDoses.Vaccines;
           }
         });
       }
@@ -406,8 +406,8 @@ export const fetchAllVaccinationSessions = async () => {
       // Build vaccines map from inventory data
       if (inventoryData) {
         inventoryData.forEach(inv => {
-          if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-            vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+          if (inv.VaccineDoses && inv.VaccineDoses.Vaccines) {
+            vaccinesMap[inv.id] = inv.VaccineDoses.Vaccines;
           }
         });
       }
@@ -630,7 +630,7 @@ export const updateSessionStatus = async (sessionId, status) => {
       console.log('📊 Resolving vaccine_id chain from barangay_vaccine_inventory.id:', session.vaccine_id);
       
       const { data: inventoryRecord, error: inventoryError } = await supabase
-        .from('barangay_vaccine_inventory')
+        .from('BarangayVaccineInventory')
         .select('vaccine_id')
         .eq('id', session.vaccine_id)
         .single();
@@ -946,7 +946,7 @@ export const fetchVaccinesForSession = async () => {
     console.log('Fetching vaccines for session...');
 
     const { data, error } = await supabase
-      .from("vaccines")
+      .from("Vaccines")
       .select("id, name")
       .order("name");
 

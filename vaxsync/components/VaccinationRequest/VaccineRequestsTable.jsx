@@ -152,7 +152,7 @@ export default function VaccineRequestsTable({
                 {new Date(request.created_at).toLocaleDateString('en-CA')}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                {request.barangays?.name || 'Loading...'}
+                {request.Barangays?.name || 'Loading...'}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {request.notes ? request.notes.replace('Dose: ', '') : 'N/A'}

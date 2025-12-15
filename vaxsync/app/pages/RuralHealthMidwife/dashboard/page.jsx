@@ -83,7 +83,7 @@ export default function Page() {
         
         let upcomingQuery = supabase
           .from('VaccinationSessions')
-          .select('*, vaccines(name)')
+          .select('*, Vaccines(name)')
           .gte('session_date', today)
           .lte('session_date', nextWeekStr);
         
@@ -99,7 +99,7 @@ export default function Page() {
         // Get vaccine requests for this barangay only
         let requestsQuery = supabase
           .from('VaccineRequests')
-          .select('*, vaccines(name)');
+          .select('*, Vaccines(name)');
         
         if (barangayId) {
           requestsQuery = requestsQuery.eq('barangay_id', barangayId);
@@ -327,7 +327,7 @@ export default function Page() {
                     <div key={session.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                       <div>
                         <p className="font-medium text-gray-800">{new Date(session.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                        <p className="text-sm text-gray-600">{session.vaccines?.name || 'Vaccine'}</p>
+                        <p className="text-sm text-gray-600">{session.Vaccines?.name || 'Vaccine'}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-medium">{session.target - (session.administered || 0)} slots left</p>
@@ -354,7 +354,7 @@ export default function Page() {
                   vaccineRequests.slice(0, 5).map((request) => (
                     <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                       <div>
-                        <p className="font-medium text-gray-800">{request.vaccines?.name || 'Vaccine'}</p>
+                        <p className="font-medium text-gray-800">{request.Vaccines?.name || 'Vaccine'}</p>
                         <p className="text-sm text-gray-600">{request.quantity_dose} doses requested</p>
                       </div>
                       <div className="text-right">

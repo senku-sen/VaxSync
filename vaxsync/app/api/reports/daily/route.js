@@ -62,8 +62,8 @@ export async function GET(request) {
 
     if (inventoryData) {
       inventoryData.forEach((inv) => {
-        if (inv.vaccine_doses && inv.vaccine_doses.vaccines) {
-          vaccinesMap[inv.id] = inv.vaccine_doses.vaccines;
+        if (inv.VaccineDoses && inv.VaccineDoses.Vaccines) {
+          vaccinesMap[inv.id] = inv.VaccineDoses.Vaccines;
         }
       });
     }

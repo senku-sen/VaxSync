@@ -83,7 +83,17 @@ export async function POST(req) {
 
         if (createError) {
           console.error('Failed to create profile during signin:', createError);
-          return NextResponse.json({ error: "Failed to create user profile. Please contact support." }, { status: 500 });
+          // Log detailed error for debugging
+          console.error('Create error details:', {
+            message: createError.message,
+            details: createError.details,
+            hint: createError.hint,
+            code: createError.code
+          });
+          return NextResponse.json({ 
+            error: "Failed to create user profile. Please contact support.",
+            details: createError.message || 'Unknown error'
+          }, { status: 500 });
         }
 
         console.log('Profile created successfully during signin for user:', authData.user.id);

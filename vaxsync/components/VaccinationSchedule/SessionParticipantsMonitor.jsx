@@ -54,13 +54,13 @@ export default function SessionParticipantsMonitor({
     try {
       const { data: session, error: sessionError } = await supabase
         .from('VaccinationSessions')
-        .select('barangay_vaccine_inventory:vaccine_id(vaccine_doses:vaccine_id(vaccine_id))')
+        .select('BarangayVaccineInventory:vaccine_id(VaccineDoses:vaccine_id(vaccine_id))')
         .eq('id', sessionId)
         .single();
 
-      if (!sessionError && session?.barangay_vaccine_inventory?.vaccine_doses?.vaccine_id) {
-        setActualVaccineId(session.barangay_vaccine_inventory.vaccine_doses.vaccine_id);
-        console.log('Actual vaccine ID:', session.barangay_vaccine_inventory.vaccine_doses.vaccine_id);
+      if (!sessionError && session?.BarangayVaccineInventory?.VaccineDoses?.vaccine_id) {
+        setActualVaccineId(session.BarangayVaccineInventory.VaccineDoses.vaccine_id);
+        console.log('Actual vaccine ID:', session.BarangayVaccineInventory.VaccineDoses.vaccine_id);
       }
     } catch (err) {
       console.error('Error fetching actual vaccine ID:', err);
