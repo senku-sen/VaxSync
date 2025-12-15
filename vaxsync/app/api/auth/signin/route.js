@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin, hasSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export async function POST(req) {
   try {
@@ -35,11 +36,18 @@ export async function POST(req) {
     }
 
     // Get user profile to retrieve role
-    let { data: profile, error: profileError } = await supabase
+    // Try admin client first if available (bypasses RLS), then fall back to regular client
+    const profileClient = (hasSupabaseAdmin && supabaseAdmin) ? supabaseAdmin : supabase;
+    let { data: profile, error: profileError } = await profileClient
       .from('UserProfiles')
       .select('first_name, last_name, user_role, address')
       .eq('id', authData.user.id)
       .single();
+
+    // Log profile fetch error for debugging
+    if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = not found, which is expected
+      console.error('Error fetching profile:', profileError);
+    }
 
     // If profile doesn't exist, try to create it from user metadata
     if (profileError || !profile) {
@@ -65,7 +73,9 @@ export async function POST(req) {
         }
 
         // Create the missing profile
-        const { error: createError } = await supabase
+        // Use admin client to bypass RLS if available, otherwise use regular client
+        const clientToUse = (hasSupabaseAdmin && supabaseAdmin) ? supabaseAdmin : supabase;
+        const { error: createError } = await clientToUse
           .from('UserProfiles')
           .insert({
             id: authData.user.id,
@@ -88,11 +98,16 @@ export async function POST(req) {
             message: createError.message,
             details: createError.details,
             hint: createError.hint,
-            code: createError.code
+            code: createError.code,
+            usingAdmin: hasSupabaseAdmin && !!supabaseAdmin
           });
+          
+          // Return more detailed error for debugging (remove details in production if needed)
           return NextResponse.json({ 
             error: "Failed to create user profile. Please contact support.",
-            details: createError.message || 'Unknown error'
+            details: createError.message || 'Unknown error',
+            code: createError.code,
+            hint: createError.hint
           }, { status: 500 });
         }
 
