@@ -240,9 +240,9 @@ Related helper: `lib/vaccine.js`:
   - Auto-calc `ending_inventory` based on:
     - Initial, Supplied (IN), Used (OUT), Wastage.
 - **Tables**:
-  - `vaccine_monthly_report`
-  - `vaccine_monthly_report_with_details`
-  - `vaccines`, `barangay_vaccine_inventory`, `vaccination_sessions`
+  - `VaccineMonthlyReport`
+  - `VaccineMonthlyReportWithDetails`
+  - `Vaccines`, `BarangayVaccineInventory`, `VaccinationSessions`
 
 Supporting library: `lib/vaccineMonthlyReport.js` (complex logic for:
 
